@@ -110,35 +110,50 @@ export function EvidenceChips({ a }: { a: Pick<ArticleCard, 'evidence' | 'journa
   );
 }
 
-/** Resultado principal: nota do estudo, frase clara e o número em destaque. Só números reportados; ausências aparecem como ausências. */
-export function KeyResultPanel({ k, evidence, compact = false }: { k: KeyResult; evidence?: ArticleCard['evidence']; compact?: boolean }) {
-  const unit = k.unit === '%' ? '%' : k.unit ? ` ${k.unit}` : '';
-  const ci = k.ci ? `IC ${fmtNum(k.ci.level)}% ${fmtCi(k.ci)}` : 'IC não reportado';
-  const p = fmtP(k.p, k.pRaw) ?? 'p-valor não reportado';
+/** "Por que A1?": explicação da nota, sempre visível como botão (a nota é central para o leitor confiar). */
+export function WhyGrade({ evidence }: { evidence: ArticleCard['evidence'] }) {
+  const t = tierOf(evidence.grade);
   return (
-    <section aria-label="Resultado principal" className="tnum grid gap-1.5 border-t border-line pt-2 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="kicker m-0 text-muted">Resultado principal</p>
-        {evidence && (
-          <span className={`chip chip-grade-${tierOf(evidence.grade)}`} title={evidence.reasons.join(' · ')}>
-            Evidência {evidence.grade} · {TIER_LABEL[tierOf(evidence.grade)]}
-          </span>
-        )}
+    <details className="why-grade">
+      <summary>
+        <span className={`chip chip-grade-${t}`}>{evidence.grade}</span>
+        Por que {evidence.grade}? <span className="font-normal opacity-80">({TIER_LABEL[t]})</span>
+      </summary>
+      <div className="grid gap-1.5 px-3 pb-3 text-sm">
+        <ul className="m-0 list-disc pl-5">{evidence.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
+        <p className="m-0 text-xs text-muted">A letra vem do desenho do estudo (A: metanálise, revisão sistemática ou ensaio randomizado; B: coorte, caso-controle, diretriz; C: demais). O número cai com resultado sem IC/p-valor, amostra abaixo de 500 ou sinais de incerteza. A revista não entra nesta nota.</p>
       </div>
+    </details>
+  );
+}
+
+/** Resultado principal: frase clara, tabela com medida, IC e p, e o "Por que A1?". Só números reportados; ausências aparecem como ausências. */
+export function KeyResultPanel({ k, evidence, compact = false }: { k: KeyResult; evidence?: ArticleCard['evidence']; compact?: boolean }) {
+  return (
+    <section aria-label="Resultado principal" className="tnum grid gap-2 border-t border-line pt-2 text-sm">
+      <p className="kicker m-0 text-muted">Resultado principal</p>
       {k.plain && <p className={`m-0 font-serif font-semibold leading-snug ${compact ? 'text-base' : 'text-lg'}`}>{k.plain}</p>}
-      <p className="m-0 text-muted">{k.outcome}</p>
-      <p className="m-0 flex flex-wrap items-baseline gap-x-2">
-        {k.measure && <span className="text-muted">{k.measure}</span>}
-        <strong className={`${compact ? 'text-xl' : 'text-3xl'} font-bold leading-none text-ink`}>{fmtVal(k.estimate, k.estimateRaw)}{unit}</strong>
-      </p>
-      <p className="m-0 text-muted">{ci} · {p}</p>
-      {evidence && !compact && (
-        <details className="text-xs text-muted">
-          <summary className="cursor-pointer">Por que {evidence.grade}?</summary>
-          <ul className="m-0 mt-1 list-disc pl-5">{evidence.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
-          <p className="m-0 mt-1">A letra vem do desenho do estudo (A: metanálise, revisão sistemática ou ensaio randomizado; B: coorte, caso-controle, diretriz; C: demais). O número cai com resultado sem IC/p-valor, amostra abaixo de 500 ou sinais de incerteza. O periódico não entra nesta nota.</p>
-        </details>
-      )}
+      <dl className={`m-0 grid gap-x-5 gap-y-1 ${compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}>
+        <div className="col-span-full">
+          <dt className="kicker text-muted">Desfecho</dt>
+          <dd className="m-0 font-medium">{k.outcome}</dd>
+        </div>
+        <div>
+          <dt className="kicker text-muted">{k.measure ?? 'Medida'}</dt>
+          <dd className="m-0 font-semibold">{fmtVal(k.estimate, k.estimateRaw)}{k.unit === '%' ? '%' : k.unit ? ` ${k.unit}` : ''}</dd>
+        </div>
+        <div>
+          <dt className="kicker text-muted">IC {k.ci ? `${fmtNum(k.ci.level)}%` : ''}</dt>
+          <dd className="m-0 font-semibold">{k.ci ? fmtCi(k.ci) : <span className="font-normal text-muted">não reportado</span>}</dd>
+        </div>
+        {!compact && (
+          <div>
+            <dt className="kicker text-muted">p-valor</dt>
+            <dd className="m-0 font-semibold">{fmtP(k.p, k.pRaw) ?? <span className="font-normal text-muted">não reportado</span>}</dd>
+          </div>
+        )}
+      </dl>
+      {evidence && <WhyGrade evidence={evidence} />}
     </section>
   );
 }

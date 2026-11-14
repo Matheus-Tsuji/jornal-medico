@@ -1,5 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { loadConfig } from '../config.ts';
 import { copyDb } from './copy.ts';
 import { isRemote, openDb, REPO_ROOT } from './index.ts';
@@ -19,11 +19,22 @@ else if (cmd === 'backup') {
   console.log('Backup criado em', file);
 } else if (cmd === 'export-clean') {
   // Cópia para subir no Turso (produção): sem sessões, códigos de login nem a caixa postal de desenvolvimento.
-  const file = join(REPO_ROOT, 'data/export-producao.db');
+  // --vitrine: versão embutida no deploy da Vercel quando ainda não há Turso; vai para o Git, então sai sem
+  // nenhum dado de pessoa (usuários, leitura, salvos, avaliações, auditoria) nem a fila de jobs.
+  const vitrine = process.argv.includes('--vitrine');
+  const file = join(REPO_ROOT, vitrine ? 'apps/server/data/vitrine.db' : 'data/export-producao.db');
+  mkdirSync(dirname(file), { recursive: true });
   rmSync(file, { force: true });
   db.raw.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`);
   const x = openDb(file);
-  x.raw.exec("DELETE FROM sessions; DELETE FROM auth_challenges; DELETE FROM dev_outbox; UPDATE jobs SET status = 'queued', locked_by = NULL, lease_until = NULL WHERE status = 'running'; PRAGMA journal_mode = DELETE;");
+  x.raw.exec("DELETE FROM sessions; DELETE FROM auth_challenges; DELETE FROM dev_outbox; DELETE FROM app_secrets; UPDATE jobs SET status = 'queued', locked_by = NULL, lease_until = NULL WHERE status = 'running';");
+  if (vitrine) {
+    x.raw.exec(`PRAGMA foreign_keys = OFF;
+      DELETE FROM user_preferences; DELETE FROM bookmarks; DELETE FROM read_events; DELETE FROM feedback; DELETE FROM error_reports;
+      DELETE FROM subscriptions; DELETE FROM billing_events; DELETE FROM editorial_reviews; DELETE FROM audit_events; DELETE FROM users;
+      DELETE FROM jobs; DELETE FROM ingestion_runs; DELETE FROM ai_usage;`);
+  }
+  x.raw.exec('PRAGMA journal_mode = DELETE; VACUUM;');
   x.close();
   console.log('Cópia limpa em', file);
 } else if (cmd === 'push-remote') {

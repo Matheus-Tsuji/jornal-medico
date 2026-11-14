@@ -1,5 +1,7 @@
 // Configuração validada na inicialização. Falha cedo, com mensagem clara.
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
+import type { Db } from './db/index.ts';
 
 const bool = z
   .enum(['true', 'false', '1', '0', ''])
@@ -55,7 +57,21 @@ const schema = z.object({
   WEB_DIST: optStr,
 });
 
-export type Config = z.infer<typeof schema> & { sessionSecret: string; adminEmails: Set<string>; dbPath: string; emailLogin: boolean };
+export type Config = z.infer<typeof schema> & {
+  sessionSecret: string; adminEmails: Set<string>; dbPath: string; emailLogin: boolean;
+  /** Banco de vitrine em /tmp (sem Turso): o que os leitores salvam pode se perder. */
+  ephemeral?: boolean;
+};
+
+/** Completa segredos ausentes com valores gerados uma vez e guardados no banco (tabela app_secrets). */
+export function ensureSecrets(db: Db, cfg: Config): void {
+  const get = (name: string) => {
+    db.run('INSERT OR IGNORE INTO app_secrets (name, value, created_at) VALUES (?,?,?)', name, randomBytes(32).toString('hex'), new Date().toISOString());
+    return db.get<{ value: string }>('SELECT value FROM app_secrets WHERE name = ?', name)!.value;
+  };
+  if (!cfg.sessionSecret) cfg.sessionSecret = get('session_secret');
+  if (!cfg.PAYMENT_WEBHOOK_SECRET) cfg.PAYMENT_WEBHOOK_SECRET = get('payment_webhook_secret');
+}
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   // A integração Turso da Vercel cria TURSO_DATABASE_URL/TURSO_AUTH_TOKEN; os nomes próprios têm prioridade.
@@ -68,12 +84,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const c = parsed.data;
   const prod = c.NODE_ENV === 'production';
   if (prod) {
-    // Em produção não há atalhos: segredos obrigatórios. Sem provedor de e-mail real, o login por código fica
-    // desligado (emailLogin = false) e só o acesso de visitante funciona; o código nunca aparece na tela.
-    const missing: string[] = [];
-    if (!c.SESSION_SECRET || c.SESSION_SECRET.length < 32) missing.push('SESSION_SECRET (>=32 caracteres)');
-    if (!c.PAYMENT_WEBHOOK_SECRET) missing.push('PAYMENT_WEBHOOK_SECRET');
-    if (missing.length) throw new Error(`Produção exige: ${missing.join(', ')}`);
+    // Em produção não há segredo fixo de desenvolvimento: SESSION_SECRET e PAYMENT_WEBHOOK_SECRET vêm do ambiente
+    // ou são gerados uma vez e guardados no banco (ensureSecrets). Sem provedor de e-mail real, o login por código
+    // fica desligado (emailLogin = false) e só o acesso de visitante funciona; o código nunca aparece na tela.
+    if (c.SESSION_SECRET && c.SESSION_SECRET.length < 32) throw new Error('Produção exige SESSION_SECRET com 32 caracteres ou mais.');
   }
   if (c.AUTH_EMAIL_PROVIDER === 'resend' && (!c.AUTH_EMAIL_API_KEY || !c.AUTH_EMAIL_FROM)) {
     throw new Error('AUTH_EMAIL_PROVIDER=resend exige AUTH_EMAIL_API_KEY e AUTH_EMAIL_FROM');
@@ -85,7 +99,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     ...c,
     // Fora de produção, um segredo fixo de desenvolvimento evita configuração manual.
-    sessionSecret: c.SESSION_SECRET ?? 'dev-only-secret-not-for-production-000000',
+    sessionSecret: c.SESSION_SECRET ?? (prod ? '' : 'dev-only-secret-not-for-production-000000'),
     PAYMENT_WEBHOOK_SECRET: c.PAYMENT_WEBHOOK_SECRET ?? (prod ? undefined : 'dev-only-webhook-secret'),
     emailLogin: !(prod && c.AUTH_EMAIL_PROVIDER === 'console'),
     adminEmails: new Set(c.ADMIN_EMAILS.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)),

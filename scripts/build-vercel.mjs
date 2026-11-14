@@ -38,7 +38,7 @@ await build({
 });
 
 // Arquivos lidos em tempo de execução (migrações, prompts, preços de IA, tabela Qualis).
-for (const dir of ['apps/server/src/db/migrations', 'apps/server/src/ai/prompts', 'apps/server/config']) {
+for (const dir of ['apps/server/src/db/migrations', 'apps/server/src/ai/prompts', 'apps/server/config', 'apps/server/data']) {
   cpSync(dir, join(FUNC, 'root', dir), { recursive: true });
 }
 

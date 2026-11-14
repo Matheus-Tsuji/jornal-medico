@@ -289,6 +289,8 @@ export interface PublicConfig {
   devOutbox: boolean;
   /** false em produção sem provedor de e-mail: só o acesso de visitante funciona. */
   emailLogin: boolean;
+  /** Vitrine sem banco persistente: o que o leitor salva pode se perder. */
+  ephemeral: boolean;
   features: Record<string, boolean>;
   editionHour: string;
   timezone: string;

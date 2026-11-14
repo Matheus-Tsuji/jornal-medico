@@ -103,6 +103,14 @@ body {
 .chip-grade-A { border-color: var(--color-primary); color: var(--color-paper); background: var(--color-primary); }
 .chip-grade-B { border-color: var(--color-accent); color: var(--color-accent); }
 .chip-grade-C { border-color: var(--color-line); color: var(--color-muted); }
+/* "Por que A1?": botão de destaque (borda e fundo da cor da marca), abre a explicação da nota. */
+.why-grade { border: 1px solid var(--color-primary); border-radius: 0.5rem; background: var(--color-primary-soft); width: fit-content; max-width: 100%; }
+.why-grade[open] { width: 100%; }
+.why-grade > summary { display: flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; padding: 0.35rem 0.75rem; cursor: pointer; font-weight: 700; color: var(--color-primary); list-style: none; }
+.why-grade > summary::-webkit-details-marker { display: none; }
+.why-grade > summary::after { content: '▾'; margin-left: auto; padding-left: 0.5rem; }
+.why-grade[open] > summary::after { content: '▴'; }
+.why-grade > summary:hover { text-decoration: underline; }
 .scroll-x { overflow-x: auto; scrollbar-width: none; }
 .scroll-x::-webkit-scrollbar { display: none; }
 .skip-link { position: absolute; left: -999px; top: 0; }

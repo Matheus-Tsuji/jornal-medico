@@ -15,6 +15,14 @@ const MAX_CODES_PER_EMAIL_HOUR = 5;
 const MAX_CODES_PER_IP_HOUR = 20;
 const RESEND_COOLDOWN_S = 30;
 
+// Segredo vazio = ensureSecrets não rodou; falhar é melhor que assinar com string vazia.
+// Com o segredo guardado no banco (sem SESSION_SECRET no ambiente), um vazamento do banco expõe também o segredo:
+// defina SESSION_SECRET no ambiente ao ligar o login por e-mail.
+const secretOf = (cfg: Config) => {
+  if (!cfg.sessionSecret) throw new Error('Segredo de sessão não inicializado (ensureSecrets).');
+  return cfg.sessionSecret;
+};
+
 export async function requestCode(db: Db, cfg: Config, email: string, ip: string, send = sendMail): Promise<void> {
   const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
   const perEmail = db.get<{ n: number; last: string | null }>(
@@ -33,7 +41,7 @@ export async function requestCode(db: Db, cfg: Config, email: string, ip: string
     db.run('UPDATE auth_challenges SET used_at = ? WHERE email = ? AND used_at IS NULL', nowIso(), email);
     db.run(
       'INSERT INTO auth_challenges (id, email, code_hash, expires_at, ip, created_at) VALUES (?,?,?,?,?,?)',
-      id(), email, hmac(cfg.sessionSecret, `${email}:${code}`), new Date(Date.now() + CODE_TTL_MIN * 60_000).toISOString(), ip, nowIso(),
+      id(), email, hmac(secretOf(cfg), `${email}:${code}`), new Date(Date.now() + CODE_TTL_MIN * 60_000).toISOString(), ip, nowIso(),
     );
   });
   await send(db, cfg, email, `Seu código de acesso: ${code}`,
@@ -51,7 +59,7 @@ export function verifyCode(db: Db, cfg: Config, email: string, code: string, gue
     db.run('UPDATE auth_challenges SET used_at = ? WHERE id = ?', nowIso(), ch.id);
     throw invalid;
   }
-  if (!safeEqual(ch.code_hash, hmac(cfg.sessionSecret, `${email}:${code}`))) {
+  if (!safeEqual(ch.code_hash, hmac(secretOf(cfg), `${email}:${code}`))) {
     db.run('UPDATE auth_challenges SET attempts = attempts + 1 WHERE id = ?', ch.id);
     throw invalid;
   }

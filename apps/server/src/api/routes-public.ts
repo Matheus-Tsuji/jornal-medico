@@ -21,6 +21,7 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
       paymentProvider: cfg.PAYMENT_PROVIDER,
       devOutbox: cfg.NODE_ENV !== 'production' && cfg.AUTH_EMAIL_PROVIDER === 'console',
       emailLogin: cfg.emailLogin,
+      ephemeral: !!cfg.ephemeral,
       features: flags,
       editionHour: cfg.EDITION_HOUR,
       timezone: cfg.APP_TIMEZONE,

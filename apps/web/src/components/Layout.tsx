@@ -92,10 +92,17 @@ function Masthead({ prefs }: { prefs: LayoutCtx }) {
 
 function AreaNav() {
   const topics = useTopics();
+  const cfg = useConfig();
   const areas = (topics.data ?? []).filter((t) => t.level === 'area');
   const cls = ({ isActive }: { isActive: boolean }) =>
     `inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-3 text-sm ${isActive ? 'border-ink font-semibold' : 'border-transparent text-ink/80 hover:border-line'}`;
   return (
+    <>
+    {cfg.data?.ephemeral && (
+      <p role="status" className="m-0 border-t border-warning bg-warning-soft px-4 py-1.5 text-center text-xs font-medium text-warning">
+        Versão de demonstração: o que você salvar aqui pode se perder.
+      </p>
+    )}
     <nav aria-label="Seções" className="border-t border-line">
       <div className="mx-auto max-w-6xl"><ScrollRow className="flex justify-center-safe px-2" label="seções">
         <NavLink to="/jornal" className={cls} end>Hoje</NavLink>
@@ -109,6 +116,7 @@ function AreaNav() {
         <NavLink to="/mais-lidos" className={cls}>Mais lidos</NavLink>
       </ScrollRow></div>
     </nav>
+    </>
   );
 }
 

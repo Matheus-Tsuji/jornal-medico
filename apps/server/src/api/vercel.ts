@@ -3,13 +3,25 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import { loadConfig } from '../config.ts';
-import { openDb } from '../db/index.ts';
+import { copyFileSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { ensureSecrets, loadConfig } from '../config.ts';
+import { REPO_ROOT, isRemote, openDb } from '../db/index.ts';
 import { defaultDeps, log, schedule, workOnce } from '../worker/runner.ts';
 import { buildApp } from './app.ts';
 
 const cfg = loadConfig();
-const db = openDb(cfg.dbPath, cfg.DATABASE_AUTH_TOKEN);
+// Sem Turso configurado, roda numa "vitrine": cópia do banco embutida no deploy (sem dados pessoais), copiada
+// para /tmp, o único lugar gravável. Funciona, mas o que os leitores salvam se perde quando a instância recicla.
+function vitrine(): string {
+  const tmp = join(tmpdir(), 'jornal-vitrine.db');
+  if (!existsSync(tmp)) copyFileSync(join(REPO_ROOT, 'apps/server/data/vitrine.db'), tmp);
+  cfg.ephemeral = true;
+  return tmp;
+}
+const db = isRemote(cfg.dbPath) ? openDb(cfg.dbPath, cfg.DATABASE_AUTH_TOKEN) : openDb(vitrine());
+ensureSecrets(db, cfg);
 let app: Promise<FastifyInstance> | null = null;
 
 // Margem para terminar o job em curso antes do limite da função (maxDuration em build-vercel.mjs).
@@ -24,7 +36,7 @@ function cronAuthorized(header: string | undefined): boolean {
 
 async function cron(req: IncomingMessage, res: ServerResponse) {
   res.setHeader('content-type', 'application/json');
-  if (!cronAuthorized(req.headers.authorization)) {
+  if (!cronAuthorized(req.headers.authorization) || cfg.ephemeral) {
     res.statusCode = 401;
     res.end(JSON.stringify({ code: 'unauthorized' }));
     return;

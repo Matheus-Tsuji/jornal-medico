@@ -24,7 +24,10 @@ export async function api<T>(path: string, opts: { method?: string; body?: unkno
     throw new ApiError(0, 'offline', 'Sem conexão com o servidor. Verifique sua internet e tente novamente.');
   }
   const data = (await res.json().catch(() => null)) as (T & { code?: string; message?: string; requestId?: string }) | null;
-  if (!res.ok) throw new ApiError(res.status, data?.code ?? 'error', data?.message ?? 'Algo deu errado.', data?.requestId);
+  if (!res.ok) {
+    const fallback = res.status >= 500 ? 'O servidor está indisponível no momento. Tente de novo em instantes.' : 'Algo deu errado.';
+    throw new ApiError(res.status, data?.code ?? 'error', data?.message ?? fallback, data?.requestId);
+  }
   return data as T;
 }
 

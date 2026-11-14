@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { openDb, REPO_ROOT } from '../src/db/index.ts';
 import { copyDb } from '../src/db/copy.ts';
 import { seed } from '../src/db/seed.ts';
-import { loadConfig } from '../src/config.ts';
+import { ensureSecrets, loadConfig } from '../src/config.ts';
 import { H, login, setup, testConfig } from './helpers.ts';
 
 describe('leitor', () => {
@@ -96,8 +96,20 @@ describe('infraestrutura', () => {
     expect(dst.all('PRAGMA foreign_key_check')).toEqual([]);
   });
 
-  it('produção exige segredos (sem e-mail real, só desliga o login por código)', () => {
-    expect(() => loadConfig({ NODE_ENV: 'production' } as NodeJS.ProcessEnv)).toThrow(/SESSION_SECRET/);
+  it('produção sem segredos no ambiente: gera uma vez, guarda no banco e reusa; nunca usa o segredo de dev', () => {
+    const db = openDb(':memory:');
+    const a = loadConfig({ NODE_ENV: 'production' } as NodeJS.ProcessEnv);
+    expect(a.sessionSecret).toBe('');
+    ensureSecrets(db, a);
+    expect(a.sessionSecret).toMatch(/^[0-9a-f]{64}$/);
+    expect(a.PAYMENT_WEBHOOK_SECRET).toMatch(/^[0-9a-f]{64}$/);
+    const b = loadConfig({ NODE_ENV: 'production' } as NodeJS.ProcessEnv);
+    ensureSecrets(db, b); // "reinício": mesmo segredo, sessões continuam válidas
+    expect(b.sessionSecret).toBe(a.sessionSecret);
+    const env = loadConfig({ NODE_ENV: 'production', SESSION_SECRET: 's'.repeat(40) } as NodeJS.ProcessEnv);
+    ensureSecrets(db, env);
+    expect(env.sessionSecret).toBe('s'.repeat(40)); // o ambiente tem prioridade
+    expect(() => loadConfig({ NODE_ENV: 'production', SESSION_SECRET: 'curto' } as NodeJS.ProcessEnv)).toThrow(/SESSION_SECRET/);
     expect(() => loadConfig({ NODE_ENV: 'development', OPENAI_API_KEY: 'x' } as NodeJS.ProcessEnv)).toThrow(/OPENAI_ANALYSIS_MODEL/);
   });
 
