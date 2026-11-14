@@ -14,7 +14,7 @@ import { discover } from './ingestion.ts';
 
 const [cmd, arg] = process.argv.slice(2);
 const cfg = loadConfig();
-const db = openDb(cfg.dbPath);
+const db = openDb(cfg.dbPath, cfg.DATABASE_AUTH_TOKEN);
 const deps = defaultDeps(cfg);
 const out = (x: unknown) => console.log(JSON.stringify(x, null, 2));
 

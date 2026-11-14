@@ -6,7 +6,8 @@
 | Área | O que existe | Evidência |
 |---|---|---|
 | Monorepo | npm workspaces: `apps/server`, `apps/web`, `packages/contracts`, `services/recommender` | `npm run check` passa |
-| Banco | SQLite nativo (`node:sqlite`), WAL, migração `001_init.sql`, seed idempotente, backup `VACUUM INTO` | teste de reinício + backup/restore |
+| Banco | SQLite via `libsql` (arquivo local com WAL; Turso remoto na Vercel), migrações SQL, seed idempotente, backup `VACUUM INTO` e cópia limpa para produção (`npm run db:export`) | teste de reinício + backup/restore |
+| Deploy | Vercel via Build Output API (`npm run build:vercel`): estático + função da API + cron no lugar do worker; guia em `docs/deploy-vercel.md` | pacote testado localmente; **Turso e Vercel reais não testados** |
 | Auth | OTP 6 dígitos por e-mail, HMAC no banco, uso único, expiração, 5 tentativas, cooldown, limites por e-mail/IP, sessão revogável, logout-all, sem enumeração | `auth.test.ts` (8 testes) |
 | Leitor | Landing, entrar, onboarding em 3 passos, jornal (capa, Em 1 minuto, Para você, seções), edições anteriores, detalhe em duas camadas, explorar área→subárea→tema com filtros e cursor, salvos, histórico, mais lidos, preferências, privacidade (exportar/apagar/excluir), assinatura sandbox | e2e Playwright (8 testes) + capturas em `docs/screenshots/` |
 | Editorial | Fila, revisão lado a lado com a fonte, edição de texto, aprovar/rejeitar/pedir ajustes com justificativa, versões imutáveis e correções visíveis, composição e publicação de edição, jobs, fontes, custos de IA, relatos, flags, planos, usuários, auditoria | `editorial.test.ts` + e2e |

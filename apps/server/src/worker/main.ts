@@ -6,7 +6,7 @@ import { sleep } from '../lib/util.ts';
 import { defaultDeps, log, schedule, workOnce } from './runner.ts';
 
 const cfg = loadConfig();
-const db = openDb(cfg.dbPath);
+const db = openDb(cfg.dbPath, cfg.DATABASE_AUTH_TOKEN);
 const deps = defaultDeps(cfg);
 const workerId = `${hostname()}:${process.pid}`;
 let running = true;

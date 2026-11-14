@@ -16,7 +16,9 @@ Lista criada em 2026-11-14, com o trabalho **pausado** a pedido do Matheus.
 - [x] Bloco "Resultado principal": selo da nota com "Por que A1?", frase em português claro (`plainResult`, prompt `editorial.v3`) e número em destaque.
 - [ ] Revistas novas entram sem Qualis: automatizar a consulta à Sucupira (hoje é manual; a página é JSF e não tem API).
 - [ ] Médico validar os pesos da nota (amostra ≥ 500, IC/p, desenho).
-- [ ] Deploy na Vercel: a API usa SQLite em arquivo, worker contínuo e Python, que não rodam no modelo serverless da Vercel. Decidir: web na Vercel + API num host com disco (Render/Railway/Fly), ou migrar o banco para Postgres/libSQL e a fila para Vercel Cron.
+- [x] Preparado para "tudo na Vercel" (decisão do Matheus, 2026-11-14): banco via `libsql` (Turso), API como função, worker como Vercel Cron, `npm run build:vercel`. Guia: `docs/deploy-vercel.md`.
+- [ ] **Matheus:** criar conta no Turso e o banco (`npm run db:export` + `turso db create … --from-file`), importar o repo na Vercel e cadastrar as variáveis do guia. Sem Resend configurado a API não sobe em produção (proposital).
+- [ ] Primeiro deploy real: conferir `/health`, login, cron em Settings → Cron Jobs. Nada disso foi testado contra Turso/Vercel reais.
 - [ ] 10 PRs do Dependabot abertos no GitHub (vários são versões maiores; o TypeScript 7 já falha no CI). Revisar um a um, sem mesclar em bloco.
 - [x] Capa em modo prévia com artigos reais, conferida a 1440 px e 375 px, sem rolagem lateral e com aviso "Prévia automática".
 - [ ] "Edições" e "Mais lidos" ficam vazios com conteúdo real até existir uma edição publicada e leitores suficientes. Decidir se a prévia aparece em "Edições".

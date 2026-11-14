@@ -1,31 +1,46 @@
-// Acesso ao SQLite nativo do Node (node:sqlite). Todas as consultas usam parâmetros.
-import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
+// Acesso ao SQLite via libsql (API síncrona compatível com better-sqlite3). Todas as consultas usam parâmetros.
+// Local: arquivo (DATABASE_URL=file:./data/journal.db). Vercel: Turso remoto (DATABASE_URL=libsql://… + DATABASE_AUTH_TOKEN).
+import Database from 'libsql';
 import { readdirSync, readFileSync, mkdirSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
-const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'migrations');
+// JM_ROOT: no pacote da Vercel o código vira um arquivo só; a raiz dos arquivos de dados é informada pelo empacotador.
+export const REPO_ROOT = process.env.JM_ROOT ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+const MIGRATIONS_DIR = join(REPO_ROOT, 'apps/server/src/db/migrations');
 
 export type Row = Record<string, unknown>;
-export type Params = SQLInputValue[];
+export type Params = (null | number | bigint | string | Uint8Array)[];
+
+export const isRemote = (url: string) => /^(libsql|https?|wss?):\/\//.test(url);
+// libsql acrescenta _metadata (duração da consulta) em cada linha; não deve vazar para a API.
+const clean = <T>(r: unknown): T => {
+  if (r && typeof r === 'object') delete (r as Row)._metadata;
+  return r as T;
+};
 
 export class Db {
-  readonly raw: DatabaseSync;
-  constructor(path: string) {
+  readonly raw: Database.Database;
+  constructor(path: string, authToken?: string) {
+    if (isRemote(path)) {
+      // authToken é aceito pela conexão remota (libsql/index.js), mas falta nos tipos publicados.
+      this.raw = new Database(path, { authToken } as Database.Options);
+      this.raw.exec('PRAGMA foreign_keys = ON;');
+      return;
+    }
     const file = path === ':memory:' || isAbsolute(path) ? path : resolve(REPO_ROOT, path);
     if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
-    this.raw = new DatabaseSync(file);
+    this.raw = new Database(file);
     this.raw.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
     if (file !== ':memory:') this.raw.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;');
   }
   get<T = Row>(sql: string, ...params: Params): T | undefined {
-    return this.raw.prepare(sql).get(...params) as T | undefined;
+    return clean<T | undefined>(this.raw.prepare(sql).get(...params));
   }
   all<T = Row>(sql: string, ...params: Params): T[] {
-    return this.raw.prepare(sql).all(...params) as T[];
+    return (this.raw.prepare(sql).all(...params) as unknown[]).map((r) => clean<T>(r));
   }
-  run(sql: string, ...params: Params) {
+  run(sql: string, ...params: Params): { changes: number; lastInsertRowid: number | bigint } {
     return this.raw.prepare(sql).run(...params);
   }
   /** Transação síncrona; desfaz tudo se a função lançar. */
@@ -71,8 +86,8 @@ export function migrate(db: Db): string[] {
   return applied;
 }
 
-export function openDb(path: string): Db {
-  const db = new Db(path);
+export function openDb(path: string, authToken?: string): Db {
+  const db = new Db(path, authToken);
   migrate(db);
   return db;
 }

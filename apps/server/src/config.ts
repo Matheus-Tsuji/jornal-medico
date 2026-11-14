@@ -14,6 +14,10 @@ const schema = z.object({
   HOST: z.string().default('127.0.0.1'),
   PUBLIC_ORIGIN: z.string().url().default('http://localhost:5173'),
   DATABASE_URL: z.string().default('file:./data/journal.db'),
+  /** Token do Turso quando DATABASE_URL é remoto (libsql://…). */
+  DATABASE_AUTH_TOKEN: optStr,
+  /** Vercel Cron envia "Authorization: Bearer <CRON_SECRET>". */
+  CRON_SECRET: optStr,
   APP_TIMEZONE: z.string().default('America/Sao_Paulo'),
   EDITION_HOUR: z.string().regex(/^\d{2}:\d{2}$/).default('06:00'),
   BRAND_NAME: z.string().default('Jornal Médico'),

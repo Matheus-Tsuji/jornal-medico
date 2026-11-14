@@ -24,7 +24,8 @@ flowchart TD
 | Pasta/arquivo | Responsabilidade |
 |---|---|
 | `config.ts` | Validação do ambiente com zod; produção exige segredos e e-mail real |
-| `db/` | `node:sqlite`, migrações SQL versionadas, seed (taxonomia, fontes, planos, flags, demo) |
+| `db/` | `libsql` (API síncrona; arquivo local ou Turso remoto), migrações SQL versionadas, seed (taxonomia, fontes, planos, flags, demo) |
+| `api/vercel.ts` | Entrada da Vercel: a API como função + `/api/v1/cron/tick` (cron com `CRON_SECRET`) no lugar do worker |
 | `modules/auth.ts` | OTP de 6 dígitos (HMAC com segredo do servidor), sessões com token aleatório (só hash no banco) |
 | `modules/content.ts` | DTOs de leitura; regra de visibilidade (demo × real por flag) |
 | `modules/editorial.ts` | Fila, decisão auditada, versões imutáveis, composição e publicação |

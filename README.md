@@ -5,7 +5,8 @@ Jornal diário de atualização médica baseado em evidências: estudos selecion
 > Estado: **MVP beta funcional em ambiente local**. Leitores veem uma **edição de demonstração com estudos fictícios** (marcados em todas as telas) até a flag `real_content` ser ligada. Ingestão real do PubMed funciona; análise por IA exige `OPENAI_API_KEY`. Detalhes em [PROGRESS.md](PROGRESS.md).
 
 ## Requisitos
-- Node.js **24+** (usa `node:sqlite` nativo) e npm 11
+- Node.js **24+** e npm 11 (banco SQLite via `libsql`: arquivo local no desenvolvimento, Turso na Vercel)
+- Deploy: [docs/deploy-vercel.md](docs/deploy-vercel.md)
 - Python 3.11+ com `scikit-learn` e `pytest` (só para o recomendador opcional)
 
 ## Rodar localmente

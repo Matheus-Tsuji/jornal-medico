@@ -77,7 +77,8 @@ describe('infraestrutura', () => {
     expect(r.get<{ integrity_check: string }>('PRAGMA integrity_check')!.integrity_check).toBe('ok');
     expect(r.get<{ n: number }>('SELECT COUNT(*) AS n FROM articles')!.n).toBe(9);
     r.close();
-    rmSync(dir, { recursive: true, force: true });
+    // No Windows o libsql só solta o arquivo quando o coletor de lixo libera os statements; a pasta é temporária.
+    try { rmSync(dir, { recursive: true, force: true }); } catch { /* fica para a limpeza do sistema */ }
   });
 
   it('produção exige segredos e provedor real de e-mail', () => {

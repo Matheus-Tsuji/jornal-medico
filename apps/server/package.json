@@ -9,6 +9,7 @@
     "pipeline": "tsx --env-file-if-exists=../../.env src/worker/cli.ts",
     "db:migrate": "tsx --env-file-if-exists=../../.env src/db/cli.ts migrate",
     "db:seed": "tsx --env-file-if-exists=../../.env src/db/cli.ts seed",
+    "db:export": "tsx --env-file-if-exists=../../.env src/db/cli.ts export-clean",
     "db:backup": "tsx --env-file-if-exists=../../.env src/db/cli.ts backup",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
@@ -22,6 +23,7 @@
     "@jm/contracts": "*",
     "fast-xml-parser": "5.12.1",
     "fastify": "5.12.8",
+    "libsql": "^0.5.29",
     "zod": "4.6.7"
   },
   "devDependencies": {

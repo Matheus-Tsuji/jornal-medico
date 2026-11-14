@@ -1,7 +1,6 @@
 // Pipeline de análise: extração estruturada → validação → redação editorial → validação → fila editorial.
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { z } from 'zod';
 import { aiAnalysisSchema, type AiAnalysis } from '@jm/contracts';
 import type { Config } from '../config.ts';
@@ -12,7 +11,7 @@ import { insertAnalysis } from '../modules/analyses.ts';
 import type { AiProvider, Usage } from './provider.ts';
 import { validateAnalysis, validateEditorial } from './validator.ts';
 
-const PROMPTS = join(dirname(fileURLToPath(import.meta.url)), 'prompts');
+const PROMPTS = join(REPO_ROOT, 'apps/server/src/ai/prompts');
 export const PROMPT_VERSION = 'triage.v1+extraction.v2+editorial.v3';
 const TRIAGE = readFileSync(join(PROMPTS, 'triage.v1.md'), 'utf8');
 const EXTRACTION = readFileSync(join(PROMPTS, 'extraction.v2.md'), 'utf8');
