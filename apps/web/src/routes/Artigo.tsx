@@ -29,29 +29,29 @@ const Text = ({ v }: { v: string | null | undefined }) => (v ? <p className="m-0
 function ResultsTable({ results }: { results: EvidenceResultDto[] }) {
   if (!results.length) return <Missing>Este tipo de publicação não traz resultados quantitativos estruturados (por exemplo, diretrizes e revisões narrativas).</Missing>;
   return (
-    <div className="overflow-x-auto">
-      <table className="tnum w-full min-w-[640px] border-collapse text-left text-sm">
+    <div className="min-w-0">
+      <table role="table" className="results-table tnum w-full border-collapse text-left text-sm">
         <caption className="sr-only">Resultados quantitativos reportados pelo estudo</caption>
-        <thead>
-          <tr className="border-b-2 border-ink text-xs">
-            {['Desfecho', 'Medida', 'Estimativa', 'IC', 'p-valor', 'n', 'Origem'].map((h) => <th key={h} scope="col" className="py-2 pr-3 font-semibold">{h}</th>)}
+        <thead role="rowgroup">
+          <tr role="row" className="border-b-2 border-ink text-xs">
+            {['Desfecho', 'Medida', 'Estimativa', 'IC', 'p-valor', 'n', 'Origem'].map((h) => <th role="columnheader" key={h} scope="col" className="py-2 pr-3 font-semibold">{h}</th>)}
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {results.map((r) => (
-            <tr key={r.id} className="border-b border-line align-top">
-              <th scope="row" className="py-2 pr-3 font-medium">
+            <tr role="row" key={r.id} className="border-b border-line align-top">
+              <th role="rowheader" scope="row" className="py-2 pr-3 font-medium">
                 {r.outcome}
                 <span className="block text-xs font-normal text-muted">
                   {[{ primary: 'primário', secondary: 'secundário', safety: 'segurança', subgroup: 'subgrupo', other: 'outro', unknown: '' }[r.outcomeType], r.comparator && `vs ${r.comparator}`, r.timepoint, r.adjusted ? 'ajustado' : null].filter(Boolean).join(' · ')}
                 </span>
               </th>
-              <td className="py-2 pr-3">{r.measure ?? '—'}</td>
-              <td className="py-2 pr-3 font-semibold" title={r.estimateRaw ?? undefined}>{fmtVal(r.estimate, r.estimateRaw)}{r.estimate !== null && r.unit === '%' ? '%' : r.estimate !== null && r.unit ? ` ${r.unit}` : ''}</td>
-              <td className="py-2 pr-3" title={r.confidenceInterval?.raw}>{r.confidenceInterval ? `${fmtNum(r.confidenceInterval.level)}%: ${fmtCi(r.confidenceInterval)}` : <span className="text-muted">não reportado</span>}</td>
-              <td className="py-2 pr-3" title={r.pValue?.raw}>{fmtP(r.pValue, r.pValue?.raw) ?? <span className="text-muted">não reportado</span>}</td>
-              <td className="py-2 pr-3">{r.sampleSize?.toLocaleString('pt-BR') ?? '—'}</td>
-              <td className="py-2 text-xs text-muted">{locatorLabel[r.evidenceRef.locator] ?? r.evidenceRef.locator}{r.missingReason ? ` · ${r.missingReason}` : ''}</td>
+              <td role="cell" className="py-2 pr-3"><span className="result-label" aria-hidden="true">Medida</span>{r.measure ?? '—'}</td>
+              <td role="cell" className="py-2 pr-3 font-semibold" title={r.estimateRaw ?? undefined}><span className="result-label" aria-hidden="true">Estimativa</span>{fmtVal(r.estimate, r.estimateRaw)}{r.estimate !== null && r.unit === '%' ? '%' : r.estimate !== null && r.unit ? ` ${r.unit}` : ''}</td>
+              <td role="cell" className="py-2 pr-3" title={r.confidenceInterval?.raw}><span className="result-label" aria-hidden="true">Intervalo de confiança</span>{r.confidenceInterval ? `${fmtNum(r.confidenceInterval.level)}%: ${fmtCi(r.confidenceInterval)}` : <span className="text-muted">não reportado</span>}</td>
+              <td role="cell" className="py-2 pr-3" title={r.pValue?.raw}><span className="result-label" aria-hidden="true">p-valor</span>{fmtP(r.pValue, r.pValue?.raw) ?? <span className="text-muted">não reportado</span>}</td>
+              <td role="cell" className="py-2 pr-3"><span className="result-label" aria-hidden="true">Amostra (n)</span>{r.sampleSize?.toLocaleString('pt-BR') ?? '—'}</td>
+              <td role="cell" className="py-2 text-xs text-muted"><span className="result-label" aria-hidden="true">Origem</span>{locatorLabel[r.evidenceRef.locator] ?? r.evidenceRef.locator}{r.missingReason ? ` · ${r.missingReason}` : ''}</td>
             </tr>
           ))}
         </tbody>
@@ -151,7 +151,7 @@ function Actions({ a }: { a: ArticleDetail }) {
     try { await navigator.clipboard.writeText(text); setCopied(what); setTimeout(() => setCopied(''), 2000); } catch { setCopied('erro'); }
   };
   return (
-    <aside aria-label="Ações" className="grid content-start gap-2 lg:sticky lg:top-36 lg:self-start">
+    <aside aria-label="Ações" className="grid content-start gap-2 xl:sticky xl:top-36 xl:self-start">
       {a.canonicalUrl ? (
         <a href={a.canonicalUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary"><ExternalLink size={16} aria-hidden /> Abrir publicação original</a>
       ) : (
@@ -176,6 +176,8 @@ function Actions({ a }: { a: ArticleDetail }) {
         {fb && <p role="status" className="m-0 mt-2 text-xs text-muted">Obrigado: isso ajusta apenas a ordem da sua seleção pessoal.</p>}
       </div>
       <button type="button" className="btn btn-danger mt-2" onClick={() => !need() && setReport(true)}><Flag size={16} aria-hidden /> Sinalizar erro científico</button>
+      {(save.error || done.error || feedback.error) && <p role="alert" className="m-0 text-sm text-danger">{(save.error || done.error || feedback.error)?.message} Tente novamente.</p>}
+      {copied === 'erro' && <p role="alert" className="m-0 text-sm text-danger">Não foi possível copiar. Selecione o texto e copie manualmente.</p>}
       {report && <ReportDialog articleId={a.id} onClose={() => setReport(false)} />}
     </aside>
   );
@@ -187,10 +189,10 @@ export default function Artigo() {
   const me = useMe();
   const topics = useTopics();
   const q = useQuery({ queryKey: ['article', slug, me.data?.id ?? 'anon'], queryFn: () => api<ArticleDetail>(`/articles/${slug}`) });
-  const loggedRead = useRef(false);
+  const loggedRead = useRef<string | null>(null);
   useEffect(() => {
-    if (q.data && me.data && !loggedRead.current) {
-      loggedRead.current = true;
+    if (q.data && me.data && loggedRead.current !== `${me.data.id}:${q.data.id}`) {
+      loggedRead.current = `${me.data.id}:${q.data.id}`;
       api('/events/read', { method: 'POST', body: { articleId: q.data.id, kind: 'open' } }).catch(() => {});
     }
   }, [q.data, me.data]);
@@ -236,13 +238,48 @@ export default function Artigo() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_17rem]">
-        <div>
+      <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="article-reading min-w-0">
           <header className="grid gap-3 pb-6">
             <p className="kicker m-0 text-muted">{designLabels[a.studyDesign]} · {a.publicationType}</p>
             <h1 className="m-0 font-serif text-3xl leading-tight font-bold tracking-tight text-balance sm:text-[2.6rem]">{a.headline}</h1>
-            <p className="m-0 text-sm text-muted">Título original: <span lang="en" className="italic">{a.originalTitle}</span></p>
             <StatusChips a={a} />
+            <p className="m-0 text-sm text-muted">{a.journal ?? a.sourceName} · {fmtDate(a.pubDate)}</p>
+          </header>
+
+          <nav aria-label="Nesta análise" className="article-jump mb-6">
+            <a href="#rapida">Leitura rápida</a>
+            {an && !prefs.quick && <>
+              <a href="#desenho">População e métodos</a>
+              <a href="#resultados">Resultados</a>
+              <a href="#limitacoes">Limitações</a>
+              <a href="#rastreabilidade">Fontes e revisão</a>
+            </>}
+          </nav>
+
+          {/* Camada 1: leitura rápida */}
+          <section aria-labelledby="rapida" className="rule-strong pt-4">
+            <h2 id="rapida" className="kicker m-0 mb-3 text-ink">Leitura rápida</h2>
+            {a.inShort && <p className="m-0 mb-4 border-l-4 border-primary bg-primary-soft px-4 py-3 font-serif text-lg leading-relaxed"><span className="kicker mb-1 block text-primary">Em poucas palavras</span>{a.inShort}</p>}
+            {a.keyResult && <div className="mb-5"><KeyResultPanel k={a.keyResult} evidence={a.evidence} /></div>}
+            {an && <div className="mb-5 border-y border-line py-4">
+              <h3 className="m-0 mb-2 font-serif text-xl font-bold">Limitações em destaque</h3>
+              {an.limitations.length
+                ? <ul className="m-0 grid gap-2 pl-5">{an.limitations.slice(0, 2).map((l) => <li key={l}>{l}</li>)}</ul>
+                : <Missing>Limitações não informadas no material disponível.</Missing>}
+              {!prefs.quick && <a href="#limitacoes" className="link mt-2 inline-flex min-h-11 items-center text-sm">Ver limitações, vieses e conflitos</a>}
+            </div>}
+            <div className="prose-jm font-serif text-[1.08rem]"><p>{a.summary}</p></div>
+            <p className="m-0 text-xs text-muted">
+              {an?.inputScope === 'abstract_only' || a.accessStatus === 'abstract_only' ? 'Análise baseada somente no abstract.' : an?.inputScope === 'full_text' ? 'Análise baseada no texto integral autorizado.' : ''}
+            </p>
+
+          </section>
+
+          <details className="publication-details my-6 border-y border-line py-2">
+            <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-primary">Sobre a publicação · autores, DOI e classificação</summary>
+            <div className="grid gap-3 pb-3 pt-2">
+            <p className="m-0 text-sm text-muted">Título original: <span lang="en" className="italic">{a.originalTitle}</span></p>
             <dl className="tnum m-0 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
               <div><dt className="inline text-muted">Autores: </dt><dd className="inline">{a.authors.join(', ') || '—'}</dd></div>
               <div><dt className="inline text-muted">Periódico/fonte: </dt><dd className="inline">{a.journal ?? a.sourceName}</dd></div>
@@ -261,18 +298,8 @@ export default function Artigo() {
                 </dd>
               </div>
             </dl>
-          </header>
-
-          {/* Camada 1: leitura rápida */}
-          <section aria-labelledby="rapida" className="rule-strong pt-4">
-            <h2 id="rapida" className="kicker m-0 mb-3 text-ink">Leitura rápida</h2>
-            {a.inShort && <p className="m-0 mb-4 border-l-4 border-primary bg-primary-soft px-4 py-3 font-serif text-lg leading-relaxed"><span className="kicker mb-1 block text-primary">Em poucas palavras</span>{a.inShort}</p>}
-            <div className="prose-jm font-serif text-[1.08rem]"><p>{a.summary}</p></div>
-            <p className="m-0 text-xs text-muted">
-              {an?.inputScope === 'abstract_only' || a.accessStatus === 'abstract_only' ? 'Análise baseada somente no abstract.' : an?.inputScope === 'full_text' ? 'Análise baseada no texto integral autorizado.' : ''}
-            </p>
-            {a.keyResult && <div className="mt-4"><KeyResultPanel k={a.keyResult} evidence={a.evidence} /></div>}
-          </section>
+            </div>
+          </details>
 
           {a.locked && (
             <div className="rule-top mt-6 py-6">

@@ -3,7 +3,7 @@
 import type { Db, Row } from '../db/index.ts';
 import { id, nowIso } from '../lib/util.ts';
 
-export type JobType = 'discover' | 'analyze' | 'compose' | 'recheck';
+export type JobType = 'discover' | 'analyze' | 'compose' | 'recheck' | 'monitor';
 export interface Job { id: string; type: JobType; payload: Record<string, unknown>; attempts: number; max_attempts: number; idempotency_key: string }
 
 export function enqueue(db: Db, type: JobType, key: string, payload: Record<string, unknown> = {}, opts: { runAt?: string; maxAttempts?: number } = {}): { id: string; created: boolean } {

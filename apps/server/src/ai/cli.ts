@@ -2,6 +2,7 @@
 //   npm run ai -- models   → lista os modelos disponíveis no SEU projeto OpenAI (para escolher os IDs)
 //   npm run ai -- ping     → chamada mínima com saída estruturada estrita usando os modelos do .env
 // Não grava nada no banco e nunca imprime a chave.
+import { loadConfig } from '../config.ts';
 import { safeFetch } from '../lib/net.ts';
 import { openAiProvider } from './provider.ts';
 import { editorialSchema } from './analysis.ts';
@@ -25,6 +26,7 @@ if (cmd === 'models') {
   console.log(`${ids.length} modelos disponíveis neste projeto (mais recentes primeiro):`);
   for (const id of ids) console.log(`  ${id}`);
 } else if (cmd === 'ping') {
+  loadConfig();
   const models = { OPENAI_ANALYSIS_MODEL: process.env.OPENAI_ANALYSIS_MODEL, OPENAI_EDITORIAL_MODEL: process.env.OPENAI_EDITORIAL_MODEL };
   const provider = openAiProvider(key);
   for (const [name, model] of Object.entries(models)) {

@@ -58,9 +58,9 @@ function Masthead({ prefs }: { prefs: LayoutCtx }) {
     <header className="sticky top-0 z-20 border-b border-line bg-paper/95 backdrop-blur-sm">
       <div className="mx-auto max-w-6xl px-4">
         <div className="flex items-center justify-between gap-3 py-2 text-xs text-muted">
-          <p className="m-0 first-letter:uppercase">{fmtLongDate(todayIso())}</p>
-          <div className="flex items-center gap-1.5">
-            <button type="button" onClick={prefs.toggleQuick} aria-pressed={prefs.quick} className={`btn !min-h-9 !px-2.5 text-xs ${prefs.quick ? 'btn-primary' : 'btn-ghost'}`} title="Mostra só a camada de leitura rápida">
+          <p className="masthead-date m-0 first-letter:uppercase">{fmtLongDate(todayIso())}</p>
+          <div className="masthead-tools flex items-center gap-1.5">
+            <button type="button" onClick={prefs.toggleQuick} aria-pressed={prefs.quick} className={`btn !min-h-9 !px-2.5 text-xs ${prefs.quick ? 'btn-primary' : 'btn-ghost'}`} aria-label="Leitura rápida" title="Mostra só a camada de leitura rápida">
               <BookOpen size={14} aria-hidden /> <span className="hidden sm:inline">Leitura rápida</span>
             </button>
             <button type="button" onClick={prefs.cycleScale} className="btn btn-ghost !min-h-9 !px-2.5 text-xs" aria-label={`Tamanho do texto: ${Math.round(Number(prefs.scale) * 100)}%`}>
@@ -106,6 +106,8 @@ function AreaNav() {
     <nav aria-label="Seções" className="border-t border-line">
       <div className="mx-auto max-w-6xl"><ScrollRow className="flex justify-center-safe px-2" label="seções">
         <NavLink to="/jornal" className={cls} end>Hoje</NavLink>
+        <NavLink to="/regulacao" className={cls}>Saúde pública e regulação</NavLink>
+        <NavLink to="/publicacoes" className={cls}>Publicações científicas</NavLink>
         {areas.map((a) => (
           <NavLink key={a.slug} to={`/areas/${a.slug}`} className={cls}>
             {a.label}
@@ -127,7 +129,7 @@ function Footer() {
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 text-sm text-muted sm:grid-cols-3">
         <div>
           <div className="flex items-center gap-3"><Seal size={52} /><Wordmark name={cfg.data?.brandName ?? 'Jornal Médico'} size="sm" /></div>
-          <p className="mt-2">Conteúdo informativo para profissionais de saúde. Resumos produzidos com apoio de IA e revisados por editor antes da publicação. Não substitui a leitura da fonte original nem orienta conduta para pacientes.</p>
+          <p className="mt-2">Conteúdo informativo para profissionais de saúde. Edições publicadas passam por revisão editorial. Prévias automáticas são identificadas e ainda aguardam revisão. Não substitui a leitura da fonte original nem orienta conduta para pacientes.</p>
         </div>
         <nav aria-label="Rodapé" className="grid content-start gap-1.5">
           <Link to="/metodologia" className="link">Metodologia e fontes</Link>

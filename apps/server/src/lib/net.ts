@@ -2,7 +2,7 @@
 // Nenhuma rotina generativa recebe esta função; URLs vindas de documentos nunca são buscadas.
 import { AppError } from './util.ts';
 
-const ALLOWED_HOSTS = new Set(['eutils.ncbi.nlm.nih.gov', 'api.openai.com', 'api.resend.com']);
+const ALLOWED_HOSTS = new Set(['eutils.ncbi.nlm.nih.gov', 'api.openai.com', 'api.resend.com', 'dadosabertos.camara.leg.br', 'api.crossref.org']);
 
 export class TransientError extends Error {
   constructor(message: string, public retryAfterMs?: number) {

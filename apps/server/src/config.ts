@@ -95,6 +95,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (c.OPENAI_API_KEY && !(c.OPENAI_ANALYSIS_MODEL && c.OPENAI_EDITORIAL_MODEL)) {
     throw new Error('Com OPENAI_API_KEY, defina OPENAI_ANALYSIS_MODEL e OPENAI_EDITORIAL_MODEL (IDs do catálogo do seu projeto OpenAI). OPENAI_TRIAGE_MODEL (opcional) liga a triagem por IA antes da análise.');
   }
+  for (const field of ['OPENAI_TRIAGE_MODEL', 'OPENAI_ANALYSIS_MODEL', 'OPENAI_EDITORIAL_MODEL'] as const) {
+    if (c[field] && !['gpt-6.1-terra', 'gpt-6-luna'].includes(c[field])) {
+      throw new Error(`${field}: use gpt-6.1-terra ou gpt-6-luna. Modelos fora desta lista não são permitidos.`);
+    }
+  }
   const dbPath = c.DATABASE_URL.replace(/^file:/, '');
   return {
     ...c,

@@ -62,8 +62,14 @@ export default function Jornal() {
         )}
         {e.coverageNote && !e.isDemo && !e.isPreview && <p className="m-0 border-b border-line py-2 text-sm text-warning">{e.coverageNote}</p>}
 
+        <nav aria-label="Nesta edição" className="article-jump">
+          <a href="#briefing">Ler o resumo da edição</a>
+          <a href="#destaques">Ver os destaques</a>
+          {e.forYou.length > 0 && <a href="#para-voce">Ir para sua seleção</a>}
+        </nav>
+
         {/* Capa: manchete + coluna secundária */}
-        <section aria-label="Destaques" className="grid gap-8 py-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <section id="destaques" aria-label="Destaques" className="grid gap-8 py-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           <div className="lg:border-r lg:border-line lg:pr-8">{e.headline ? <LeadStory a={e.headline} /> : <p className="text-muted">Sem manchete nesta edição.</p>}</div>
           {e.secondary.length > 0 && (
             <div className="grid content-start gap-6">
@@ -120,7 +126,7 @@ export default function Jornal() {
         ))}
 
         <p className="rule-top m-0 py-6 text-center text-sm text-muted">
-          Fim da edição de {fmtDate(e.date, { day: 'numeric', month: 'long' })}. A próxima sai amanhã. <Link to="/edicoes" className="link">Edições anteriores</Link>
+          {e.isPreview ? 'Fim da prévia de ' : 'Fim da edição de '}{fmtDate(e.date, { day: 'numeric', month: 'long' })}. <Link to="/edicoes" className="link">Edições anteriores</Link>
         </p>
       </div>
     </>

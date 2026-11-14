@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { designLabels, type EditionDto, type Plan, type Source } from '@jm/contracts';
 import { api, fmtBRL, fmtLongDate, useConfig, useMe } from '../lib/api';
-import { KeyResultPanel } from '../components/ui';
+import { ErrorState, KeyResultPanel, Loading, StatusChips } from '../components/ui';
 import { Seal, SealMini, Wordmark } from '../components/Brand';
 import { useReadingPrefs } from '../lib/prefs';
 import { Monitor, Moon, Sun } from 'lucide-react';
@@ -69,14 +69,18 @@ export default function Landing() {
               <span className="text-xs text-muted first-letter:uppercase">{e ? fmtLongDate(e.date) : ''}</span>
             </div>
             {e?.isDemo && <p className="chip chip-demo mt-3">Prévia com estudos fictícios de demonstração</p>}
+            {ed.isLoading && <Loading label="Carregando a prévia" />}
+            {ed.error && <ErrorState error={ed.error} retry={() => ed.refetch()} />}
+            {e?.isPreview && <p className="text-sm text-warning">Prévia automática · análises ainda não revisadas por editor.</p>}
             {preview.map((a, i) => a && (
               <div key={a.id} className={`grid gap-2 py-4 ${i ? 'border-t border-line' : ''}`}>
                 <p className="kicker m-0 text-muted">{a.topics[0]?.label} · {designLabels[a.studyDesign]}</p>
                 <p className={`m-0 font-serif leading-snug font-bold ${i ? 'text-lg' : 'text-2xl'}`}>{a.headline}</p>
+                <StatusChips a={a} />
                 {i === 0 && a.keyResult && <KeyResultPanel k={a.keyResult} evidence={a.evidence} compact />}
               </div>
             ))}
-            {!e && !ed.isLoading && <p className="py-6 text-muted">A prévia aparece quando houver uma edição publicada.</p>}
+            {!e && !ed.isLoading && !ed.error && <p className="py-6 text-muted">A prévia aparece quando houver uma edição publicada.</p>}
           </aside>
         </section>
 

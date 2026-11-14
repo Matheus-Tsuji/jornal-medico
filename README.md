@@ -43,7 +43,7 @@ python services/recommender/serve.py --port 8790
 ```bash
 npm run ai -- models
 ```
-3. Defina `OPENAI_ANALYSIS_MODEL` e `OPENAI_EDITORIAL_MODEL` no `.env` com IDs dessa lista e teste a conexão:
+3. Defina `OPENAI_ANALYSIS_MODEL` e `OPENAI_EDITORIAL_MODEL` no `.env` com os IDs permitidos `gpt-6.1-terra` ou `gpt-6-luna` e teste a conexão. Outros modelos são recusados pelo servidor:
 ```bash
 npm run ai -- ping
 ```
@@ -87,3 +87,7 @@ docs/         arquitetura, pressupostos, referências, pendências dos fundadore
 ```
 
 Documentos: [arquitetura](docs/architecture.md) · [pressupostos](docs/assumptions.md) · [referências de design](docs/references.md) · [decisões pendentes](docs/pendencias-fundadores.md) · [regras do projeto](AGENTS.md).
+
+## Documentos oficiais e outras publicações
+
+Saúde pública e regulação em `/regulacao`; descoberta de NEJM, JAMA, Lancet e BMJ via Crossref em `/publicacoes`. Coleta manual: `npm run pipeline -- monitor` (sem IA). Cobertura e operação: [fontes oficiais](docs/fontes-oficiais.md).

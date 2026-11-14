@@ -66,13 +66,13 @@ export function DemoBanner() {
 export function StatusChips({ a }: { a: Pick<ArticleCard, 'isDemo' | 'reviewStatus' | 'retractionStatus'> & Partial<Pick<ArticleCard, 'evidence' | 'journalQualis'>> & { accessStatus?: string } }) {
   return (
     <span className="inline-flex flex-wrap gap-1.5">
-      {a.evidence && <EvidenceChips a={{ evidence: a.evidence, journalQualis: a.journalQualis ?? null }} />}
       {a.isDemo && <span className="chip chip-demo">Fictício · demonstração</span>}
       {a.retractionStatus === 'retracted' && <span className="chip chip-danger"><AlertTriangle size={12} aria-hidden /> Retratado</span>}
       {a.reviewStatus === 'corrected' && <span className="chip chip-demo">Corrigido</span>}
       {a.reviewStatus === 'reviewed' && <span className="chip chip-ok">Revisado por editor</span>}
       {a.reviewStatus === 'ai_unreviewed' && <span className="chip chip-demo">IA · não revisado por editor</span>}
       {a.accessStatus === 'abstract_only' && <span className="chip">Baseado no abstract</span>}
+      {a.evidence && <EvidenceChips a={{ evidence: a.evidence, journalQualis: a.journalQualis ?? null }} />}
     </span>
   );
 }
@@ -90,7 +90,7 @@ export function ResultLine({ k }: { k: KeyResult }) {
   );
 }
 
-const TIER_LABEL = { A: 'evidência forte', B: 'evidência intermediária', C: 'evidência fraca' } as const;
+const TIER_LABEL = { A: 'grupo A', B: 'grupo B', C: 'grupo C' } as const;
 const tierOf = (g: EvidenceGrade) => g[0] as keyof typeof TIER_LABEL;
 
 /** Selo "Evidência A1" (nota do estudo) e "Qualis A1" (nota da revista na CAPES). */
@@ -99,7 +99,7 @@ export function EvidenceChips({ a }: { a: Pick<ArticleCard, 'evidence' | 'journa
   return (
     <>
       <span className={`chip chip-grade-${t}`} title={a.evidence.reasons.join(' · ')}>
-        <span className="sr-only">Força da evidência do estudo: </span>Evidência {a.evidence.grade}<span className="sr-only"> ({TIER_LABEL[t]})</span>
+        <span className="sr-only">Força da evidência do estudo: </span>Classificação automática {a.evidence.grade}<span className="sr-only"> ({TIER_LABEL[t]})</span>
       </span>
       {a.journalQualis && (
         <span className="chip" title={`Qualis CAPES ${a.journalQualis.cycle} da revista. Classifica a revista, não o estudo.`}>
@@ -117,11 +117,11 @@ export function WhyGrade({ evidence }: { evidence: ArticleCard['evidence'] }) {
     <details className="why-grade">
       <summary>
         <span className={`chip chip-grade-${t}`}>{evidence.grade}</span>
-        Por que {evidence.grade}? <span className="font-normal opacity-80">({TIER_LABEL[t]})</span>
+        Como foi classificado: {evidence.grade}?
       </summary>
       <div className="grid gap-1.5 px-3 pb-3 text-sm">
         <ul className="m-0 list-disc pl-5">{evidence.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
-        <p className="m-0 text-xs text-muted">A letra vem do desenho do estudo (A: metanálise, revisão sistemática ou ensaio randomizado; B: coorte, caso-controle, diretriz; C: demais). O número cai com resultado sem IC/p-valor, amostra abaixo de 500 ou sinais de incerteza. A revista não entra nesta nota.</p>
+        <p className="m-0 text-xs text-muted">Classificação automática própria do jornal, ainda sujeita à validação editorial; não equivale a uma avaliação GRADE. A letra vem do desenho do estudo (A: metanálise, revisão sistemática ou ensaio randomizado; B: coorte, caso-controle, diretriz; C: demais). O número cai com resultado sem IC/p-valor, amostra abaixo de 500 ou sinais de incerteza. A revista não entra nesta nota.</p>
       </div>
     </details>
   );

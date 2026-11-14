@@ -8,6 +8,7 @@ import { audit } from '../modules/audit.ts';
 import { listPlans } from '../modules/billing.ts';
 import { editionDto } from '../modules/content.ts';
 import { composeEdition, decide, publishEdition, reviewDetail, reviewQueue } from '../modules/editorial.ts';
+import { automaticSources, importOfficial, officialInput } from '../modules/monitor.ts';
 import { enqueue, requeue } from '../modules/jobs.ts';
 import { defaultDeps, workOnce } from '../worker/runner.ts';
 import { requireRole, type Ctx } from './app.ts';
@@ -17,6 +18,20 @@ const dateParam = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) });
 export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   const editor = (req: Parameters<typeof requireRole>[0]) => requireRole(req, 'editor', 'admin');
   const admin = (req: Parameters<typeof requireRole>[0]) => requireRole(req, 'admin');
+
+  app.post('/admin/monitor/sync', async (req) => {
+    const u = editor(req);
+    const { source } = z.object({ source: z.string().refine((s) => automaticSources.includes(s)) }).parse(req.body);
+    const job = enqueue(db, 'monitor', `monitor:${source}:${Math.floor(Date.now() / 3600000)}`, { source });
+    audit(db, u.id, 'monitor.queued', 'job', job.id, { source });
+    return job;
+  });
+  app.post('/admin/monitor/documents', async (req) => {
+    const u = editor(req);
+    const item = importOfficial(db, officialInput.parse(req.body));
+    audit(db, u.id, 'monitor.imported', 'document', item.id, { source: item.source });
+    return item;
+  });
 
   app.get('/admin/overview', async (req) => {
     editor(req);

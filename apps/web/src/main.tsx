@@ -17,6 +17,7 @@ import { CaixaDev, Metodologia, NaoEncontrado, Privacidade } from './routes/Pagi
 import { ApiError } from './lib/api';
 import { Loading } from './components/ui';
 
+const Monitor = lazy(() => import('./routes/Monitor'));
 const Admin = lazy(() => import('./routes/Admin'));
 
 const qc = new QueryClient({
@@ -36,6 +37,8 @@ const router = createBrowserRouter([
       { path: '/entrar', element: <Entrar /> },
       { path: '/auth/callback', element: <Entrar /> },
       { path: '/boas-vindas', element: <BoasVindas /> },
+      { path: '/regulacao', element: <Suspense fallback={<Loading />}><Monitor key="regulation" kind="regulation" /></Suspense> },
+      { path: '/publicacoes', element: <Suspense fallback={<Loading />}><Monitor key="publication" kind="publication" /></Suspense> },
       { path: '/jornal', element: <Jornal /> },
       { path: '/edicoes', element: <Edicoes /> },
       { path: '/edicoes/:date', element: <Jornal /> },

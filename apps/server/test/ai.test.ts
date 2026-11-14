@@ -8,7 +8,7 @@ import { looksLikeInjection, validateAnalysis, validateEditorial } from '../src/
 import { discover } from '../src/worker/ingestion.ts';
 import { fakeAdapter, fakeProvider, testConfig, validEditorial, validExtraction } from './helpers.ts';
 
-const AI = { OPENAI_API_KEY: 'test-key-not-real', OPENAI_ANALYSIS_MODEL: 'model-analysis-test', OPENAI_EDITORIAL_MODEL: 'model-editorial-test' };
+const AI = { OPENAI_API_KEY: 'test-key-not-real', OPENAI_ANALYSIS_MODEL: 'gpt-6.1-terra', OPENAI_EDITORIAL_MODEL: 'gpt-6-luna' };
 
 async function withArticle(over: Record<string, string> = {}) {
   const cfg = testConfig({ ...AI, ...over });
@@ -92,8 +92,8 @@ describe('pipeline de análise', () => {
     const r = await analyzeArticle(db, cfg, p, articleId);
     expect(r.status).toBe('in_review');
     expect(p.calls[0]!.user).toContain('<documento>');
-    expect(p.calls[0]!.model).toBe('model-analysis-test');
-    expect(p.calls[1]!.model).toBe('model-editorial-test');
+    expect(p.calls[0]!.model).toBe('gpt-6.1-terra');
+    expect(p.calls[1]!.model).toBe('gpt-6-luna');
     const a = db.get<{ status: string; payload: string }>('SELECT status, payload FROM analyses WHERE id = ?', r.analysisId)!;
     expect(JSON.parse(a.payload).editorialHeadline).toBe(validEditorial.editorialHeadline);
     expect(JSON.parse(a.payload).reviewFlags).toContain('requires_human_review');
@@ -129,6 +129,7 @@ describe('pipeline de análise', () => {
 
   it('orçamento em USD sem tabela de preços bloqueia (não inventa custo)', async () => {
     const { cfg, db, articleId } = await withArticle({ AI_DAILY_BUDGET_USD: '5' });
+    cfg.OPENAI_ANALYSIS_MODEL = 'modelo-sem-preco'; // simula uma tabela de preços incompleta após carregar a configuração
     await expect(analyzeArticle(db, cfg, fakeProvider([]), articleId)).rejects.toThrow(/ai-pricing.json/);
   });
 
@@ -175,7 +176,7 @@ describe('números com separador de milhar e formato pt-BR', () => {
 
 describe('triagem por IA', () => {
   it('tema tangencial: exclui sem chamar a análise cara', async () => {
-    const { cfg, db, articleId } = await withArticle({ OPENAI_TRIAGE_MODEL: 'model-triage-test' });
+    const { cfg, db, articleId } = await withArticle({ OPENAI_TRIAGE_MODEL: 'gpt-6-luna' });
     const p = fakeProvider([{ topicFit: 'tangential', clinicalRelevance: 'low', reason: 'Hipertensão só citada como covariável.' }]);
     const r = await analyzeArticle(db, cfg, p, articleId);
     expect(r.status).toBe('excluded');
@@ -186,7 +187,7 @@ describe('triagem por IA', () => {
     expect(a.triage_reason).toMatch(/tangencial/);
   });
   it('tema central: segue para extração e redação', async () => {
-    const { cfg, db, articleId } = await withArticle({ OPENAI_TRIAGE_MODEL: 'model-triage-test' });
+    const { cfg, db, articleId } = await withArticle({ OPENAI_TRIAGE_MODEL: 'gpt-6-luna' });
     const p = fakeProvider([{ topicFit: 'central', clinicalRelevance: 'high', reason: 'Foco em hipertensão.' }, validExtraction(), validEditorial]);
     expect((await analyzeArticle(db, cfg, p, articleId)).status).toBe('in_review');
     expect(p.calls.map((c) => c.name)).toEqual(['triage', 'article_analysis', 'editorial_text']);

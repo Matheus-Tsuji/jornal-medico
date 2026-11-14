@@ -8,6 +8,7 @@ import { openAiProvider, type AiProvider } from '../ai/provider.ts';
 import { composeEdition } from '../modules/editorial.ts';
 import { block, claim, complete, enqueue, fail, retryLater, type Job } from '../modules/jobs.ts';
 import { pubmedAdapter, type ScientificSourceAdapter } from '../sources/pubmed.ts';
+import { automaticSources, syncMonitor } from '../modules/monitor.ts';
 import { discover, upsertRecord } from './ingestion.ts';
 
 export interface Deps { adapter: ScientificSourceAdapter; provider: AiProvider | null }
@@ -20,6 +21,8 @@ export const defaultDeps = (cfg: Config): Deps => ({
 export async function runJob(db: Db, cfg: Config, job: Job, deps: Deps): Promise<unknown> {
   const p = job.payload as Record<string, string>;
   switch (job.type) {
+    case 'monitor':
+      return syncMonitor(db, p.source!);
     case 'discover':
       return discover(db, cfg, deps.adapter, p.topic!, job.id);
     case 'analyze':
@@ -67,6 +70,7 @@ export function schedule(db: Db, cfg: Config, now = new Date()) {
   const date = localDate(cfg.APP_TIMEZONE, now);
   const hhmm = localTime(cfg.APP_TIMEZONE, now);
   const slot = Math.floor(Number(hhmm.slice(0, 2)) / 6);
+  for (const source of automaticSources) enqueue(db, 'monitor', `monitor:${source}:${date}:${slot}`, { source });
   const topics = db.all<{ slug: string }>("SELECT slug FROM topics WHERE enabled = 1 AND source_query IS NOT NULL");
   for (const t of topics) enqueue(db, 'discover', `discover:pubmed:${t.slug}:${date}:${slot}`, { topic: t.slug });
   const [h, m] = cfg.EDITION_HOUR.split(':').map(Number) as [number, number];

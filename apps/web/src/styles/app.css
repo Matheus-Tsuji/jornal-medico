@@ -129,3 +129,40 @@ body {
   :root:not([data-theme="light"]) .topic-text { color: color-mix(in srgb, var(--topic, #e7a2ab) 45%, #ffffff); }
 }
 :root[data-theme="dark"] .topic-text { color: color-mix(in srgb, var(--topic, #e7a2ab) 45%, #ffffff); }
+
+/* Leitura editorial: números em sans, texto corrido com medida confortável. */
+body { line-height: 1.6; }
+::selection { background: var(--color-primary); color: var(--color-on-primary); }
+input, textarea { caret-color: var(--color-primary); }
+h1, h2, h3, p, dd { overflow-wrap: anywhere; }
+h1, h2, h3 { scroll-margin-top: 13rem; }
+.article-reading { font-size: 1.0625rem; line-height: 1.75; }
+.article-reading section > p, .article-reading section > ul { max-width: 70ch; }
+.article-jump { display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; padding: .8rem 0; border-block: 1px solid var(--color-line); }
+.article-jump a { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-primary); text-decoration: underline; text-underline-offset: 4px; font-size: .875rem; }
+.chip { white-space: normal; line-height: 1.4; }
+.chip-grade-A { color: var(--color-primary); background: var(--color-primary-soft); }
+@media (max-width: 639px) {
+  h1, h2, h3 { scroll-margin-top: 12rem; }
+  .masthead-date { display: none; }
+  .masthead-tools { width: 100%; justify-content: flex-end; }
+}
+
+/* A tabela mantém os mesmos dados e cabeçalhos ao virar blocos por desfecho. */
+.result-label { display: none; }
+.publication-details summary { list-style: revert; }
+.why-grade { border-color: var(--color-line); background: transparent; border-radius: 4px; }
+.why-grade > summary { font-size: .8125rem; font-weight: 500; flex-wrap: wrap; }
+section[id] { scroll-margin-top: 13rem; }
+@media (max-width: 1279px) {
+  .results-table, .results-table tbody { display: block; }
+  .results-table thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .results-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem 1.25rem; padding: 1.25rem 0; }
+  .results-table tbody th { grid-column: 1 / -1; font-size: 1rem; padding: 0; }
+  .results-table td { min-width: 0; padding: 0; }
+  .result-label { display: block; margin-bottom: .2rem; color: var(--color-muted); font-size: .8125rem; font-weight: 500; }
+}
+@media (max-width: 479px) {
+  .results-table tbody tr { grid-template-columns: minmax(0, 1fr); }
+  .results-table td { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: .75rem; }
+}

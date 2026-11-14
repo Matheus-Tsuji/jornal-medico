@@ -10,6 +10,7 @@ import type { AiAnalysis } from '@jm/contracts';
 import { composeEdition } from '../modules/editorial.ts';
 import { defaultDeps, schedule, workOnce } from './runner.ts';
 import { enqueue, requeue } from '../modules/jobs.ts';
+import { automaticSources, syncMonitor } from '../modules/monitor.ts';
 import { discover } from './ingestion.ts';
 
 const [cmd, arg] = process.argv.slice(2);
@@ -19,6 +20,9 @@ const deps = defaultDeps(cfg);
 const out = (x: unknown) => console.log(JSON.stringify(x, null, 2));
 
 switch (cmd) {
+  case 'monitor':
+    for (const source of arg ? [arg] : automaticSources) out(await syncMonitor(db, source));
+    break;
   case 'discover':
     out(await discover(db, cfg, deps.adapter, arg ?? 'hipertensao-arterial'));
     break;
@@ -76,7 +80,7 @@ switch (cmd) {
     break;
   }
   default:
-    console.log('Uso: pipeline <discover TEMA | analyze ARTICLE_ID | compose [YYYY-MM-DD] | schedule | retry-blocked | reanalyze | revalidate | run>');
+    console.log('Uso: pipeline <monitor [FONTE] | discover TEMA | analyze ARTICLE_ID | compose [YYYY-MM-DD] | schedule | retry-blocked | reanalyze | revalidate | run>');
     process.exitCode = 1;
 }
 db.close();

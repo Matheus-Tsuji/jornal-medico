@@ -313,3 +313,24 @@ export const designLabels: Record<StudyDesign, string> = {
   other: 'Outro',
   unknown: 'Desenho não identificado',
 };
+
+// Documentos oficiais e descoberta bibliográfica não são análises editoriais.
+export interface MonitoredDocument {
+  id: string;
+  source: string;
+  kind: 'regulation' | 'publication';
+  title: string;
+  identifier: string;
+  description: string | null;
+  date: string | null;
+  dateLabel: string;
+  url: string;
+  stage: string;
+  technology: boolean;
+}
+export interface MonitorSource {
+  id: string; name: string; kind: 'regulation' | 'publication';
+  url: string; mode: 'automatic' | 'reference'; scope: string;
+  lastSuccessAt: string | null; error: string | null;
+}
+export interface MonitorDto { items: MonitoredDocument[]; sources: MonitorSource[] }

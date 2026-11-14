@@ -3,7 +3,7 @@ import { analyzeArticle } from '../src/ai/analysis.ts';
 import { discover } from '../src/worker/ingestion.ts';
 import { H, fakeAdapter, fakeProvider, login, setup, validEditorial, validExtraction } from './helpers.ts';
 
-const AI = { OPENAI_API_KEY: 'test-key-not-real', OPENAI_ANALYSIS_MODEL: 'ma', OPENAI_EDITORIAL_MODEL: 'me' };
+const AI = { OPENAI_API_KEY: 'test-key-not-real', OPENAI_ANALYSIS_MODEL: 'gpt-6.1-terra', OPENAI_EDITORIAL_MODEL: 'gpt-6-luna' };
 
 async function withReview() {
   const ctx = await setup(AI);

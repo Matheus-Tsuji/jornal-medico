@@ -38,11 +38,15 @@ test('leitor: login, onboarding, edição, detalhe, salvar e persistência', asy
   // Detalhe científico
   await page.locator('#conteudo').getByRole('link', { name: 'Ler a análise completa' }).click();
   await expect(page.getByRole('heading', { name: 'Leitura rápida' })).toBeVisible();
+  await page.getByRole('navigation', { name: 'Nesta análise' }).getByRole('link', { name: 'Limitações', exact: true }).click();
+  await expect(page).toHaveURL(/#limitacoes$/);
+  await expect(page.getByRole('heading', { name: 'Limitações, vieses e conflitos' })).toBeInViewport();
   await expect(page.getByRole('table')).toContainText('0,64 a 0,95');
   await expect(page.getByRole('group', { name: /Gráfico de efeito/ })).toContainText('Desfecho composto cardiovascular'); // nome completo, sem reticências
   await expect(page.getByRole('group', { name: /Gráfico de efeito/ })).toBeVisible();
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Salvo' })).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: `${SHOTS}/artigo-desktop.png`, fullPage: true });
 
   // Persistência após recarregar
@@ -79,6 +83,21 @@ test('editor: aprova análise pendente com justificativa e trilha de auditoria',
   await page.goto('/admin/auditoria');
   await expect(page.getByRole('cell', { name: 'review.approve' })).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/admin-auditoria.png` });
+
+  await page.goto('/regulacao');
+  await page.getByText('Cadastrar documento oficial (equipe editorial)', { exact: true }).click();
+  await page.getByRole('combobox', { name: 'Órgão', exact: true }).selectOption('digital');
+  await page.getByLabel('Identificação (tipo, número e ano)').fill('DEMO-REG-001');
+  await page.getByLabel('Título oficial').fill('DEMO — portaria fictícia de saúde digital');
+  await page.getByLabel('Ementa ou trecho literal').fill('Documento fictício para teste de telemedicina; não é uma norma real.');
+  await page.getByLabel('Link oficial HTTPS').fill('https://www.gov.br/saude/pt-br/demo-reg-001');
+  await page.getByLabel('Conferi a fonte oficial', { exact: false }).check();
+  await page.getByRole('button', { name: 'Salvar documento oficial', exact: true }).click();
+  await expect(page.getByText('Documento cadastrado.', { exact: true })).toBeVisible();
+  await page.getByLabel('Tecnologia em saúde', { exact: true }).check();
+  await expect(page.getByRole('heading', { name: 'DEMO — portaria fictícia de saúde digital' })).toBeVisible();
+  await page.getByLabel('Buscar por assunto ou identificação').fill('nenhum-resultado');
+  await expect(page.getByText('Nenhum documento disponível com estes filtros', { exact: true })).toBeVisible();
 });
 
 test('visitante: entra sem e-mail e a barra de seções indica que há mais itens', async ({ page }) => {
@@ -98,20 +117,37 @@ test('visitante: entra sem e-mail e a barra de seções indica que há mais iten
   await expect(page.getByRole('link', { name: 'Informar e-mail para assinar' }).first()).toBeVisible();
 });
 
-for (const width of [360, 390, 768, 1024, 1440]) {
+for (const width of [320, 360, 390, 768, 820, 1024, 1440]) {
   test(`responsivo sem overflow horizontal em ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
-    for (const path of ['/', '/jornal', '/artigos/demo-001', '/areas/clinica-medica', '/entrar']) {
+    for (const path of ['/', '/jornal', '/artigos/demo-001', '/areas/clinica-medica', '/entrar', '/regulacao', '/publicacoes']) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');
+      if (path === '/jornal') {
+        await page.getByRole('navigation', { name: 'Nesta edição' }).getByRole('link', { name: 'Ler o resumo da edição' }).click();
+        await expect(page.getByRole('heading', { name: 'Em 1 minuto' })).toBeInViewport();
+      }
+      if (path === '/artigos/demo-001') {
+        const details = page.locator('.publication-details');
+        await expect(details).not.toHaveAttribute('open', '');
+        await expect(page.getByRole('heading', { name: 'Limitações em destaque' })).toBeVisible();
+        const table = page.getByRole('table');
+        expect(await table.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+        await details.getByText('Sobre a publicação', { exact: false }).click();
+        await expect(details).toHaveAttribute('open', '');
+        await expect(details.getByText('DEMO-001', { exact: false })).toBeVisible();
+      }
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow, `${path} em ${width}px`).toBeLessThanOrEqual(0);
     }
-    if (width === 390) {
+    if (width === 390 || width === 820) {
       await page.goto('/jornal');
-      await page.screenshot({ path: `${SHOTS}/jornal-mobile-390.png`, fullPage: true });
+      await page.screenshot({ path: `${SHOTS}/jornal-${width === 390 ? "mobile-390" : "tablet-820"}.png`, fullPage: true });
       await page.goto('/artigos/demo-001');
-      await page.screenshot({ path: `${SHOTS}/artigo-mobile-390.png`, fullPage: true });
+      await page.screenshot({ path: `${SHOTS}/artigo-${width === 390 ? "mobile-390" : "tablet-820"}.png`, fullPage: true });
+      await page.goto('/regulacao');
+      await page.screenshot({ path: `${SHOTS}/regulacao-${width}.png`, fullPage: true });
+
     }
   });
 }
@@ -141,4 +177,15 @@ test('acessibilidade básica: link de pular, botões com nome, foco visível, te
   await page.screenshot({ path: `${SHOTS}/jornal-escuro.png` });
   const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   expect(bg).toBe('rgb(22, 18, 15)');
+});
+
+test('leitura ampliada no celular mantém resultados acessíveis', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem('jm:fs', '1.25'));
+  await page.goto('/artigos/demo-001');
+  await expect(page.getByRole('table')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  await page.getByRole('button', { name: 'Leitura rápida', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Limitações em destaque' })).toBeVisible();
+  await expect(page.getByRole('table')).toHaveCount(0);
 });

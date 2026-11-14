@@ -6,6 +6,7 @@ import type { Params } from '../db/index.ts';
 import { AppError, localDate } from '../lib/util.ts';
 import { allFlags, flag } from '../modules/audit.ts';
 import { createGuest, requestCode, revokeAllSessions, revokeSession, verifyCode } from '../modules/auth.ts';
+import { listMonitor } from '../modules/monitor.ts';
 import { entitled } from '../modules/billing.ts';
 import { articleDetail, cardMap, cards, editionDto, editionList, previewEdition, publishedEdition, visibility } from '../modules/content.ts';
 import { recommend } from '../modules/ranking.ts';
@@ -26,6 +27,11 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
       editionHour: cfg.EDITION_HOUR,
       timezone: cfg.APP_TIMEZONE,
     };
+  });
+
+  app.get('/monitor', async (req) => {
+    const { kind } = z.object({ kind: z.enum(['regulation', 'publication']).default('regulation') }).parse(req.query);
+    return listMonitor(db, kind);
   });
 
   app.get('/topics', async (): Promise<Topic[]> =>

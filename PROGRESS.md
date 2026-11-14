@@ -42,3 +42,12 @@
 
 ## Próximo passo específico
 Médico responsável revisar as análises reais em `/admin/revisao` e publicar a primeira edição real; revogar a chave OpenAI que passou pelo chat. Lista completa em `docs/o-que-falta.md`.
+
+## Ampliação de fontes — 2026-11-14
+- /regulacao: proposições em saúde da Câmara via API, diretório de portais oficiais e cadastro literal de documentos por editor/admin.
+- /publicacoes: descoberta de títulos/DOIs de NEJM, JAMA, The Lancet e The BMJ via Crossref. Não é análise científica nem acesso ao texto integral.
+- Coleta real local sem IA: 100 proposições e 120 registros bibliográficos (30 por periódico).
+- Migração 005, fila/cron, coleta manual via pipeline monitor e estado de atualização/erro por fonte.
+- Cobertura parcial explícita: MS/Saúde Legis, Conitec, DOU, Planalto, Senado e Anvisa ainda por consulta oficial/cadastro editorial; sem promessa de cobrir todos os atos ou verificar vigência.
+- Verificação: npm run check passou (78 testes servidor, 7 Python); suíte e2e com cadastro editorial e novas rotas em 320–1440 px.
+- Alterações locais; não enviadas ao GitHub/Vercel. Detalhes em docs/fontes-oficiais.md.

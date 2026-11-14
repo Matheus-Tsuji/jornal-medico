@@ -61,6 +61,17 @@ describe('leitor', () => {
 });
 
 describe('infraestrutura', () => {
+  it('permite somente Terra e Luna em todas as tarefas de IA', () => {
+    for (const field of ['OPENAI_TRIAGE_MODEL', 'OPENAI_ANALYSIS_MODEL', 'OPENAI_EDITORIAL_MODEL']) {
+      for (const model of ['gpt-6.1-sol', 'outro-modelo']) {
+        expect(() => loadConfig({ [field]: model })).toThrow(/não são permitidos/);
+      }
+      for (const model of ['gpt-6.1-terra', 'gpt-6-luna']) {
+        expect(() => loadConfig({ [field]: model })).not.toThrow();
+      }
+    }
+  });
+
   it('dados persistem após reinício e backup consistente restaura', () => {
     const dir = mkdtempSync(join(tmpdir(), 'jm-'));
     const file = join(dir, 'j.db');

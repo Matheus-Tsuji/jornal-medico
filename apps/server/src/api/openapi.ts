@@ -1,8 +1,10 @@
 // Documento OpenAPI 3.1 gerado das rotas registradas + schemas zod de entrada.
 import { z } from 'zod';
 import * as c from '@jm/contracts';
+import { officialInput } from '../modules/monitor.ts';
 
 const bodies: Record<string, z.ZodType> = {
+  'post /api/v1/admin/monitor/documents': officialInput,
   'post /api/v1/auth/request-code': c.requestCodeInput,
   'post /api/v1/auth/verify-code': c.verifyCodeInput,
   'patch /api/v1/me': c.updateMeInput,
