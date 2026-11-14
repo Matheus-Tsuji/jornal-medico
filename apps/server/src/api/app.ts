@@ -76,7 +76,7 @@ export async function buildApp(ctx: Ctx): Promise<FastifyInstance> {
   await app.register(rateLimit, { max: cfg.NODE_ENV === 'test' ? 10_000 : 300, timeWindow: '1 minute', allowList: (req) => !req.url.startsWith('/api/') });
 
   app.addHook('onRequest', async (req, reply) => {
-    req.user = userFromToken(db, req.cookies[SESSION_COOKIE]);
+    req.user = userFromToken(db, req.cookies[SESSION_COOKIE], cfg);
     reply.header('x-request-id', req.id);
     // CSRF: mutações exigem cabeçalho customizado (navegadores não o enviam cross-site sem preflight/CORS).
     const mutating = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);

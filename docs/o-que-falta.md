@@ -20,7 +20,9 @@ Lista criada em 2026-11-14, com o trabalho **pausado** a pedido do Matheus.
 - [ ] **Matheus:** criar conta no Turso e o banco (`npm run db:export` + `turso db create … --from-file`), importar o repo na Vercel e cadastrar as variáveis do guia. Sem Resend configurado a API não sobe em produção (proposital).
 - [x] Projeto Vercel criado e ligado ao repo (2026-11-14): https://vercel.com/budegasdobode-2590s-projects/jornal-medico. Primeiro build passou; o site está em https://jornal-medico.vercel.app.
 - [x] Produção sem Resend: a API sobe com acesso de visitante e login por código desligado (sem código na tela). Aceita `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` da integração da Vercel. `npm run db:push` sobe a cópia limpa ao Turso. Caminho rápido no topo de `docs/deploy-vercel.md`.
-- [ ] A API ainda responde 500 de propósito: o log mostra "Produção exige: SESSION_SECRET, AUTH_EMAIL_PROVIDER real, PAYMENT_WEBHOOK_SECRET". Cadastrar as variáveis do guia e fazer novo deploy; depois conferir `/health`, login e o cron. Conexão com Turso real ainda não testada.
+- [x] Site na Vercel funcionando sem configuração (2026-11-14): vitrine embutida (sem dados pessoais) + segredos gerados no banco. Visitante entra; login por e-mail "ainda não disponível"; dados salvos podem se perder até ligar o Turso.
+- [x] Resultado principal: sem o selo no canto, tabela (medida, IC, p) de volta e "Por que A1?" como botão de destaque (pedido do Matheus, 2026-11-14).
+- [ ] (histórico) A API respondia 500 de propósito: o log mostra "Produção exige: SESSION_SECRET, AUTH_EMAIL_PROVIDER real, PAYMENT_WEBHOOK_SECRET". Cadastrar as variáveis do guia e fazer novo deploy; depois conferir `/health`, login e o cron. Conexão com Turso real ainda não testada.
 - [ ] Região das funções: o deploy saiu em `iad1` (EUA). Mudar para `gru1` em Settings → Functions e usar a mesma região no Turso.
 - [ ] 10 PRs do Dependabot abertos no GitHub (vários são versões maiores; o TypeScript 7 já falha no CI). Revisar um a um, sem mesclar em bloco.
 - [x] Capa em modo prévia com artigos reais, conferida a 1440 px e 375 px, sem rolagem lateral e com aviso "Prévia automática".

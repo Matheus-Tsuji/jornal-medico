@@ -1,8 +1,12 @@
 # Deploy na Vercel (tudo na Vercel)
 
-## Caminho rápido (site funcionando com acesso de visitante)
+## Como está agora (sem nenhuma configuração)
 
-Sem banco e sem segredos, a API da Vercel responde erro, e por isso "Receber código" e "Continuar sem e-mail" não funcionam lá. O mínimo para ligar:
+O site já funciona na Vercel sem variáveis: a API usa a **vitrine** (`apps/server/data/vitrine.db`, gerada com `npm run db:export -w @jm/server -- --vitrine`, sem nenhum dado de pessoa), e os segredos são gerados e guardados no banco. Visitantes leem, escolhem interesses e salvam estudos, mas isso pode se perder quando a instância da função recicla (o site avisa). O login por e-mail fica "ainda não disponível" e o cron não roda na vitrine. Para atualizar a vitrine com análises novas, gere de novo e faça commit.
+
+## Caminho rápido (dados permanentes)
+
+Para o que os leitores salvam não se perder, ligue o Turso:
 
 1. **Banco:** no painel do projeto, abra **Storage → Create Database → Turso** (Marketplace) e conecte ao projeto `jornal-medico`. A integração cria sozinha `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN`, e a API já lê esses nomes.
 2. **Dados:** copie esses dois valores para o `.env` local como `PUSH_DATABASE_URL` e `PUSH_DATABASE_AUTH_TOKEN` e rode:
@@ -13,7 +17,7 @@ Sem banco e sem segredos, a API da Vercel responde erro, e por isso "Receber có
    npm run db:push
    ```
    Isso sobe a cópia limpa do banco local (análises, temas, Qualis, flags), sem sessões nem códigos de login.
-3. **Segredos:** gere três valores aleatórios (rode o comando três vezes) e cadastre em Settings → Environment Variables como `SESSION_SECRET`, `PAYMENT_WEBHOOK_SECRET` e `CRON_SECRET`:
+3. **Segredos (recomendado):** sem eles a API gera e guarda os segredos no próprio banco, mas aí um vazamento do banco expõe também o segredo. Gere três valores aleatórios (rode o comando três vezes) e cadastre em Settings → Environment Variables como `SESSION_SECRET`, `PAYMENT_WEBHOOK_SECRET` e `CRON_SECRET` (este último é obrigatório para o cron rodar):
    ```bash
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```

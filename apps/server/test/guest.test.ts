@@ -23,6 +23,24 @@ describe('produção sem provedor de e-mail', () => {
   });
 });
 
+describe('vitrine (uma cópia do banco por instância)', () => {
+  it('sessão de visitante criada numa instância vale em outra; assinatura falsa não', async () => {
+    const prod = { NODE_ENV: 'production', SESSION_SECRET: 'v'.repeat(40), PAYMENT_WEBHOOK_SECRET: 'segredo-de-teste' };
+    const a = await setup(prod);
+    const b = await setup(prod);
+    a.cfg.ephemeral = true;
+    b.cfg.ephemeral = true;
+    const r = await a.app.inject({ method: 'POST', url: '/api/v1/auth/guest', headers: H });
+    const token = r.cookies.find((c) => c.name === 'jm_session')!.value;
+    expect(token.startsWith('g1.')).toBe(true);
+    const me = await b.app.inject({ url: '/api/v1/me', cookies: { jm_session: token } });
+    expect(me.statusCode).toBe(200);
+    expect(me.json().isGuest).toBe(true);
+    const forjado = token.replace(/\.[0-9a-f]+$/, '.' + '0'.repeat(64));
+    expect((await b.app.inject({ url: '/api/v1/me', cookies: { jm_session: forjado } })).statusCode).toBe(401);
+  });
+});
+
 describe('visitante (sem e-mail)', () => {
   it('entra sem e-mail, personaliza e salva; não pode assinar', async () => {
     const { app } = await setup();

@@ -4,6 +4,8 @@
 import { build } from 'esbuild';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { createRequire } from 'node:module';
 
 const OUT = '.vercel/output';
 const FUNC = join(OUT, 'functions/api.func');
@@ -40,6 +42,17 @@ await build({
 // Arquivos lidos em tempo de execução (migrações, prompts, preços de IA, tabela Qualis).
 for (const dir of ['apps/server/src/db/migrations', 'apps/server/src/ai/prompts', 'apps/server/config', 'apps/server/data']) {
   cpSync(dir, join(FUNC, 'root', dir), { recursive: true });
+}
+
+// Vitrine: segredo novo a cada deploy, gravado só na cópia que vai dentro do pacote (nunca no Git). Assim todas
+// as instâncias da função assinam e validam as sessões de visitante com o mesmo segredo.
+{
+  const Database = createRequire(import.meta.url)('libsql');
+  const v = new Database(join(FUNC, 'root/apps/server/data/vitrine.db'));
+  for (const name of ['session_secret', 'payment_webhook_secret']) {
+    v.prepare('INSERT OR REPLACE INTO app_secrets (name, value, created_at) VALUES (?,?,?)').run(name, randomBytes(32).toString('hex'), new Date().toISOString());
+  }
+  v.close();
 }
 
 // libsql e as dependências dele, incluindo o binário da plataforma instalado (linux-x64-gnu na Vercel).
