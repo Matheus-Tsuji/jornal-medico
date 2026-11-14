@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDb, REPO_ROOT } from '../src/db/index.ts';
+import { copyDb } from '../src/db/copy.ts';
 import { seed } from '../src/db/seed.ts';
 import { loadConfig } from '../src/config.ts';
 import { H, login, setup, testConfig } from './helpers.ts';
@@ -81,7 +82,21 @@ describe('infraestrutura', () => {
     try { rmSync(dir, { recursive: true, force: true }); } catch { /* fica para a limpeza do sistema */ }
   });
 
-  it('produção exige segredos e provedor real de e-mail', () => {
+  it('copyDb leva todas as tabelas para um banco vazio, sem violar chaves estrangeiras', () => {
+    const cfg = testConfig();
+    const src = openDb(':memory:');
+    seed(src, cfg);
+    const dst = openDb(':memory:');
+    seed(dst, cfg); // destino com dados antigos: devem ser substituídos, não somados
+    const counts = copyDb(src, dst);
+    for (const t of ['topics', 'articles', 'analyses', 'evidence_results', 'feature_flags']) {
+      expect(dst.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${t}`)!.n).toBe(counts[t]);
+    }
+    expect(counts.articles).toBe(9);
+    expect(dst.all('PRAGMA foreign_key_check')).toEqual([]);
+  });
+
+  it('produção exige segredos (sem e-mail real, só desliga o login por código)', () => {
     expect(() => loadConfig({ NODE_ENV: 'production' } as NodeJS.ProcessEnv)).toThrow(/SESSION_SECRET/);
     expect(() => loadConfig({ NODE_ENV: 'development', OPENAI_API_KEY: 'x' } as NodeJS.ProcessEnv)).toThrow(/OPENAI_ANALYSIS_MODEL/);
   });

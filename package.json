@@ -14,6 +14,7 @@
     "db:migrate": "npm run db:migrate -w @jm/server",
     "db:seed": "npm run db:seed -w @jm/server",
     "db:export": "npm run db:export -w @jm/server",
+    "db:push": "npm run db:push -w @jm/server --",
     "worker": "npm run worker -w @jm/server",
     "pipeline": "npm run pipeline -w @jm/server --",
     "build": "npm run build -w @jm/web",

@@ -20,6 +20,7 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
       paywall: cfg.PAYWALL_ENABLED,
       paymentProvider: cfg.PAYMENT_PROVIDER,
       devOutbox: cfg.NODE_ENV !== 'production' && cfg.AUTH_EMAIL_PROVIDER === 'console',
+      emailLogin: cfg.emailLogin,
       features: flags,
       editionHour: cfg.EDITION_HOUR,
       timezone: cfg.APP_TIMEZONE,
@@ -42,6 +43,8 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   // ---------- Autenticação ----------
   const authLimit = { config: { rateLimit: { max: cfg.NODE_ENV === 'test' ? 1000 : 10, timeWindow: '1 minute' } } };
   app.post('/auth/request-code', authLimit, async (req) => {
+    // Produção sem provedor de e-mail: não gera código (ele não teria como chegar e não pode aparecer na tela).
+    if (!cfg.emailLogin) throw new AppError(503, 'email_unavailable', 'O acesso por e-mail ainda não está disponível. Use "Continuar sem e-mail".');
     const { email } = requestCodeInput.parse(req.body);
     await requestCode(db, cfg, email, req.ip);
     // Mesma resposta para e-mail novo ou existente.

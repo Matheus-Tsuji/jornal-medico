@@ -55,9 +55,11 @@ const schema = z.object({
   WEB_DIST: optStr,
 });
 
-export type Config = z.infer<typeof schema> & { sessionSecret: string; adminEmails: Set<string>; dbPath: string };
+export type Config = z.infer<typeof schema> & { sessionSecret: string; adminEmails: Set<string>; dbPath: string; emailLogin: boolean };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  // A integração Turso da Vercel cria TURSO_DATABASE_URL/TURSO_AUTH_TOKEN; os nomes próprios têm prioridade.
+  env = { ...env, DATABASE_URL: env.DATABASE_URL || env.TURSO_DATABASE_URL, DATABASE_AUTH_TOKEN: env.DATABASE_AUTH_TOKEN || env.TURSO_AUTH_TOKEN };
   const parsed = schema.safeParse(env);
   if (!parsed.success) {
     const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
@@ -66,10 +68,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const c = parsed.data;
   const prod = c.NODE_ENV === 'production';
   if (prod) {
-    // Em produção não há atalhos: segredos obrigatórios e provedor de e-mail real.
+    // Em produção não há atalhos: segredos obrigatórios. Sem provedor de e-mail real, o login por código fica
+    // desligado (emailLogin = false) e só o acesso de visitante funciona; o código nunca aparece na tela.
     const missing: string[] = [];
     if (!c.SESSION_SECRET || c.SESSION_SECRET.length < 32) missing.push('SESSION_SECRET (>=32 caracteres)');
-    if (c.AUTH_EMAIL_PROVIDER === 'console') missing.push('AUTH_EMAIL_PROVIDER real');
     if (!c.PAYMENT_WEBHOOK_SECRET) missing.push('PAYMENT_WEBHOOK_SECRET');
     if (missing.length) throw new Error(`Produção exige: ${missing.join(', ')}`);
   }
@@ -85,6 +87,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // Fora de produção, um segredo fixo de desenvolvimento evita configuração manual.
     sessionSecret: c.SESSION_SECRET ?? 'dev-only-secret-not-for-production-000000',
     PAYMENT_WEBHOOK_SECRET: c.PAYMENT_WEBHOOK_SECRET ?? (prod ? undefined : 'dev-only-webhook-secret'),
+    emailLogin: !(prod && c.AUTH_EMAIL_PROVIDER === 'console'),
     adminEmails: new Set(c.ADMIN_EMAILS.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)),
     dbPath,
   };

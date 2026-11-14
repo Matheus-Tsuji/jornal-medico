@@ -9,6 +9,20 @@ async function guest(app: Awaited<ReturnType<typeof setup>>['app']) {
 const codeFor = (db: Awaited<ReturnType<typeof setup>>['db'], email: string) =>
   db.get<{ body: string }>('SELECT body FROM dev_outbox WHERE to_email = ? ORDER BY created_at DESC LIMIT 1', email)!.body.match(/\d{6}/)![0];
 
+describe('produção sem provedor de e-mail', () => {
+  it('sobe só com visitante: pedido de código recusado, nada na caixa postal, visitante entra', async () => {
+    const prod = { NODE_ENV: 'production', SESSION_SECRET: 'x'.repeat(40), PAYMENT_WEBHOOK_SECRET: 'segredo-de-teste' };
+    const { app, db } = await setup(prod);
+    expect((await app.inject({ url: '/api/v1/config' })).json()).toMatchObject({ emailLogin: false, devOutbox: false });
+    const r = await app.inject({ method: 'POST', url: '/api/v1/auth/request-code', headers: H, payload: { email: 'admin@example.com' } });
+    expect(r.statusCode).toBe(503);
+    expect(r.json().code).toBe('email_unavailable');
+    expect(db.get<{ n: number }>('SELECT COUNT(*) AS n FROM auth_challenges')!.n).toBe(0);
+    expect((await app.inject({ url: '/api/v1/dev/outbox' })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'POST', url: '/api/v1/auth/guest', headers: H })).statusCode).toBe(200);
+  });
+});
+
 describe('visitante (sem e-mail)', () => {
   it('entra sem e-mail, personaliza e salva; não pode assinar', async () => {
     const { app } = await setup();

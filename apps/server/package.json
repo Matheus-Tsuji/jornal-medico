@@ -10,6 +10,7 @@
     "db:migrate": "tsx --env-file-if-exists=../../.env src/db/cli.ts migrate",
     "db:seed": "tsx --env-file-if-exists=../../.env src/db/cli.ts seed",
     "db:export": "tsx --env-file-if-exists=../../.env src/db/cli.ts export-clean",
+    "db:push": "tsx --env-file-if-exists=../../.env src/db/cli.ts push-remote",
     "db:backup": "tsx --env-file-if-exists=../../.env src/db/cli.ts backup",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",

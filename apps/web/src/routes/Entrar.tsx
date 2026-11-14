@@ -9,6 +9,7 @@ export default function Entrar() {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [err, setErr] = useState('');
+  const [guestErr, setGuestErr] = useState('');
   const [cooldown, setCooldown] = useState(0);
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -35,8 +36,9 @@ export default function Entrar() {
       await qc.invalidateQueries();
       nav(r.onboarded ? '/jornal' : '/boas-vindas', { replace: true });
     },
-    onError: (e) => setErr(e instanceof ApiError ? e.message : 'Não foi possível entrar agora.'),
+    onError: (e) => setGuestErr(e instanceof ApiError ? e.message : 'Não foi possível entrar agora. Tente de novo em instantes.'),
   });
+  const emailOff = cfg.data?.emailLogin === false;
   useEffect(() => {
     if (cooldown <= 0) return;
     const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
@@ -63,7 +65,11 @@ export default function Entrar() {
         <h1 className="m-0 font-serif text-3xl font-bold">Entrar</h1>
         <p className="mt-2 text-muted">Sem senha: enviamos um código de 6 dígitos para o seu e-mail. Não pedimos CRM nem dados clínicos.</p>
       </header>
-      {step === 'email' ? (
+      {emailOff ? (
+        <p role="status" className="m-0 border-l-4 border-warning bg-warning-soft px-4 py-3 text-sm text-warning">
+          O acesso por e-mail ainda não está disponível nesta versão. Use <strong>Continuar sem e-mail</strong> para ler e salvar estudos.
+        </p>
+      ) : step === 'email' ? (
         <form onSubmit={(e) => { e.preventDefault(); request.mutate(); }} className="grid gap-3" noValidate>
           <label htmlFor="email" className="text-sm font-semibold">E-mail</label>
           <input id="email" type="email" inputMode="email" autoComplete="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} required aria-invalid={!!err} aria-describedby={err ? 'err' : undefined} />
@@ -94,7 +100,8 @@ export default function Entrar() {
       )}
       {step === 'email' && !me.data?.isGuest && (
         <div className="rule-top grid gap-2 pt-4">
-          <button type="button" className="btn btn-ghost" onClick={() => guest.mutate()} disabled={guest.isPending}>{guest.isPending ? 'Entrando…' : 'Continuar sem e-mail'}</button>
+          <button type="button" className={emailOff ? 'btn btn-primary' : 'btn btn-ghost'} onClick={() => { setGuestErr(''); guest.mutate(); }} disabled={guest.isPending}>{guest.isPending ? 'Entrando…' : 'Continuar sem e-mail'}</button>
+          {guestErr && <p role="alert" className="m-0 text-sm text-danger">{guestErr}</p>}
           <p className="m-0 text-xs text-muted">Você lê, escolhe interesses e salva estudos como visitante, só neste navegador. Para não perder nada, informe o e-mail depois em “Minha conta”.</p>
         </div>
       )}

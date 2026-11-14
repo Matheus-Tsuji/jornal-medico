@@ -1,5 +1,26 @@
 # Deploy na Vercel (tudo na Vercel)
 
+## Caminho rápido (site funcionando com acesso de visitante)
+
+Sem banco e sem segredos, a API da Vercel responde erro, e por isso "Receber código" e "Continuar sem e-mail" não funcionam lá. O mínimo para ligar:
+
+1. **Banco:** no painel do projeto, abra **Storage → Create Database → Turso** (Marketplace) e conecte ao projeto `jornal-medico`. A integração cria sozinha `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN`, e a API já lê esses nomes.
+2. **Dados:** copie esses dois valores para o `.env` local como `PUSH_DATABASE_URL` e `PUSH_DATABASE_AUTH_TOKEN` e rode:
+   ```bash
+   npm run db:export
+   ```
+   ```bash
+   npm run db:push
+   ```
+   Isso sobe a cópia limpa do banco local (análises, temas, Qualis, flags), sem sessões nem códigos de login.
+3. **Segredos:** gere três valores aleatórios (rode o comando três vezes) e cadastre em Settings → Environment Variables como `SESSION_SECRET`, `PAYMENT_WEBHOOK_SECRET` e `CRON_SECRET`:
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+4. **Redeploy** em Deployments → ⋯ → Redeploy.
+
+Com isso, "Continuar sem e-mail" funciona. O login por código aparece como "ainda não disponível" até o Resend ser configurado (variáveis `AUTH_EMAIL_*`); em produção o código nunca é mostrado na tela. A análise automática pelo cron precisa também das variáveis da OpenAI.
+
 Como fica em produção:
 
 | Peça | Local | Vercel |
@@ -59,7 +80,7 @@ Para começar com o banco vazio, pule o passo 2 e crie o banco sem `--from-file`
 | `NCBI_CONTACT_EMAIL` | E-mail de contato exigido pelo NCBI (`NCBI_API_KEY` é opcional) |
 | `VERCEL_CRON_SCHEDULE` | Opcional. Hobby: deixe vazio (1 vez por dia, 06:00 de Brasília). Pro: `0 * * * *` |
 
-Sem e-mail real a API não sobe em produção, e isso é proposital: no modo de teste o código de login aparece na tela, e qualquer pessoa entraria como admin. Enquanto o Resend não estiver pronto, deixe o deploy como Preview e não divulgue o link.
+Sem e-mail real, a API sobe só com acesso de visitante: o pedido de código responde "ainda não disponível" e o código nunca aparece na tela (se aparecesse, qualquer pessoa entraria como admin). Sem login, ninguém acessa o painel editorial na produção até o Resend estar pronto.
 
 5. Faça o deploy. Depois:
    - `https://<seu-projeto>.vercel.app/health` deve responder `{"status":"ok"}`.

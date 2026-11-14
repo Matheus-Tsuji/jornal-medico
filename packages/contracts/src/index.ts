@@ -287,6 +287,8 @@ export interface PublicConfig {
   paywall: boolean;
   paymentProvider: string;
   devOutbox: boolean;
+  /** false em produção sem provedor de e-mail: só o acesso de visitante funciona. */
+  emailLogin: boolean;
   features: Record<string, boolean>;
   editionHour: string;
   timezone: string;
