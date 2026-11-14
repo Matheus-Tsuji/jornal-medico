@@ -13,12 +13,14 @@ import type { AiProvider, Usage } from './provider.ts';
 import { validateAnalysis, validateEditorial } from './validator.ts';
 
 const PROMPTS = join(dirname(fileURLToPath(import.meta.url)), 'prompts');
-export const PROMPT_VERSION = 'triage.v1+extraction.v1+editorial.v2';
+export const PROMPT_VERSION = 'triage.v1+extraction.v2+editorial.v3';
 const TRIAGE = readFileSync(join(PROMPTS, 'triage.v1.md'), 'utf8');
-const EXTRACTION = readFileSync(join(PROMPTS, 'extraction.v1.md'), 'utf8');
-const EDITORIAL = readFileSync(join(PROMPTS, 'editorial.v2.md'), 'utf8');
+const EXTRACTION = readFileSync(join(PROMPTS, 'extraction.v2.md'), 'utf8');
+const EDITORIAL = readFileSync(join(PROMPTS, 'editorial.v3.md'), 'utf8');
 
-export const editorialSchema = z.strictObject({ editorialHeadline: z.string().nullable(), summary: z.string().nullable(), inShort: z.string().nullable() });
+export const editorialSchema = z.strictObject({
+  editorialHeadline: z.string().nullable(), summary: z.string().nullable(), inShort: z.string().nullable(), plainResult: z.string().nullable(),
+});
 export const triageSchema = z.strictObject({
   topicFit: z.enum(['central', 'secondary', 'tangential']),
   clinicalRelevance: z.enum(['high', 'moderate', 'low']),
@@ -144,7 +146,7 @@ export async function analyzeArticle(db: Db, cfg: Config, provider: AiProvider |
   }
 
   // 2) Redação editorial baseada só na extração validada
-  const extractionJson = JSON.stringify({ ...extraction, editorialHeadline: null, summary: null, inShort: null });
+  const extractionJson = JSON.stringify({ ...extraction, editorialHeadline: null, summary: null, inShort: null, plainResult: null });
   const ed = await provider.structured({
     model: cfg.OPENAI_EDITORIAL_MODEL, system: EDITORIAL, user: `<extracao>\n${extractionJson}\n</extracao>`, name: 'editorial_text', schema: editorialSchema, maxOutputTokens: 1500,
   });

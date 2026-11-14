@@ -16,6 +16,10 @@ export interface AnalysisMeta {
 export function insertAnalysis(db: Db, articleId: string, a: AiAnalysis, meta: AnalysisMeta): string {
   const analysisId = id();
   db.tx(() => {
+    // Um rascunho novo (reprocessamento) aposenta os rascunhos anteriores; versões publicadas não mudam.
+    if (!meta.isDemo && (meta.status === 'in_review' || meta.status === 'blocked')) {
+      db.run("UPDATE analyses SET status = 'superseded' WHERE article_id = ? AND status IN ('in_review','blocked')", articleId);
+    }
     const v = db.get<{ v: number }>('SELECT COALESCE(MAX(version),0)+1 AS v FROM analyses WHERE article_id = ?', articleId)!.v;
     db.run(
       `INSERT INTO analyses (id, article_id, version, model, prompt_version, language, input_scope, input_hash, status, payload, validation, editorial_priority, is_demo, created_at)

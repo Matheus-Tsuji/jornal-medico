@@ -27,7 +27,7 @@ export function LeadStory({ a }: { a: Card }) {
       </Link>
       {a.inShort && <p className="m-0 max-w-[60ch] font-serif text-lg leading-relaxed text-ink/90">{a.inShort}</p>}
       <StatusChips a={a} />
-      {a.keyResult && <KeyResultPanel k={a.keyResult} />}
+      {a.keyResult && <KeyResultPanel k={a.keyResult} evidence={a.evidence} />}
       <Meta a={a} />
       <Link to={`/artigos/${a.slug}`} className="link w-fit text-sm font-semibold">Ler a análise completa</Link>
     </article>
@@ -43,7 +43,7 @@ export function SecondaryStory({ a, showResult = true }: { a: Card; showResult?:
       </Link>
       {a.inShort && <p className="m-0 text-[0.95rem] leading-relaxed text-muted">{a.inShort}</p>}
       <StatusChips a={a} />
-      {a.keyResult && (showResult ? <KeyResultPanel k={a.keyResult} compact /> : <ResultLine k={a.keyResult} />)}
+      {a.keyResult && (showResult ? <KeyResultPanel k={a.keyResult} evidence={a.evidence} compact /> : <ResultLine k={a.keyResult} />)}
       <Meta a={a} />
     </article>
   );

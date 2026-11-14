@@ -17,7 +17,8 @@
 | Segurança | Ver `docs/architecture.md#segurança-implementada` | testes de CSRF, papéis, cabeçalhos, bundle sem segredos |
 
 ## Comandos executados (resultado em 2026-11-14, fim do dia)
-- `npm run check` → lint ok, typecheck ok, Vitest 65/65, pytest 7/7, build ok
+- `npm run check` → lint ok, typecheck ok, Vitest 69/69, pytest 7/7, build ok
+- Código no GitHub: `Matheus-Tsuji/jornal-medico` (privado), branch `main`
 - `npm run test:e2e` (com `PW_CHROMIUM` apontando para o Chromium headless 1254 instalado; o Playwright 1.65.1 pede o 1255, que não está baixado) → 9/9
 - Ingestão real com OpenAI, 5 áreas: 52 jobs `analyze` concluídos, 6 em andamento no fim da sessão; 48 análises reais `in_review` e 1 `blocked`
 - Flags `real_content` e `ai_preview` ligadas no banco local (`/admin/flags`)
@@ -27,6 +28,8 @@
 - Barra de seções centralizada (`justify-center-safe`: centraliza quando cabe, rola a partir da esquerda quando não cabe).
 - Datas: sem `ArticleDate`, a data da edição impressa no futuro cai para a data de entrada no PubMed (`sources/pubmed.ts` + migração `003_future_pubdates.sql`; teste em `ingestion.test.ts`).
 - Cards: número bruto da fonte com separadores brasileiros (`brNums` em `web/src/lib/api.ts`) e sem linha "—" quando nada foi reportado.
+- Força da evidência A1–C3 por estudo + Qualis CAPES 2021–2024 da revista; capa e edição ordenadas pelos mais bem avaliados (`modules/grade.ts`, `test/grade.test.ts`).
+- Prompts `extraction.v2` (rótulos) e `editorial.v3` (frase `plainResult`); `PROMPT_VERSION = triage.v1+extraction.v2+editorial.v3`. Rascunho novo aposenta o rascunho anterior (`superseded`).
 
 ## Não validado / limitações conhecidas
 - Nenhum e-mail real (Resend) enviado; nenhum gateway de pagamento real. Análises reais ainda **sem revisão médica**.

@@ -99,6 +99,10 @@ body {
 .chip-demo { border-color: var(--color-warning); color: var(--color-warning); background: var(--color-warning-soft); }
 .chip-danger { border-color: var(--color-danger); color: var(--color-danger); background: var(--color-danger-soft); }
 .chip-ok { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-soft); }
+/* Força da evidência: A cheio, B contorno, C neutro (o texto sempre diz a nota; a cor só reforça). */
+.chip-grade-A { border-color: var(--color-primary); color: var(--color-paper); background: var(--color-primary); }
+.chip-grade-B { border-color: var(--color-accent); color: var(--color-accent); }
+.chip-grade-C { border-color: var(--color-line); color: var(--color-muted); }
 .scroll-x { overflow-x: auto; scrollbar-width: none; }
 .scroll-x::-webkit-scrollbar { display: none; }
 .skip-link { position: absolute; left: -999px; top: 0; }

@@ -5,6 +5,7 @@ import type { Db, Params, Row } from '../db/index.ts';
 import { json } from '../db/index.ts';
 import { AppError } from '../lib/util.ts';
 import { flag } from './audit.ts';
+import { rankBest, scoreAnalyses } from './grade.ts';
 
 /** Filtro SQL de visibilidade para a tabela `analyses` com alias `a`. */
 export function visibility(db: Db): { sql: string; params: Params } {
@@ -81,13 +82,15 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null): 
         read: new Set(db.all<{ article_id: string }>(`SELECT DISTINCT article_id FROM read_events WHERE user_id = ? AND article_id IN (${ph(articleIds.length)})`, userId, ...articleIds).map((r) => r.article_id)),
       }
     : null;
+  const scores = scoreAnalyses(db, analysisIds);
   const out = new Map<string, ArticleCard>();
   for (const r of rows) {
     const aid = r.aid as string;
     const p = json<Partial<AiAnalysis>>(r.payload, {});
     const kr = keyResults.find((k) => k.analysis_id === aid);
+    const sc = scores.get(aid)!;
     const key: KeyResult | null = kr
-      ? (() => { const x = resultRow(kr); return { outcome: x.outcome, measure: x.measure, estimate: x.estimate, estimateRaw: x.estimateRaw, unit: x.unit, ci: x.confidenceInterval, pRaw: x.pValue?.raw ?? null, p: x.pValue ? { operator: x.pValue.operator, value: x.pValue.value } : null }; })()
+      ? (() => { const x = resultRow(kr); return { plain: p.plainResult ?? null, outcome: x.outcome, measure: x.measure, estimate: x.estimate, estimateRaw: x.estimateRaw, unit: x.unit, ci: x.confidenceInterval, pRaw: x.pValue?.raw ?? null, p: x.pValue ? { operator: x.pValue.operator, value: x.pValue.value } : null }; })()
       : null;
     const retraction = r.retraction_status as ArticleCard['retractionStatus'];
     const card: ArticleCard = {
@@ -106,6 +109,8 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null): 
       retractionStatus: retraction,
       accessStatus: r.access_status as string,
       keyResult: key,
+      evidence: { grade: sc.grade, reasons: sc.reasons },
+      journalQualis: sc.qualis,
       readingMinutes: readingMinutes(p),
       reviewStatus: retraction === 'retracted' ? 'retracted' : r.status === 'in_review' ? 'ai_unreviewed' : (r.corrections as number) > 0 ? 'corrected' : r.is_demo === 1 ? 'demo' : 'reviewed',
     };
@@ -238,14 +243,17 @@ export function previewEdition(db: Db, userId: string | null, today: string): Ed
        FROM analyses a JOIN articles ar ON ar.id = a.article_id
       WHERE ${v.sql} AND ar.retraction_status <> 'retracted' AND a.created_at >= ?
         AND a.version = (SELECT MAX(version) FROM analyses x WHERE x.article_id = a.article_id AND x.status IN ('published','in_review'))
-      ORDER BY a.editorial_priority DESC, a.created_at DESC LIMIT 30`,
+      ORDER BY a.created_at DESC LIMIT 300`,
     ...v.params, since,
   );
   if (!rows.length) return null;
-  const m = cardMap(db, rows.map((r) => r.aid), userId);
-  const all = rows.map((r) => m.get(r.aid)).filter((c): c is ArticleCard => !!c);
+  // Manchete e destaques = os mais bem avaliados (força da evidência, depois Qualis, depois prioridade editorial).
+  const best = new Map(rankBest(db, rows.map((r) => r.aid)).slice(0, 30).map((a, i) => [a, i]));
+  const top = rows.filter((r) => best.has(r.aid)).sort((a, b) => best.get(a.aid)! - best.get(b.aid)!);
+  const m = cardMap(db, top.map((r) => r.aid), userId);
+  const all = top.map((r) => m.get(r.aid)).filter((c): c is ArticleCard => !!c);
   const sectionMap = new Map<string, ArticleCard[]>();
-  rows.slice(4).forEach((r) => {
+  top.slice(4).forEach((r) => {
     const c = m.get(r.aid);
     if (c) sectionMap.set(r.section ?? 'geral', [...(sectionMap.get(r.section ?? 'geral') ?? []), c]);
   });

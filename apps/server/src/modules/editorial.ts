@@ -4,6 +4,7 @@ import type { Db, Row } from '../db/index.ts';
 import { json } from '../db/index.ts';
 import { AppError, id, nowIso } from '../lib/util.ts';
 import { audit } from './audit.ts';
+import { rankBest } from './grade.ts';
 
 export function reviewQueue(db: Db, status?: string) {
   const statuses = status ? [status] : ['in_review', 'blocked'];
@@ -77,16 +78,19 @@ export function composeEdition(db: Db, date: string, opts: { maxItems?: number; 
   const max = opts.maxItems ?? 12;
   const since = new Date(Date.parse(date) - (opts.windowDays ?? 7) * 86_400_000).toISOString();
   return db.tx(() => {
-    const rows = db.all<{ aid: string; article_id: string; priority: number; topic_parent: string | null }>(
+    const all = db.all<{ aid: string; article_id: string; priority: number; topic_parent: string | null }>(
       `SELECT a.id AS aid, a.article_id, a.editorial_priority AS priority,
               (SELECT t.parent_id FROM article_topics at JOIN topics t ON t.id = at.topic_id WHERE at.article_id = a.article_id ORDER BY at.confidence DESC LIMIT 1) AS topic_parent
          FROM analyses a JOIN articles ar ON ar.id = a.article_id
         WHERE a.status = 'published' AND a.is_demo = 0 AND ar.retraction_status <> 'retracted' AND a.published_at >= ?
           AND NOT EXISTS (SELECT 1 FROM edition_items i JOIN editions e ON e.id = i.edition_id
                            WHERE i.article_id = a.article_id AND e.status = 'published' AND e.is_demo = 0 AND e.edition_date <> ?)
-        ORDER BY a.editorial_priority DESC, a.published_at DESC LIMIT ?`,
-      since, date, max,
+        ORDER BY a.published_at DESC LIMIT 300`,
+      since, date,
     );
+    // Manchete = estudo mais bem avaliado; depois os seguintes na mesma ordem (ver modules/grade.ts).
+    const order = new Map(rankBest(db, all.map((r) => r.aid)).map((a, i) => [a, i]));
+    const rows = all.sort((a, b) => order.get(a.aid)! - order.get(b.aid)!).slice(0, max);
     const version = db.get<{ v: number }>('SELECT COALESCE(MAX(version),0)+1 AS v FROM editions WHERE edition_date = ? AND is_demo = 0', date)!.v;
     const number = db.get<{ n: number }>("SELECT COUNT(DISTINCT edition_date) + 1 AS n FROM editions WHERE is_demo = 0 AND status = 'published' AND edition_date < ?", date)!.n;
     const eid = id();

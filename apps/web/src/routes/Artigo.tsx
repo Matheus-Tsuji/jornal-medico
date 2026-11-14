@@ -251,7 +251,15 @@ export default function Artigo() {
               {a.doi && <div><dt className="inline text-muted">DOI: </dt><dd className="inline"><a className="link" href={`https://doi.org/${a.doi}`} target="_blank" rel="noopener noreferrer">{a.doi}</a></dd></div>}
               {a.pmid && <div><dt className="inline text-muted">PMID: </dt><dd className="inline">{a.pmid}</dd></div>}
               {a.pmcid && <div><dt className="inline text-muted">PMCID: </dt><dd className="inline">{a.pmcid}</dd></div>}
-              <div><dt className="inline text-muted">Classificação histórica do periódico: </dt><dd className="inline">{a.journalClassification ? `${a.journalClassification.system} ${a.journalClassification.cycle}: ${a.journalClassification.stratum}` : 'indisponível'}</dd></div>
+              <div><dt className="inline text-muted">Força da evidência do estudo: </dt><dd className="inline font-semibold">{a.evidence.grade}</dd></div>
+              <div>
+                <dt className="inline text-muted">Revista no Qualis CAPES: </dt>
+                <dd className="inline">
+                  {a.journalClassification
+                    ? <><strong>{a.journalClassification.stratum}</strong> ({a.journalClassification.cycle}, <a className="link" href={a.journalClassification.sourceUrl} target="_blank" rel="noopener noreferrer">Plataforma Sucupira</a>). Classifica a revista, não o estudo.</>
+                    : 'não encontrada na consulta 2021–2024'}
+                </dd>
+              </div>
             </dl>
           </header>
 
@@ -263,7 +271,7 @@ export default function Artigo() {
             <p className="m-0 text-xs text-muted">
               {an?.inputScope === 'abstract_only' || a.accessStatus === 'abstract_only' ? 'Análise baseada somente no abstract.' : an?.inputScope === 'full_text' ? 'Análise baseada no texto integral autorizado.' : ''}
             </p>
-            {a.keyResult && <div className="mt-4"><KeyResultPanel k={a.keyResult} /></div>}
+            {a.keyResult && <div className="mt-4"><KeyResultPanel k={a.keyResult} evidence={a.evidence} /></div>}
           </section>
 
           {a.locked && (

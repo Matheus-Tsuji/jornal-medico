@@ -11,7 +11,13 @@ Lista criada em 2026-11-14, com o trabalho **pausado** a pedido do Matheus.
 - [x] Barra de seções centralizada (centraliza quando cabe; no celular continua rolando a partir da esquerda).
 - [x] Gráfico de efeito conferido com artigo real (GLP-1, 4 desfechos): nomes completos, números ao lado, sem corte a 1440 px e 375 px.
 - [x] Linha de resultado nos cards conferida. Corrigido: número copiado da fonte agora sai com vírgula decimal ("301,0 → 1443,0"); card sem resultado reportado não mostra mais "…: —"; datas de edição impressa no futuro (11 artigos com "1 de jan. de 2027") passam a usar a data de entrada no PubMed (parser + migração `003`).
-- [ ] Rótulos escritos pela IA às vezes saem truncados ou mistos ("150 de 190 78,9%", "Mediana; intervalo interquartil… 29 anos", "recruits per month"). É texto do modelo, não do formatador: corrigir na revisão editorial ou numa nova versão do prompt de redação.
+- [x] Rótulos da IA: novo prompt `extraction.v2` (medida só com o nome, unidade em português, contagens/IQR no texto bruto) + aviso no validador. Reanálise das 49 análises reais disparada com `npm run pipeline -- reanalyze` e `run`.
+- [x] **Força da evidência A1–C3** por estudo (regra fixa em `modules/grade.ts`) e **Qualis CAPES 2021–2024** da revista (41 de 44 revistas, consulta manual na Sucupira). Capa e edição: manchete e destaques são os mais bem avaliados (nota → Qualis → prioridade).
+- [x] Bloco "Resultado principal": selo da nota com "Por que A1?", frase em português claro (`plainResult`, prompt `editorial.v3`) e número em destaque.
+- [ ] Revistas novas entram sem Qualis: automatizar a consulta à Sucupira (hoje é manual; a página é JSF e não tem API).
+- [ ] Médico validar os pesos da nota (amostra ≥ 500, IC/p, desenho).
+- [ ] Deploy na Vercel: a API usa SQLite em arquivo, worker contínuo e Python, que não rodam no modelo serverless da Vercel. Decidir: web na Vercel + API num host com disco (Render/Railway/Fly), ou migrar o banco para Postgres/libSQL e a fila para Vercel Cron.
+- [ ] 10 PRs do Dependabot abertos no GitHub (vários são versões maiores; o TypeScript 7 já falha no CI). Revisar um a um, sem mesclar em bloco.
 - [x] Capa em modo prévia com artigos reais, conferida a 1440 px e 375 px, sem rolagem lateral e com aviso "Prévia automática".
 - [ ] "Edições" e "Mais lidos" ficam vazios com conteúdo real até existir uma edição publicada e leitores suficientes. Decidir se a prévia aparece em "Edições".
 - [ ] Rever se as buscas das áreas novas trazem estudos pertinentes. A triagem excluiu 2 de 58; vale amostrar com um médico.

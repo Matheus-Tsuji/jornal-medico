@@ -57,6 +57,8 @@ export function validateAnalysis(a: AiAnalysis, source: string, expectedScope: A
 
   a.results.forEach((r, i) => {
     const at = `results[${i}] (${r.outcome})`;
+    // O rótulo aparece sozinho nos cards: só o nome da medida (números e listas ficam no estimateRaw).
+    if (r.measure && /[\d;:]/.test(r.measure)) warnings.push(`${at}: rótulo da medida com números ou pontuação ("${r.measure}").`);
     const ci = r.confidenceInterval;
     if (ci) {
       if (!(ci.lower <= ci.upper)) errors.push(`${at}: limite inferior do IC maior que o superior.`);
@@ -104,10 +106,11 @@ export function validateAnalysis(a: AiAnalysis, source: string, expectedScope: A
 }
 
 /** A redação editorial não pode introduzir números que não estejam na extração/fonte. */
-export function validateEditorial(text: { editorialHeadline: string | null; summary: string | null; inShort: string | null }, extractionJson: string, source: string): ValidationReport {
+export function validateEditorial(text: { editorialHeadline: string | null; summary: string | null; inShort: string | null; plainResult?: string | null }, extractionJson: string, source: string): ValidationReport {
   const errors: string[] = [];
   const allowed = new Set([...numbersIn(extractionJson), ...numbersIn(source)]);
-  const all = [text.editorialHeadline, text.summary, text.inShort].filter(Boolean).join(' ');
+  const all = [text.editorialHeadline, text.summary, text.inShort, text.plainResult].filter(Boolean).join(' ');
+  if (text.plainResult && text.plainResult.length > 300) errors.push('Frase do resultado longa demais.');
   for (const tok of numberTokens(all)) if (!covered(tok, allowed)) errors.push(`Redação introduziu número ausente da extração: ${tok[0]}`);
   if (!text.editorialHeadline || text.editorialHeadline.length > 200) errors.push('Manchete ausente ou longa demais.');
   if (!text.summary || text.summary.length > 1500) errors.push('Resumo ausente ou longo demais.');

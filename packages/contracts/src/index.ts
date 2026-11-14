@@ -114,6 +114,7 @@ export const aiAnalysisSchema = z.strictObject({
   editorialHeadline: nstr,
   summary: nstr,
   inShort: nstr,
+  plainResult: nstr,
   context: nstr,
   objective: nstr,
   studyDesign: z.enum(studyDesigns),
@@ -184,7 +185,13 @@ export interface Source {
   id: string; slug: string; name: string; kind: string; officialUrl: string; status: string; enabled: boolean;
 }
 
+/** Força da evidência do estudo: letra = desenho, número = precisão/amostra/incerteza (A1 é a mais forte). */
+export const evidenceGrades = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'] as const;
+export type EvidenceGrade = (typeof evidenceGrades)[number];
+
 export interface KeyResult {
+  /** Frase em português claro sobre o resultado (redação por IA, validada; null em análises antigas). */
+  plain?: string | null;
   outcome: string;
   measure: string | null;
   estimate: number | null;
@@ -211,6 +218,9 @@ export interface ArticleCard {
   retractionStatus: 'none' | 'corrected' | 'retracted';
   accessStatus: string;
   keyResult: KeyResult | null;
+  evidence: { grade: EvidenceGrade; reasons: string[] };
+  /** Qualis CAPES da revista (estrato oficial), quando encontrado. */
+  journalQualis: { stratum: string; cycle: string } | null;
   readingMinutes: number;
   reviewStatus: 'reviewed' | 'demo' | 'corrected' | 'retracted' | 'ai_unreviewed';
   bookmarked?: boolean;

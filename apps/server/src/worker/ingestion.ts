@@ -5,6 +5,7 @@ import type { NormalizedRecord, ScientificSourceAdapter } from '../sources/pubme
 import { addDays, id, localDate, nowIso, sha256, slugify } from '../lib/util.ts';
 import { enqueue } from '../modules/jobs.ts';
 import { PROMPT_VERSION } from '../ai/analysis.ts';
+import { syncQualis } from '../modules/grade.ts';
 
 const ALLOWED_TYPES = ['Randomized Controlled Trial', 'Clinical Trial', 'Clinical Trial, Phase III', 'Meta-Analysis', 'Systematic Review', 'Practice Guideline', 'Guideline', 'Observational Study', 'Multicenter Study', 'Comparative Study', 'Consensus Development Conference'];
 const EXCLUDED_TYPES = ['Comment', 'Editorial', 'Letter', 'Erratum', 'Published Erratum', 'News', 'Retraction of Publication'];
@@ -122,6 +123,7 @@ export async function discover(db: Db, cfg: Config, adapter: ScientificSourceAda
       );
       db.run('UPDATE sources SET last_success_at = ?, last_error = NULL WHERE id = ?', nowIso(), source.id);
       for (const a of eligible) enqueue(db, 'analyze', `analyze:${a}:${PROMPT_VERSION}`, { articleId: a });
+      syncQualis(db); // revistas novas que já estão na tabela consultada ganham o Qualis
     });
     return { runId, found: total, fetched: records.length, inserted, duplicates, queuedForAnalysis: eligible.length };
   } catch (e) {

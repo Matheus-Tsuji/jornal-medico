@@ -9,7 +9,7 @@ Lista viva. Nada aqui foi decidido pela engenharia; os valores atuais são defau
 | Responsável editorial | Qualquer usuário com papel `editor` aprova | Quem são os editores qualificados; critérios escritos de aprovação |
 | Uso de abstracts | Guardados só para análise interna, não republicados | Parecer jurídico sobre uso comercial de abstracts/resumos derivados |
 | Fontes pagas/licenças | Só PubMed integrado | Quais fontes (NEJM, JAMA, Lancet, SciELO, sociedades) e com que licença |
-| Qualis histórico | Não importado ("indisponível") | Se vale exibir, com tabela oficial e ressalvas |
+| Qualis da revista | Exibido (Sucupira 2021–2024, consulta manual de 44 revistas em 2026-11-14) e usado só como desempate | Automatizar a consulta para revistas novas; médico validar os pesos da nota A1–C3 |
 | Preço e gateway | Sandbox; R$ 49,90 (ativo) e R$ 99,90 (inativo) | Preço, gateway brasileiro com recorrência, plano anual/estudante/teste grátis |
 | Paywall | Desligado no beta | Quando ligar e o que fica gratuito |
 | Orçamento de IA | 20 artigos/dia; sem limite em USD (sem tabela de preços) | Orçamento diário/mensal e preços oficiais em `ai-pricing.json` |

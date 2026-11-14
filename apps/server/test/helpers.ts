@@ -73,6 +73,7 @@ export function validExtraction(over: Partial<AiAnalysis> = {}): AiAnalysis {
     editorialHeadline: null,
     summary: null,
     inShort: null,
+    plainResult: null,
     context: null,
     objective: 'Comparar fármaco Z e placebo.',
     studyDesign: 'rct',
@@ -105,4 +106,5 @@ export const validEditorial = {
   editorialHeadline: 'Ensaio sintético: fármaco Z reduziu o desfecho primário frente a placebo',
   summary: 'Ensaio com 1200 adultos com hipertensão. O desfecho primário foi menos frequente com Z (HR 0.80; IC 95% 0.66 a 0.97; P=0.02). Análise baseada apenas no abstract.',
   inShort: 'Menos eventos com Z, segundo o abstract; dados completos não avaliados.',
+  plainResult: 'Quem usou Z teve menos eventos do desfecho primário que quem usou placebo (HR 0,80; IC 95% 0,66 a 0,97).',
 };

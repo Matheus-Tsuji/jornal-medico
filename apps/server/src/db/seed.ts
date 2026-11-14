@@ -5,6 +5,7 @@ import type { Db } from './index.ts';
 import { demoArticles, flags, plans, sources, taxonomy } from './seed-data.ts';
 import { insertAnalysis } from '../modules/analyses.ts';
 import { addDays, id, localDate, nowIso, sha256 } from '../lib/util.ts';
+import { syncQualis } from '../modules/grade.ts';
 
 export function seed(db: Db, cfg: Config): { demoArticles: number } {
   const now = nowIso();
@@ -61,6 +62,7 @@ export function seed(db: Db, cfg: Config): { demoArticles: number } {
   });
 
   seedDemo(db, cfg);
+  syncQualis(db);
   return { demoArticles: demoArticles.length };
 }
 
@@ -110,6 +112,7 @@ function seedDemo(db: Db, cfg: Config) {
         editorialHeadline: d.headline,
         summary: d.summary,
         inShort: d.inShort,
+        plainResult: null,
         context: d.context,
         objective: d.objective,
         studyDesign: d.design,

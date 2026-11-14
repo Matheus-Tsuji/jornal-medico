@@ -2,14 +2,14 @@
 import { loadConfig } from '../config.ts';
 import { openDb } from '../db/index.ts';
 import { localDate } from '../lib/util.ts';
-import { analyzeArticle, buildDocument } from '../ai/analysis.ts';
+import { PROMPT_VERSION, analyzeArticle, buildDocument } from '../ai/analysis.ts';
 import { validateAnalysis } from '../ai/validator.ts';
 import { resultRow } from '../modules/content.ts';
 import { json } from '../db/index.ts';
 import type { AiAnalysis } from '@jm/contracts';
 import { composeEdition } from '../modules/editorial.ts';
 import { defaultDeps, schedule, workOnce } from './runner.ts';
-import { requeue } from '../modules/jobs.ts';
+import { enqueue, requeue } from '../modules/jobs.ts';
 import { discover } from './ingestion.ts';
 
 const [cmd, arg] = process.argv.slice(2);
@@ -61,6 +61,13 @@ switch (cmd) {
     out({ revalidated: changed });
     break;
   }
+  case 'reanalyze': {
+    // Reprocessa com o PROMPT_VERSION atual os artigos reais que têm rascunho (em revisão ou bloqueado). Publicadas ficam como estão.
+    const ids = db.all<{ article_id: string }>("SELECT DISTINCT article_id FROM analyses WHERE is_demo = 0 AND status IN ('in_review','blocked') AND prompt_version <> ?", PROMPT_VERSION);
+    ids.forEach((r) => enqueue(db, 'analyze', `analyze:${r.article_id}:${PROMPT_VERSION}`, { articleId: r.article_id }));
+    out({ enqueued: ids.length, promptVersion: PROMPT_VERSION });
+    break;
+  }
   case 'retry-blocked': {
     // Reenfileira jobs bloqueados/falhos (ex.: depois de configurar a chave da OpenAI).
     const ids = db.all<{ id: string }>("SELECT id FROM jobs WHERE status IN ('blocked','failed')").map((r) => r.id);
@@ -69,7 +76,7 @@ switch (cmd) {
     break;
   }
   default:
-    console.log('Uso: pipeline <discover TEMA | analyze ARTICLE_ID | compose [YYYY-MM-DD] | schedule | retry-blocked | revalidate | run>');
+    console.log('Uso: pipeline <discover TEMA | analyze ARTICLE_ID | compose [YYYY-MM-DD] | schedule | retry-blocked | reanalyze | revalidate | run>');
     process.exitCode = 1;
 }
 db.close();

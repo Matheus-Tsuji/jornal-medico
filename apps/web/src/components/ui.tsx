@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { AlertTriangle, FlaskConical, RefreshCw } from 'lucide-react';
-import type { ArticleCard, KeyResult } from '@jm/contracts';
+import type { ArticleCard, EvidenceGrade, KeyResult } from '@jm/contracts';
 import { ApiError, fmtCi, fmtNum, fmtP, fmtVal } from '../lib/api';
 
 export function Loading({ label = 'Carregando…', lines = 3 }: { label?: string; lines?: number }) {
@@ -63,9 +63,10 @@ export function DemoBanner() {
   );
 }
 
-export function StatusChips({ a }: { a: Pick<ArticleCard, 'isDemo' | 'reviewStatus' | 'retractionStatus'> & { accessStatus?: string } }) {
+export function StatusChips({ a }: { a: Pick<ArticleCard, 'isDemo' | 'reviewStatus' | 'retractionStatus'> & Partial<Pick<ArticleCard, 'evidence' | 'journalQualis'>> & { accessStatus?: string } }) {
   return (
     <span className="inline-flex flex-wrap gap-1.5">
+      {a.evidence && <EvidenceChips a={{ evidence: a.evidence, journalQualis: a.journalQualis ?? null }} />}
       {a.isDemo && <span className="chip chip-demo">Fictício · demonstração</span>}
       {a.retractionStatus === 'retracted' && <span className="chip chip-danger"><AlertTriangle size={12} aria-hidden /> Retratado</span>}
       {a.reviewStatus === 'corrected' && <span className="chip chip-demo">Corrigido</span>}
@@ -89,29 +90,56 @@ export function ResultLine({ k }: { k: KeyResult }) {
   );
 }
 
-/** Resultado principal: só números reportados; ausências aparecem como ausências. */
-export function KeyResultPanel({ k, compact = false }: { k: KeyResult; compact?: boolean }) {
+const TIER_LABEL = { A: 'evidência forte', B: 'evidência intermediária', C: 'evidência fraca' } as const;
+const tierOf = (g: EvidenceGrade) => g[0] as keyof typeof TIER_LABEL;
+
+/** Selo "Evidência A1" (nota do estudo) e "Qualis A1" (nota da revista na CAPES). */
+export function EvidenceChips({ a }: { a: Pick<ArticleCard, 'evidence' | 'journalQualis'> }) {
+  const t = tierOf(a.evidence.grade);
   return (
-    <dl className={`tnum grid gap-x-5 gap-y-1 border-t border-line pt-2 text-sm ${compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}>
-      <div className="col-span-full">
-        <dt className="kicker text-muted">Resultado principal</dt>
-        <dd className="m-0 font-medium">{k.outcome}</dd>
-      </div>
-      <div>
-        <dt className="kicker text-muted">{k.measure ?? 'Medida'}</dt>
-        <dd className="m-0 font-semibold">{fmtVal(k.estimate, k.estimateRaw)}{k.unit === '%' ? '%' : k.unit ? ` ${k.unit}` : ''}</dd>
-      </div>
-      <div>
-        <dt className="kicker text-muted">IC {k.ci ? `${fmtNum(k.ci.level)}%` : ''}</dt>
-        <dd className="m-0 font-semibold">{k.ci ? fmtCi(k.ci) : <span className="font-normal text-muted">não reportado</span>}</dd>
-      </div>
-      {!compact && (
-        <div>
-          <dt className="kicker text-muted">p-valor</dt>
-          <dd className="m-0 font-semibold">{fmtP(k.p, k.pRaw) ?? <span className="font-normal text-muted">não reportado</span>}</dd>
-        </div>
+    <>
+      <span className={`chip chip-grade-${t}`} title={a.evidence.reasons.join(' · ')}>
+        <span className="sr-only">Força da evidência do estudo: </span>Evidência {a.evidence.grade}<span className="sr-only"> ({TIER_LABEL[t]})</span>
+      </span>
+      {a.journalQualis && (
+        <span className="chip" title={`Qualis CAPES ${a.journalQualis.cycle} da revista. Classifica a revista, não o estudo.`}>
+          <span className="sr-only">Classificação da revista: </span>Qualis {a.journalQualis.stratum}
+        </span>
       )}
-    </dl>
+    </>
+  );
+}
+
+/** Resultado principal: nota do estudo, frase clara e o número em destaque. Só números reportados; ausências aparecem como ausências. */
+export function KeyResultPanel({ k, evidence, compact = false }: { k: KeyResult; evidence?: ArticleCard['evidence']; compact?: boolean }) {
+  const unit = k.unit === '%' ? '%' : k.unit ? ` ${k.unit}` : '';
+  const ci = k.ci ? `IC ${fmtNum(k.ci.level)}% ${fmtCi(k.ci)}` : 'IC não reportado';
+  const p = fmtP(k.p, k.pRaw) ?? 'p-valor não reportado';
+  return (
+    <section aria-label="Resultado principal" className="tnum grid gap-1.5 border-t border-line pt-2 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="kicker m-0 text-muted">Resultado principal</p>
+        {evidence && (
+          <span className={`chip chip-grade-${tierOf(evidence.grade)}`} title={evidence.reasons.join(' · ')}>
+            Evidência {evidence.grade} · {TIER_LABEL[tierOf(evidence.grade)]}
+          </span>
+        )}
+      </div>
+      {k.plain && <p className={`m-0 font-serif font-semibold leading-snug ${compact ? 'text-base' : 'text-lg'}`}>{k.plain}</p>}
+      <p className="m-0 text-muted">{k.outcome}</p>
+      <p className="m-0 flex flex-wrap items-baseline gap-x-2">
+        {k.measure && <span className="text-muted">{k.measure}</span>}
+        <strong className={`${compact ? 'text-xl' : 'text-3xl'} font-bold leading-none text-ink`}>{fmtVal(k.estimate, k.estimateRaw)}{unit}</strong>
+      </p>
+      <p className="m-0 text-muted">{ci} · {p}</p>
+      {evidence && !compact && (
+        <details className="text-xs text-muted">
+          <summary className="cursor-pointer">Por que {evidence.grade}?</summary>
+          <ul className="m-0 mt-1 list-disc pl-5">{evidence.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
+          <p className="m-0 mt-1">A letra vem do desenho do estudo (A: metanálise, revisão sistemática ou ensaio randomizado; B: coorte, caso-controle, diretriz; C: demais). O número cai com resultado sem IC/p-valor, amostra abaixo de 500 ou sinais de incerteza. O periódico não entra nesta nota.</p>
+        </details>
+      )}
+    </section>
   );
 }
 
