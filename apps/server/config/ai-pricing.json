@@ -1,0 +1,10 @@
+{
+  "version": "openai-2026-11-14",
+  "currency": "USD",
+  "source": "https://developers.openai.com/api/docs/models (páginas de cada modelo, consultadas em 2026-11-14). Preço por 1 milhão de tokens. Conferir a cobrança real no painel da OpenAI.",
+  "models": {
+    "gpt-6.1-sol": { "input": 2, "cached_input": 0.1, "output": 10 },
+    "gpt-6.1-terra": { "input": 1, "cached_input": 0.05, "output": 5 },
+    "gpt-6-luna": { "input": 0.1, "cached_input": 0.01, "output": 0.5 }
+  }
+}

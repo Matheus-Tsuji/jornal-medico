@@ -1,0 +1,36 @@
+{
+  "name": "jornal-medico",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "db:migrate": "npm run db:migrate -w @jm/server",
+    "db:seed": "npm run db:seed -w @jm/server",
+    "worker": "npm run worker -w @jm/server",
+    "pipeline": "npm run pipeline -w @jm/server --",
+    "build": "npm run build -w @jm/web",
+    "start": "npm run start -w @jm/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "test": "npm run test --workspaces --if-present",
+    "test:py": "cd services/recommender && python -m pytest -q",
+    "test:e2e": "playwright test",
+    "check": "npm run lint && npm run typecheck && npm test && npm run test:py && npm run build",
+    "ai": "npm run ai -w @jm/server --"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@playwright/test": "1.65.1",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.72.2"
+  }
+}
