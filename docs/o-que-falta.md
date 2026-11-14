@@ -18,7 +18,9 @@ Lista criada em 2026-11-14, com o trabalho **pausado** a pedido do Matheus.
 - [ ] Médico validar os pesos da nota (amostra ≥ 500, IC/p, desenho).
 - [x] Preparado para "tudo na Vercel" (decisão do Matheus, 2026-11-14): banco via `libsql` (Turso), API como função, worker como Vercel Cron, `npm run build:vercel`. Guia: `docs/deploy-vercel.md`.
 - [ ] **Matheus:** criar conta no Turso e o banco (`npm run db:export` + `turso db create … --from-file`), importar o repo na Vercel e cadastrar as variáveis do guia. Sem Resend configurado a API não sobe em produção (proposital).
-- [ ] Primeiro deploy real: conferir `/health`, login, cron em Settings → Cron Jobs. Nada disso foi testado contra Turso/Vercel reais.
+- [x] Projeto Vercel criado e ligado ao repo (2026-11-14): https://vercel.com/budegasdobode-2590s-projects/jornal-medico. Primeiro build passou; o site está em https://jornal-medico.vercel.app.
+- [ ] A API ainda responde 500 de propósito: o log mostra "Produção exige: SESSION_SECRET, AUTH_EMAIL_PROVIDER real, PAYMENT_WEBHOOK_SECRET". Cadastrar as variáveis do guia e fazer novo deploy; depois conferir `/health`, login e o cron. Conexão com Turso real ainda não testada.
+- [ ] Região das funções: o deploy saiu em `iad1` (EUA). Mudar para `gru1` em Settings → Functions e usar a mesma região no Turso.
 - [ ] 10 PRs do Dependabot abertos no GitHub (vários são versões maiores; o TypeScript 7 já falha no CI). Revisar um a um, sem mesclar em bloco.
 - [x] Capa em modo prévia com artigos reais, conferida a 1440 px e 375 px, sem rolagem lateral e com aviso "Prévia automática".
 - [ ] "Edições" e "Mais lidos" ficam vazios com conteúdo real até existir uma edição publicada e leitores suficientes. Decidir se a prévia aparece em "Edições".

@@ -37,7 +37,7 @@ Para começar com o banco vazio, pule o passo 2 e crie o banco sem `--from-file`
 
 ## 2. Projeto na Vercel
 
-1. Em vercel.com, use **Add New → Project** e importe `Matheus-Tsuji/jornal-medico`.
+1. O projeto **já foi criado** em 2026-11-14 e está ligado ao repositório (todo push no `main` vira deploy de produção): https://vercel.com/budegasdobode-2590s-projects/jornal-medico
 2. Framework: **Other**. Build e install vêm do `vercel.json` (`npm ci` e `npm run build:vercel`). Não preencha o Output Directory.
 3. Em **Settings → Functions → Region**, escolha a mesma região do Turso (ex.: São Paulo, `gru1`).
 4. Em **Settings → Environment Variables** (Production), cadastre:
