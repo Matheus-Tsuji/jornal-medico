@@ -138,6 +138,8 @@ body {
 /* Tudo que abre (detalhes, "Por que A1?", menu da conta) surge crescendo a partir de onde foi tocado, como abrir app no iOS */
 details[open] > :not(summary) { transform-origin: top center; animation: jm-pop .45s var(--ease-ios) both; }
 details[open] > nav { transform-origin: top right; }
+/* Troca de tema: a página antiga se dissolve na nova, devagar e sem flash */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .6s; animation-timing-function: var(--ease-ios); }
 /* Selo pequeno na barra de seções: aparece quando o logo grande sai de vista */
 .nav-seal { display: inline-flex; transition: opacity .2s; }
 

@@ -20,6 +20,13 @@ const SCALES = ['1', '1.125', '1.25'];
 export type Theme = 'system' | 'light' | 'dark';
 const THEMES: Theme[] = ['system', 'light', 'dark'];
 
+/** 'system' remove o atributo e segue prefers-color-scheme. */
+function applyTheme(theme: Theme) {
+  const el = document.documentElement;
+  if (theme === 'system') el.removeAttribute('data-theme');
+  else el.setAttribute('data-theme', theme);
+}
+
 export function useReadingPrefs() {
   const [scale, setScale] = useState(() => read('jm:fs', '1'));
   // ponytail: o botão "Leitura rápida" saiu do topo (2026-11-16); começa desligado para ninguém ficar preso nele.
@@ -32,14 +39,19 @@ export function useReadingPrefs() {
   // Tema: sistema (padrão) → claro → escuro. 'system' remove o atributo e segue prefers-color-scheme.
   const [theme, setTheme] = useState<Theme>(() => (read('jm:theme', 'system') as Theme));
   useEffect(() => {
-    const el = document.documentElement;
-    if (theme === 'system') el.removeAttribute('data-theme');
-    else el.setAttribute('data-theme', theme);
+    applyTheme(theme);
     write('jm:theme', theme);
   }, [theme]);
   return {
     theme,
-    cycleTheme: () => setTheme((t) => THEMES[(THEMES.indexOf(t) + 1) % THEMES.length]!),
+    // Troca de tema com transição (View Transitions API: cross-fade suave; sem suporte ou com movimento reduzido, troca direto).
+    cycleTheme: () => {
+      const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]!;
+      const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+      if (!doc.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) return setTheme(next);
+      doc.startViewTransition(() => applyTheme(next));
+      setTheme(next);
+    },
     scale,
     cycleScale: () => setScale((s) => SCALES[(SCALES.indexOf(s) + 1) % SCALES.length]!),
     quick,
