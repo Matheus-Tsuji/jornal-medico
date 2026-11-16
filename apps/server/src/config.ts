@@ -44,7 +44,8 @@ const schema = z.object({
   // revisitado (o cursor avança). Volume real observado: até 45 em 8 dias por tema.
   INGEST_MAX_PER_TOPIC: z.coerce.number().int().min(1).max(1000).default(200),
   /** Jobs em paralelo no ciclo diário (buscas e análises esperam a rede quase todo o tempo). */
-  CYCLE_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
+  // 8 testado em 2026-11-16: 82 análises em ~8 min, sem HTTP 429 da OpenAI.
+  CYCLE_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(8),
   /** Análise que espera vaga na fila por mais que isso sai dela (com motivo; reenfileirável no painel). */
   ANALYZE_MAX_AGE_DAYS: z.coerce.number().int().min(1).max(90).default(14),
   INGEST_OVERLAP_DAYS: z.coerce.number().int().min(0).max(30).default(3),
