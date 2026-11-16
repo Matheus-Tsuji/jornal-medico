@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { EditionDto } from '@jm/contracts';
 import { api, fmtDate, fmtDateTime, fmtLongDate, useMe } from '../lib/api';
 import { CompactStory, LeadStory, SecondaryStory } from '../components/ArticleCard';
-import { DemoBanner, Empty, ErrorState, Loading, PreviewBanner } from '../components/ui';
+import { DemoBanner, Empty, ErrorState, Loading } from '../components/ui';
 
 function greeting() {
   const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }).format(new Date()));
@@ -36,7 +36,6 @@ export default function Jornal() {
   return (
     <>
       {e.isDemo && <DemoBanner />}
-      {e.isPreview && <PreviewBanner />}
       <div className="mx-auto max-w-6xl px-4">
         {/* Linha da edição */}
         <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line py-3 text-sm">

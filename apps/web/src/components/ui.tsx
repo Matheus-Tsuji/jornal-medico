@@ -37,18 +37,6 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
   );
 }
 
-export function PreviewBanner() {
-  return (
-    <div className="border-y border-warning bg-warning-soft text-warning">
-      <p className="mx-auto flex max-w-6xl items-start gap-2 px-4 py-2 text-sm font-medium">
-        <FlaskConical size={18} className="mt-0.5 shrink-0" aria-hidden />
-        <span>
-          <strong>Prévia automática.</strong> Estudos reais do PubMed resumidos por IA e ainda <strong>não revisados</strong> pela equipe editorial. Confira os números na publicação original antes de qualquer uso.
-        </span>
-      </p>
-    </div>
-  );
-}
 
 export function DemoBanner() {
   return (
