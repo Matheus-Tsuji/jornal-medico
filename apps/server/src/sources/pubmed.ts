@@ -29,7 +29,7 @@ export interface NormalizedRecord {
 /** Contrato comum de fontes científicas. */
 export interface ScientificSourceAdapter {
   slug: string;
-  search(query: string, from: string, to: string, max: number): Promise<{ ids: string[]; total: number }>;
+  search(query: string, from: string, to: string, max: number, topicLabel?: string): Promise<{ ids: string[]; total: number }>;
   fetchDetails(ids: string[]): Promise<NormalizedRecord[]>;
 }
 

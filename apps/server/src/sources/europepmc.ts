@@ -12,28 +12,29 @@ const BASE = 'https://www.ebi.ac.uk/europepmc/webservices/rest';
  * tipo de publicação, então o tema vira busca no título e o desenho do estudo é exigido no título.
  * ponytail: só cobre a forma das consultas do seed ("X"[MeSH Terms] OR termo[tiab|ti]) AND (tipos[pt]) AND (idiomas[la]).
  */
-export function toEuropePmcQuery(pubmed: string): string {
+/** Termos do tema (MeSH e texto livre) de uma consulta PubMed do seed, sem as aspas. */
+export function topicTerms(pubmed: string): string[] {
   const groups = pubmed.split(/\)\s+AND\s+\(/).map((g) => g.replace(/^\(|\)$/g, ''));
   const topic = groups.find((g) => !/\[(pt|la)\]/.test(g)) ?? groups[0] ?? '';
-  const terms = topic.split(/\s+OR\s+/).map((t) => {
-    const m = /^"?(.+?)"?\[(MeSH Terms|tiab|ti)\]$/.exec(t.trim());
-    if (!m) return null;
-    const term = m[1]!.includes(' ') ? `"${m[1]}"` : m[1]!;
-    return `TITLE:${term}`; // MESH: no Europe PMC casa termos minerados do texto e trouxe estudos fora do tema
-  }).filter(Boolean);
+  return topic.split(/\s+OR\s+/).map((t) => /^"?(.+?)"?\[(MeSH Terms|tiab|ti)\]$/.exec(t.trim())?.[1]).filter((t): t is string => !!t);
+}
+
+export function toEuropePmcQuery(pubmed: string): string {
+  // Só título: MESH: no Europe PMC casa termos minerados do texto e trouxe estudos fora do tema.
+  const terms = topicTerms(pubmed).map((t) => `TITLE:${t.includes(' ') ? `"${t}"` : t}`);
   const design = '(TITLE:"meta-analysis" OR TITLE:"meta analysis" OR TITLE:"systematic review" OR TITLE:randomized OR TITLE:randomised OR TITLE:guideline OR TITLE:cohort)';
   return `(${terms.join(' OR ')}) AND ${design} AND (LANG:eng OR LANG:por OR LANG:spa) AND NOT SRC:MED AND NOT SRC:PPR`;
 }
 
-/** Tipos no vocabulário do PubMed (os que a triagem entende), inferidos do título. */
+/** Tipos no vocabulário do PubMed (os que a triagem entende), inferidos do título (inglês, português ou espanhol). */
 export function typesFromTitle(title: string): string[] {
   const t = title.toLowerCase();
   const out: string[] = [];
-  if (/meta-?\s?analys/.test(t)) out.push('Meta-Analysis');
-  if (/systematic (literature )?review/.test(t)) out.push('Systematic Review');
-  if (/randomi[sz]ed/.test(t)) out.push('Randomized Controlled Trial');
-  if (/guideline/.test(t)) out.push('Practice Guideline');
-  if (/cohort|observational/.test(t)) out.push('Observational Study');
+  if (/meta-?\s?analys|metan[aá]lis/.test(t)) out.push('Meta-Analysis');
+  if (/systematic (literature )?review|revis[aãi][oó]n? sistem[aá]tica/.test(t)) out.push('Systematic Review');
+  if (/randomi[sz]ed|randomizad|aleatori[sz]ad/.test(t)) out.push('Randomized Controlled Trial');
+  if (/guideline|diretriz|gu[ií]a de pr[aá]ctica/.test(t)) out.push('Practice Guideline');
+  if (/cohort|observational|coorte|observacional/.test(t)) out.push('Observational Study');
   return out;
 }
 

@@ -189,6 +189,7 @@ test('leitura ampliada no celular mantém resultados acessíveis', async ({ page
 
 test('barra de seções fica presa no topo sem mudar a altura do cabeçalho ao rolar', async ({ page }) => {
   await page.goto('/artigos/demo-001');
+  await expect(page.getByRole('table')).toBeVisible();
   const h = () => page.evaluate(() => document.body.scrollHeight);
   const before = await h();
   await page.evaluate(() => window.scrollTo(0, 400));

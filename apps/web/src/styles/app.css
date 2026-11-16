@@ -120,11 +120,39 @@ body {
 .skip-link { position: absolute; left: -999px; top: 0; }
 .skip-link:focus { left: 1rem; top: 1rem; z-index: 50; background: var(--color-surface); padding: 0.5rem 1rem; }
 
+/* ---- Movimento: discreto, só transform/opacity (nada muda de altura; o Safari não pisca). ---- */
+@keyframes jm-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes jm-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes jm-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+/* Troca de página */
+.page-enter { animation: jm-fade-up .35s cubic-bezier(.2,.7,.2,1) both; }
+/* Carregamento: brilho lento passando, em vez de piscar */
+.skeleton { border-radius: 3px; background: linear-gradient(90deg, var(--color-line) 0%, color-mix(in srgb, var(--color-line) 55%, var(--color-paper)) 50%, var(--color-line) 100%); background-size: 200% 100%; animation: jm-shimmer 1.6s ease-in-out infinite; }
+/* Botões e cartões respondem ao toque */
+.btn { transition: background-color .15s, border-color .15s, color .15s, transform .12s ease; }
+.btn:active:not(:disabled) { transform: scale(.97); }
+.headline-link h2, .headline-link h3 { transition: color .2s ease; }
+.headline-link:hover h2, .headline-link:hover h3 { color: var(--color-primary); }
+/* Painéis que abrem (detalhes da publicação, "Por que A1?") */
+details[open] > :not(summary) { animation: jm-fade-up .25s ease both; }
+/* Selo pequeno na barra de seções: aparece quando o logo grande sai de vista */
+.nav-seal { display: inline-flex; transition: opacity .2s; }
+
+@supports (animation-timeline: scroll()) {
+  /* Logo grande encolhe e esmaece nos primeiros 180 px de rolagem */
+  .masthead-logo { transform-origin: center top; animation: jm-logo linear both; animation-timeline: scroll(root); animation-range: 0 180px; }
+  @keyframes jm-logo { to { transform: scale(.72) translateY(12px); opacity: .25; } }
+  .nav-seal { animation: jm-seal linear both; animation-timeline: scroll(root); animation-range: 90px 180px; }
+  @keyframes jm-seal { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+  /* Estudos entram suavemente ao aparecer na tela */
+  main article:not(main > div > article) { animation: jm-fade-up linear both; animation-timeline: view(); animation-range: entry 0% entry 40%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  .page-enter, .masthead-logo, .nav-seal, main article, details[open] > :not(summary), .skeleton { animation: none !important; }
+  .btn:active:not(:disabled) { transform: none; }
 }
-@keyframes jm-pulse { 50% { opacity: 0.45; } }
-.skeleton { background: var(--color-line); border-radius: 3px; animation: jm-pulse 1.4s ease-in-out infinite; }
 
 /* Cor da seção como marcador (rótulo/fio), nunca como sinônimo de resultado. */
 .topic-text { color: var(--topic, var(--color-primary)); }

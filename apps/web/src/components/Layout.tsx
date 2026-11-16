@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Monitor, Moon, Search, Sun, Type, UserRound } from 'lucide-react';
-import { Seal, Wordmark } from './Brand';
+import { Seal, SealMini, Wordmark } from './Brand';
 import { api, fmtLongDate, useConfig, useMe, useTopics } from '../lib/api';
 import ScrollRow from './ScrollRow';
 import { useReadingPrefs } from '../lib/prefs';
@@ -72,7 +72,8 @@ function Masthead({ prefs }: { prefs: LayoutCtx }) {
           </div>
         </div>
         <Link to="/jornal" className="flex items-center justify-center gap-3 no-underline sm:gap-5" aria-label={`${brand} — edição de hoje`}>
-          <span className="flex items-center gap-3 py-2 sm:gap-5 sm:py-3">
+          {/* Encolhe com a rolagem só por transform (CSS, sem JS): a altura não muda, então o Safari não pisca. */}
+          <span className="masthead-logo flex items-center gap-3 py-2 sm:gap-5 sm:py-3">
             <span className="sm:hidden"><Seal size={56} /></span>
             <span className="hidden sm:block"><Seal size={88} /></span>
             <Wordmark name={brand} size="lg" />
@@ -81,7 +82,10 @@ function Masthead({ prefs }: { prefs: LayoutCtx }) {
       </div>
     </header>
     <div className="sticky top-0 z-20 border-b border-line bg-paper">
-      <AreaNav />
+      <div className="mx-auto flex max-w-6xl items-center">
+        <Link to="/jornal" className="nav-seal shrink-0 pl-3" aria-label={`${brand} — edição de hoje`} tabIndex={-1}><SealMini size={28} /></Link>
+        <div className="min-w-0 flex-1"><AreaNav /></div>
+      </div>
     </div>
     </>
   );
@@ -154,7 +158,7 @@ export default function Layout() {
         <p className="sr-only">Este site está exibindo uma edição de demonstração com estudos fictícios.</p>
       )}
       <main id="conteudo" tabIndex={-1} className="outline-none">
-        <Outlet context={prefs} />
+        <div key={loc.pathname} className="page-enter"><Outlet context={prefs} /></div>
       </main>
       <Footer />
     </>

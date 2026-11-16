@@ -89,7 +89,7 @@ function insertSource(db: Db, articleId: string, sourceId: string, r: Normalized
 
 /** Uma execução de descoberta para (fonte, tema). O cursor só avança se tudo concluir. */
 export async function discover(db: Db, cfg: Config, adapter: ScientificSourceAdapter, topicSlug: string, jobId: string | null = null) {
-  const topic = db.get<{ id: string; source_query: string | null; query_version: number; enabled: number }>('SELECT id, source_query, query_version, enabled FROM topics WHERE slug = ?', topicSlug);
+  const topic = db.get<{ id: string; label: string; source_query: string | null; query_version: number; enabled: number }>('SELECT id, label_pt AS label, source_query, query_version, enabled FROM topics WHERE slug = ?', topicSlug);
   if (!topic?.source_query || topic.enabled !== 1) throw new Error(`Tema sem consulta habilitada: ${topicSlug}`);
   const source = db.get<{ id: string }>('SELECT id FROM sources WHERE slug = ? AND enabled = 1', adapter.slug);
   if (!source) throw new Error(`Fonte desabilitada: ${adapter.slug}`);
@@ -103,7 +103,7 @@ export async function discover(db: Db, cfg: Config, adapter: ScientificSourceAda
     runId, source.id, topic.id, jobId, topic.source_query, topic.query_version, from, today, nowIso(),
   );
   try {
-    const { ids, total } = await adapter.search(topic.source_query, from, today, cfg.INGEST_MAX_PER_TOPIC);
+    const { ids, total } = await adapter.search(topic.source_query, from, today, cfg.INGEST_MAX_PER_TOPIC, topic.label);
     const records = await adapter.fetchDetails(ids);
     let inserted = 0;
     let duplicates = 0;

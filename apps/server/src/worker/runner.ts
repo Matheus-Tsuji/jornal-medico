@@ -9,6 +9,7 @@ import { composeEdition } from '../modules/editorial.ts';
 import { block, claim, complete, defer, enqueue, expireStaleAnalyses, fail, retryLater, type Job } from '../modules/jobs.ts';
 import { pubmedAdapter, type ScientificSourceAdapter } from '../sources/pubmed.ts';
 import { europePmcAdapter } from '../sources/europepmc.ts';
+import { scieloAdapter } from '../sources/scielo.ts';
 import { automaticSources, syncMonitor } from '../modules/monitor.ts';
 import { discover, upsertRecord } from './ingestion.ts';
 
@@ -17,7 +18,7 @@ export interface Deps { adapter: ScientificSourceAdapter; extraAdapters?: Scient
 
 export const defaultDeps = (cfg: Config): Deps => ({
   adapter: pubmedAdapter(cfg),
-  extraAdapters: [europePmcAdapter()],
+  extraAdapters: [europePmcAdapter(), scieloAdapter()],
   provider: cfg.OPENAI_API_KEY ? openAiProvider(cfg.OPENAI_API_KEY) : null,
 });
 
