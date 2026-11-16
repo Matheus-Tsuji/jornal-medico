@@ -159,7 +159,13 @@ h1, h2, h3 { scroll-margin-top: 13rem; }
 
 /* A tabela mantém os mesmos dados e cabeçalhos ao virar blocos por desfecho. */
 .result-label { display: none; }
-.publication-details summary { list-style: revert; }
+.publication-details summary { list-style: none; }
+.publication-details summary::-webkit-details-marker { display: none; }
+.publication-toggle-label::before { content: 'Ver detalhes'; }
+.publication-details[open] .publication-toggle-label::before { content: 'Ocultar'; }
+.publication-toggle svg { transition: transform 0.15s ease; }
+.publication-details[open] .publication-toggle svg { transform: rotate(180deg); }
+.publication-details summary:hover .publication-toggle { border-color: var(--color-primary); color: var(--color-primary); }
 section[id] { scroll-margin-top: 13rem; }
 @media (max-width: 1279px) {
   .results-table, .results-table tbody { display: block; }

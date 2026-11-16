@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Bookmark, BookmarkCheck, Check, Copy, ExternalLink, Flag, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { AlertTriangle, Bookmark, BookmarkCheck, Check, ChevronDown, Copy, ExternalLink, Flag, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { designLabels, type ArticleDetail, type EvidenceResultDto } from '@jm/contracts';
 import { api, ApiError, fmtCi, fmtDate, fmtDateTime, fmtNum, fmtP, fmtVal, useMe, useTopics } from '../lib/api';
 import type { LayoutCtx } from '../components/Layout';
@@ -187,6 +187,39 @@ function Actions({ a }: { a: ArticleDetail }) {
   );
 }
 
+/** "Li Z" → "LI, Z."; "Wang LH" → "WANG, L. H."; nome de grupo fica em maiúsculas. */
+function abntAuthor(name: string) {
+  const parts = name.trim().split(/\s+/);
+  const last = parts.at(-1) ?? '';
+  if (parts.length < 2 || !/^[A-Z]{1,4}$/.test(last)) return name.toUpperCase();
+  return `${parts.slice(0, -1).join(' ').toUpperCase()}, ${[...last].map((c) => `${c}.`).join(' ')}`;
+}
+
+const MESES = ['jan.', 'fev.', 'mar.', 'abr.', 'maio', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
+
+/** Referência de artigo de periódico conforme ABNT NBR 6023:2018 (até 3 autores; mais que isso, o primeiro + et al.). */
+function abntReference(a: Pick<ArticleDetail, 'authors' | 'originalTitle' | 'journal' | 'sourceName' | 'pubDate' | 'doi' | 'canonicalUrl'>, today = new Date()) {
+  const au = a.authors.length === 0 ? '' : a.authors.length > 3 ? `${abntAuthor(a.authors[0])} et al. ` : `${a.authors.map(abntAuthor).join('; ')}. `;
+  const url = a.doi ? `https://doi.org/${a.doi}` : a.canonicalUrl;
+  const acesso = `${today.getDate()} ${MESES[today.getMonth()]} ${today.getFullYear()}`;
+  return `${au}${a.originalTitle.replace(/\.$/, '')}. ${a.journal ?? a.sourceName}, ${a.pubDate?.slice(0, 4) ?? '[s. d.]'}.${a.doi ? ` DOI: ${a.doi}.` : ''}${url ? ` Disponível em: ${url}. Acesso em: ${acesso}.` : ''}`;
+}
+
+function AbntButton({ a }: { a: ArticleDetail }) {
+  const [state, setState] = useState<'' | 'ok' | 'erro'>('');
+  const ref = abntReference(a);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(ref); setState('ok'); setTimeout(() => setState(''), 2000); } catch { setState('erro'); }
+  };
+  return (
+    <div className="grid gap-1">
+      <button type="button" className="btn btn-ghost w-fit" onClick={copy}><Copy size={16} aria-hidden /> {state === 'ok' ? 'Referência copiada' : 'Copiar referência (ABNT)'}</button>
+      {state === 'erro' && <p role="alert" className="m-0 text-sm text-danger">Não foi possível copiar. Selecione o texto abaixo e copie manualmente.</p>}
+      {state === 'erro' && <p className="m-0 text-sm select-all">{ref}</p>}
+    </div>
+  );
+}
+
 export default function Artigo() {
   const { slug = '' } = useParams();
   const prefs = useOutletContext<LayoutCtx>();
@@ -242,11 +275,6 @@ export default function Artigo() {
           <header className="grid gap-3 pb-6">
             <p className="kicker m-0 text-muted">{designLabels[a.studyDesign]} · {a.publicationType}</p>
             <h1 className="m-0 font-serif text-3xl leading-tight font-bold tracking-tight text-balance sm:text-[2.6rem]">{a.headline}</h1>
-            {a.authors.length > 0 && (
-              <p className="m-0 text-base font-medium">
-                {a.authors.slice(0, 6).join(', ')}{a.authors.length > 6 && <span className="text-muted"> e mais {a.authors.length - 6}</span>}
-              </p>
-            )}
             <span className="inline-flex flex-wrap items-center gap-1.5">
               <StatusChips a={a} />
               <span className="chip" title="Base onde o estudo foi encontrado">{a.sourceName.replace(/\s*\(.*\)$/, '')}</span>
@@ -285,8 +313,15 @@ export default function Artigo() {
           </section>
 
           <details className="publication-details my-6 border-y border-line py-2">
-            <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-primary">Sobre a publicação · autores, DOI e classificação</summary>
+            <summary className="flex min-h-11 cursor-pointer items-center gap-2 font-semibold text-primary">
+              Sobre a publicação · autores, DOI e classificação
+              <span className="publication-toggle ml-auto inline-flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-medium text-muted">
+                <span className="publication-toggle-label" />
+                <ChevronDown size={14} aria-hidden />
+              </span>
+            </summary>
             <div className="grid gap-3 pb-3 pt-2">
+            <AbntButton a={a} />
             <p className="m-0 text-sm text-muted">Título original: <span lang="en" className="italic">{a.originalTitle}</span></p>
             <dl className="tnum m-0 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
               <div><dt className="inline text-muted">Autores: </dt><dd className="inline">{a.authors.join(', ') || '—'}</dd></div>
