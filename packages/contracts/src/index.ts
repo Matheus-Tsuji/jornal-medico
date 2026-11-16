@@ -258,6 +258,8 @@ export interface EditionDto {
   isDemo: boolean;
   /** Prévia montada na hora com análises de IA ainda não revisadas (não é edição publicada). */
   isPreview?: boolean;
+  /** Prévia: quantos estudos o ciclo diário trouxe nas últimas 36 h (vêm primeiro na capa). */
+  freshCount?: number;
   coverageNote: string | null;
   headline: ArticleCard | null;
   secondary: ArticleCard[];

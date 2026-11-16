@@ -3,7 +3,7 @@ import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
 import type { NormalizedRecord, ScientificSourceAdapter } from '../sources/pubmed.ts';
 import { addDays, id, localDate, nowIso, sha256, slugify } from '../lib/util.ts';
-import { enqueue } from '../modules/jobs.ts';
+import { analyzePriority, enqueue } from '../modules/jobs.ts';
 import { PROMPT_VERSION } from '../ai/analysis.ts';
 import { syncQualis } from '../modules/grade.ts';
 
@@ -107,22 +107,24 @@ export async function discover(db: Db, cfg: Config, adapter: ScientificSourceAda
     const records = await adapter.fetchDetails(ids);
     let inserted = 0;
     let duplicates = 0;
-    const eligible: string[] = [];
+    const eligible: { articleId: string; priority: number }[] = [];
     for (const r of records) {
       const res = upsertRecord(db, source.id, topic.id, r);
       if (res.inserted) {
         inserted++;
-        if (triage(r).status === 'eligible') eligible.push(res.articleId);
+        if (triage(r).status === 'eligible') eligible.push({ articleId: res.articleId, priority: analyzePriority(r.publicationTypes) });
       } else duplicates++;
     }
     db.tx(() => {
-      db.run("UPDATE ingestion_runs SET status = 'completed', found = ?, inserted = ?, duplicates = ?, finished_at = ? WHERE id = ?", total, inserted, duplicates, nowIso(), runId);
+      // Corte: mais resultados que o limite lido. Fica registrado (aparece em /admin/jobs) em vez de se perder em silêncio.
+      const note = total > ids.length ? `Janela truncada: ${ids.length} de ${total} lidos; aumente INGEST_MAX_PER_TOPIC.` : null;
+      db.run("UPDATE ingestion_runs SET status = 'completed', found = ?, inserted = ?, duplicates = ?, error = ?, finished_at = ? WHERE id = ?", total, inserted, duplicates, note, nowIso(), runId);
       db.run(
         'INSERT INTO source_cursors (source_id, topic_id, cursor_date, updated_at) VALUES (?,?,?,?) ON CONFLICT (source_id, topic_id) DO UPDATE SET cursor_date = excluded.cursor_date, updated_at = excluded.updated_at',
         source.id, topic.id, today, nowIso(),
       );
       db.run('UPDATE sources SET last_success_at = ?, last_error = NULL WHERE id = ?', nowIso(), source.id);
-      for (const a of eligible) enqueue(db, 'analyze', `analyze:${a}:${PROMPT_VERSION}`, { articleId: a });
+      for (const a of eligible) enqueue(db, 'analyze', `analyze:${a.articleId}:${PROMPT_VERSION}`, { articleId: a.articleId }, { priority: a.priority });
       syncQualis(db); // revistas novas que já estão na tabela consultada ganham o Qualis
     });
     return { runId, found: total, fetched: records.length, inserted, duplicates, queuedForAnalysis: eligible.length };

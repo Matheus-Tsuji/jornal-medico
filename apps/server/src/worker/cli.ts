@@ -8,7 +8,7 @@ import { resultRow } from '../modules/content.ts';
 import { json } from '../db/index.ts';
 import type { AiAnalysis } from '@jm/contracts';
 import { composeEdition } from '../modules/editorial.ts';
-import { defaultDeps, schedule, workOnce } from './runner.ts';
+import { defaultDeps, runCycle, schedule, workOnce } from './runner.ts';
 import { enqueue, requeue } from '../modules/jobs.ts';
 import { automaticSources, syncMonitor } from '../modules/monitor.ts';
 import { discover } from './ingestion.ts';
@@ -36,6 +36,12 @@ switch (cmd) {
     schedule(db, cfg);
     out(db.all("SELECT type, idempotency_key, status FROM jobs WHERE status IN ('queued','retry') ORDER BY created_at"));
     break;
+  case 'cycle': {
+    // Um ciclo diário completo, igual ao cron da Vercel. Ex.: npm run pipeline -- cycle 240 (segundos de orçamento).
+    const r = await runCycle(db, cfg, deps, { workerId: `cli:${process.pid}`, budgetMs: Number(arg ?? 240) * 1000, concurrency: cfg.CYCLE_CONCURRENCY });
+    out(r);
+    break;
+  }
   case 'run': {
     let n = 0;
     while (await workOnce(db, cfg, deps, `cli:${process.pid}`)) n++;
@@ -80,7 +86,7 @@ switch (cmd) {
     break;
   }
   default:
-    console.log('Uso: pipeline <monitor [FONTE] | discover TEMA | analyze ARTICLE_ID | compose [YYYY-MM-DD] | schedule | retry-blocked | reanalyze | revalidate | run>');
+    console.log('Uso: pipeline <monitor [FONTE] | discover TEMA | analyze ARTICLE_ID | compose [YYYY-MM-DD] | schedule | cycle [SEGUNDOS] | retry-blocked | reanalyze | revalidate | run>');
     process.exitCode = 1;
 }
 db.close();

@@ -40,7 +40,13 @@ const schema = z.object({
   NCBI_API_KEY: optStr,
   NCBI_TOOL: z.string().default('jornal_medico'),
   NCBI_CONTACT_EMAIL: optStr,
-  INGEST_MAX_PER_TOPIC: z.coerce.number().int().min(1).max(200).default(20),
+  // Máximo de registros lidos por tema em cada busca. Precisa cobrir a janela inteira: o que passar disso não é
+  // revisitado (o cursor avança). Volume real observado: até 45 em 8 dias por tema.
+  INGEST_MAX_PER_TOPIC: z.coerce.number().int().min(1).max(1000).default(200),
+  /** Jobs em paralelo no ciclo diário (buscas e análises esperam a rede quase todo o tempo). */
+  CYCLE_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
+  /** Análise que espera vaga na fila por mais que isso sai dela (com motivo; reenfileirável no painel). */
+  ANALYZE_MAX_AGE_DAYS: z.coerce.number().int().min(1).max(90).default(14),
   INGEST_OVERLAP_DAYS: z.coerce.number().int().min(0).max(30).default(3),
   PAYMENT_PROVIDER: z.enum(['sandbox']).default('sandbox'),
   PAYMENT_WEBHOOK_SECRET: optStr,

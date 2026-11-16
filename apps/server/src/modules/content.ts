@@ -17,6 +17,8 @@ export function visibility(db: Db): { sql: string; params: Params } {
 }
 
 const ph = (n: number) => Array(n).fill('?').join(',');
+/** "Novo" na capa: analisado pelo ciclo diário nas últimas 36 h (folga para um ciclo atrasado). */
+export const FRESH_HOURS = 36;
 
 function readingMinutes(p: Partial<AiAnalysis>): number {
   const text = [p.summary, p.context, p.objective, p.methods, p.clinicalImplications, ...(p.limitations ?? [])].filter(Boolean).join(' ');
@@ -236,8 +238,8 @@ export function articleDetail(db: Db, slug: string, opts: { userId?: string | nu
 export function previewEdition(db: Db, userId: string | null, today: string): EditionDto | null {
   const v = visibility(db);
   const since = new Date(Date.now() - 14 * 86_400_000).toISOString();
-  const rows = db.all<{ aid: string; section: string | null }>(
-    `SELECT a.id AS aid,
+  const rows = db.all<{ aid: string; section: string | null; created_at: string }>(
+    `SELECT a.id AS aid, a.created_at,
             (SELECT CASE WHEN t.level = 'tema' THEN t.parent_id ELSE t.id END FROM article_topics at JOIN topics t ON t.id = at.topic_id
               WHERE at.article_id = a.article_id ORDER BY at.confidence DESC LIMIT 1) AS section
        FROM analyses a JOIN articles ar ON ar.id = a.article_id
@@ -247,8 +249,12 @@ export function previewEdition(db: Db, userId: string | null, today: string): Ed
     ...v.params, since,
   );
   if (!rows.length) return null;
-  // Manchete e destaques = os mais bem avaliados (força da evidência, depois Qualis, depois prioridade editorial).
-  const best = new Map(rankBest(db, rows.map((r) => r.aid)).slice(0, 30).map((a, i) => [a, i]));
+  // Capa do dia: primeiro o que o ciclo diário trouxe nas últimas 36 h, depois o restante dos 14 dias.
+  // Dentro de cada grupo, os mais bem avaliados (força da evidência, depois Qualis, depois prioridade editorial).
+  const freshSince = new Date(Date.now() - FRESH_HOURS * 3_600_000).toISOString();
+  const fresh = new Set(rows.filter((r) => r.created_at >= freshSince).map((r) => r.aid));
+  const ranked = rankBest(db, rows.map((r) => r.aid));
+  const best = new Map([...ranked.filter((a) => fresh.has(a)), ...ranked.filter((a) => !fresh.has(a))].slice(0, 30).map((a, i) => [a, i]));
   const top = rows.filter((r) => best.has(r.aid)).sort((a, b) => best.get(a.aid)! - best.get(b.aid)!);
   const m = cardMap(db, top.map((r) => r.aid), userId);
   const all = top.map((r) => m.get(r.aid)).filter((c): c is ArticleCard => !!c);
@@ -266,6 +272,7 @@ export function previewEdition(db: Db, userId: string | null, today: string): Ed
   return {
     id: `preview-${today}`, date: today, number: 0, version: 1, publishedAt: null, isDemo: false, isPreview: true,
     coverageNote: 'Prévia automática: análises de IA ainda sem revisão editorial.',
+    freshCount: fresh.size,
     headline: all[0] ?? null, secondary: all.slice(1, 4), sections, forYou: [],
     totalReadingMinutes: all.reduce((s, c) => s + c.readingMinutes, 0),
   };

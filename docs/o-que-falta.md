@@ -7,6 +7,15 @@ Lista criada em 2026-11-14, com o trabalho **pausado** a pedido do Matheus.
 - [x] Flag `ai_preview` criada (`npm run db:seed`); `real_content` e `ai_preview` ligadas em `/admin/flags`.
 - [x] `npm run check` (64 + 7 testes, build) e `npm run test:e2e` 9/9. O e2e precisa de `PW_CHROMIUM` apontando para o Chromium headless 1254 já instalado. Corrigido no caminho: o limite global de requisições contava arquivos estáticos e derrubava recarregamentos.
 
+## 1b. Ciclo diário automático (2026-11-16)
+- [x] `runCycle`: agenda + busca + análise em paralelo + entrega, usado pelo cron da Vercel, pelo worker e por `npm run pipeline -- cycle`.
+- [x] Limite de IA e falta de chave **adiam** o job (volta sozinho), em vez de bloquear.
+- [x] Busca lê a janela inteira por tema (antes cortava em 20 e perdia o resto: 31 de 33 buscas cortadas).
+- [x] Capa abre com os novos das últimas 36 h ("N novos").
+- [x] Teste de vários dias seguidos (`test/daily-cycle.test.ts`).
+- [ ] **Na Vercel o ciclo só roda com Turso + `CRON_SECRET` + OpenAI configurados** (na vitrine ele se recusa de propósito). **[PENDENTE: Matheus]**
+- [ ] No plano Hobby, 1 ciclo por dia, de ~200 s (≈10–15 análises). Se o volume diário de elegíveis passar disso, a fila cresce: plano Pro com cron por hora resolve.
+
 ## 2. Interface
 - [x] Barra de seções centralizada (centraliza quando cabe; no celular continua rolando a partir da esquerda).
 - [x] Gráfico de efeito conferido com artigo real (GLP-1, 4 desfechos): nomes completos, números ao lado, sem corte a 1440 px e 375 px.

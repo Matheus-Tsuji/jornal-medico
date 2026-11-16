@@ -27,6 +27,13 @@ export const triageSchema = z.strictObject({
 });
 
 export class BlockedError extends Error {}
+/** Condição passageira (orçamento do dia, IA não configurada): o job é adiado e o ciclo diário tenta de novo. */
+export class DeferError extends BlockedError {
+  constructor(message: string, readonly retryInMs: number) {
+    super(message);
+  }
+}
+const SIX_HOURS = 6 * 3_600_000;
 
 interface Pricing { version: string | null; models: Record<string, { input: number; cached_input?: number; output: number }> }
 export function loadPricing(): Pricing {
@@ -41,19 +48,27 @@ export function costUsd(p: Pricing, model: string, u: Usage): number | null {
 }
 
 /** Orçamento: limite de artigos/dia sempre; limite em USD quando configurado (exige tabela de preços). */
-export function checkBudget(db: Db, cfg: Config, models: string[]) {
+export function checkBudget(db: Db, cfg: Config, models: string[], jobId: string | null = null) {
   const dayStart = new Date(Date.now() - 86_400_000).toISOString();
   const monthStart = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const analyzed = db.get<{ n: number }>("SELECT COUNT(DISTINCT article_id) AS n FROM ai_usage WHERE task = 'extraction' AND created_at > ?", dayStart)!.n;
-  if (analyzed >= cfg.AI_MAX_ARTICLES_PER_DAY) throw new BlockedError(`Limite diário de ${cfg.AI_MAX_ARTICLES_PER_DAY} artigos analisados atingido.`);
+  const done = db.get<{ n: number }>("SELECT COUNT(DISTINCT article_id) AS n FROM ai_usage WHERE task = 'extraction' AND created_at > ?", dayStart)!.n;
+  // Com o ciclo em paralelo, as outras análises em andamento que ainda não gravaram a extração contam como
+  // reservadas; as que já gravaram estão em `done` (sem contar duas vezes).
+  const inFlight = db.get<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM jobs WHERE type = 'analyze' AND status = 'running' AND lease_until > ? AND id <> ?
+       AND json_extract(payload, '$.articleId') NOT IN (SELECT article_id FROM ai_usage WHERE task = 'extraction' AND created_at > ?)`,
+    new Date().toISOString(), jobId ?? '', dayStart,
+  )!.n;
+  const analyzed = done + inFlight;
+  if (analyzed >= cfg.AI_MAX_ARTICLES_PER_DAY) throw new DeferError(`Limite diário de ${cfg.AI_MAX_ARTICLES_PER_DAY} artigos analisados atingido; fica para o próximo ciclo.`, SIX_HOURS);
   if (cfg.AI_DAILY_BUDGET_USD || cfg.AI_MONTHLY_BUDGET_USD) {
     const pricing = loadPricing();
     const missing = models.filter((m) => !pricing.models[m]);
     if (missing.length) throw new BlockedError(`Orçamento em USD configurado, mas ai-pricing.json não tem preço para: ${missing.join(', ')}.`);
     const day = db.get<{ s: number | null }>('SELECT SUM(cost_usd) AS s FROM ai_usage WHERE created_at > ?', dayStart)!.s ?? 0;
     const month = db.get<{ s: number | null }>('SELECT SUM(cost_usd) AS s FROM ai_usage WHERE created_at > ?', monthStart)!.s ?? 0;
-    if (cfg.AI_DAILY_BUDGET_USD && day >= cfg.AI_DAILY_BUDGET_USD) throw new BlockedError(`Orçamento diário de IA (US$ ${cfg.AI_DAILY_BUDGET_USD}) atingido.`);
-    if (cfg.AI_MONTHLY_BUDGET_USD && month >= cfg.AI_MONTHLY_BUDGET_USD) throw new BlockedError(`Orçamento mensal de IA (US$ ${cfg.AI_MONTHLY_BUDGET_USD}) atingido.`);
+    if (cfg.AI_DAILY_BUDGET_USD && day >= cfg.AI_DAILY_BUDGET_USD) throw new DeferError(`Orçamento diário de IA (US$ ${cfg.AI_DAILY_BUDGET_USD}) atingido.`, SIX_HOURS);
+    if (cfg.AI_MONTHLY_BUDGET_USD && month >= cfg.AI_MONTHLY_BUDGET_USD) throw new DeferError(`Orçamento mensal de IA (US$ ${cfg.AI_MONTHLY_BUDGET_USD}) atingido.`, 4 * SIX_HOURS);
   }
 }
 
@@ -82,7 +97,8 @@ export function buildDocument(article: { original_title: string; journal: string
 
 export async function analyzeArticle(db: Db, cfg: Config, provider: AiProvider | null, articleId: string, jobId: string | null = null) {
   if (!provider || !cfg.OPENAI_ANALYSIS_MODEL || !cfg.OPENAI_EDITORIAL_MODEL) {
-    throw new BlockedError('OPENAI_API_KEY e modelos não configurados: análise real desabilitada (modo demonstração).');
+    // Adiado, não bloqueado: quando a chave for configurada, a fila acumulada é analisada sozinha.
+    throw new DeferError('OPENAI_API_KEY e modelos não configurados: análise real aguardando configuração.', SIX_HOURS);
   }
   const art = db.get<{ original_title: string; journal: string | null; publication_types: string; pub_date: string | null; retraction_status: string; triage_status: string }>(
     'SELECT ar.original_title, j.title AS journal, ar.publication_types, ar.pub_date, ar.retraction_status, ar.triage_status FROM articles ar LEFT JOIN journals j ON j.id = ar.journal_id WHERE ar.id = ?', articleId,
@@ -97,7 +113,7 @@ export async function analyzeArticle(db: Db, cfg: Config, provider: AiProvider |
   const existing = db.get<{ id: string }>('SELECT id FROM analyses WHERE article_id = ? AND input_hash = ?', articleId, inputHash);
   if (existing) return { analysisId: existing.id, status: 'skipped_existing' as const };
   if (art.triage_status === 'excluded') return { analysisId: null, status: 'excluded' as const };
-  checkBudget(db, cfg, [cfg.OPENAI_ANALYSIS_MODEL, cfg.OPENAI_EDITORIAL_MODEL, ...(cfg.OPENAI_TRIAGE_MODEL ? [cfg.OPENAI_TRIAGE_MODEL] : [])]);
+  checkBudget(db, cfg, [cfg.OPENAI_ANALYSIS_MODEL, cfg.OPENAI_EDITORIAL_MODEL, ...(cfg.OPENAI_TRIAGE_MODEL ? [cfg.OPENAI_TRIAGE_MODEL] : [])], jobId);
 
   // 0) Triagem barata: o tema é mesmo o foco? Evita gastar a análise cara com menções de passagem.
   if (cfg.OPENAI_TRIAGE_MODEL) {

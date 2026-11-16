@@ -17,6 +17,18 @@
 | Billing | Planos em centavos editáveis, checkout sandbox, webhook HMAC sobre corpo bruto, idempotência, entitlement com carência, paywall configurável | `ranking-billing.test.ts` |
 | Segurança | Ver `docs/architecture.md#segurança-implementada` | testes de CSRF, papéis, cabeçalhos, bundle sem segredos |
 
+## Ciclo diário automático — 2026-11-16
+- `runCycle` (`apps/server/src/worker/runner.ts`): agenda, coleta, analisa em paralelo e entrega. É usado pelo cron da Vercel, pelo worker e por `npm run pipeline -- cycle [segundos]`.
+- Fila com prioridade (migração 006): coleta primeiro, depois metanálise/revisão sistemática, depois ensaio/diretriz, depois o resto. Análise com mais de 14 dias na fila expira com motivo.
+- O limite diário de IA e a falta de chave **adiam** o job em vez de bloquear; o limite é respeitado também em paralelo.
+- A busca lê a janela inteira por tema (até 200; antes cortava em 20). O NCBI recebe no máximo 2 req/s sem chave.
+- A capa abre com o que entrou nas últimas 36 h e mostra "N novos".
+- Testes: `test/daily-cycle.test.ts` simula dois dias seguidos, com mutações conferidas: sem a regra de novidade ou sem a reserva do limite, o teste falha. Resultado: Vitest 80/80, pytest 7/7, e2e 12/12.
+- Ciclos reais no banco local em 2026-11-16:
+  - Rodada 1 (orçamento de 240 s, durou 314 s): 25 dos 33 temas, 185 artigos novos, 22 análises. O NCBI barrou 8 temas com HTTP 429, que foram retentados.
+  - Rodada 2 (orçamento de 180 s, durou 211 s): os 8 temas recuperados, 33 de 33 em dia, 260 artigos novos no total e 19 análises, das quais 14 de 18 com desenho identificado eram metanálises ou revisões sistemáticas. Nenhum job com erro.
+- **Gargalo:** sobraram 219 análises na fila (96 metanálises ou revisões). Na Vercel Hobby (1 ciclo de cerca de 180 s por dia) cabem cerca de 20 análises por dia.
+
 ## Comandos executados (resultado em 2026-11-14, fim do dia)
 - `npm run check` → lint ok, typecheck ok, Vitest 69/69, pytest 7/7, build ok
 - Código no GitHub: `Matheus-Tsuji/jornal-medico` (privado), branch `main`

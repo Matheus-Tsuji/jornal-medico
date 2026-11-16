@@ -1,17 +1,17 @@
 // Execução de jobs: despacho por tipo e classificação de falhas.
 import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
-import { TransientError } from '../lib/net.ts';
+import { TransientError, type FetchLike } from '../lib/net.ts';
 import { localDate, localTime } from '../lib/util.ts';
-import { analyzeArticle, BlockedError } from '../ai/analysis.ts';
+import { analyzeArticle, BlockedError, DeferError } from '../ai/analysis.ts';
 import { openAiProvider, type AiProvider } from '../ai/provider.ts';
 import { composeEdition } from '../modules/editorial.ts';
-import { block, claim, complete, enqueue, fail, retryLater, type Job } from '../modules/jobs.ts';
+import { block, claim, complete, defer, enqueue, expireStaleAnalyses, fail, retryLater, type Job } from '../modules/jobs.ts';
 import { pubmedAdapter, type ScientificSourceAdapter } from '../sources/pubmed.ts';
 import { automaticSources, syncMonitor } from '../modules/monitor.ts';
 import { discover, upsertRecord } from './ingestion.ts';
 
-export interface Deps { adapter: ScientificSourceAdapter; provider: AiProvider | null }
+export interface Deps { adapter: ScientificSourceAdapter; provider: AiProvider | null; monitorFetch?: FetchLike }
 
 export const defaultDeps = (cfg: Config): Deps => ({
   adapter: pubmedAdapter(cfg),
@@ -22,7 +22,7 @@ export async function runJob(db: Db, cfg: Config, job: Job, deps: Deps): Promise
   const p = job.payload as Record<string, string>;
   switch (job.type) {
     case 'monitor':
-      return syncMonitor(db, p.source!);
+      return syncMonitor(db, p.source!, deps.monitorFetch);
     case 'discover':
       return discover(db, cfg, deps.adapter, p.topic!, job.id);
     case 'analyze':
@@ -50,23 +50,53 @@ export async function runJob(db: Db, cfg: Config, job: Job, deps: Deps): Promise
   }
 }
 
-export async function workOnce(db: Db, cfg: Config, deps: Deps, workerId: string): Promise<boolean> {
+/** Executa um job da fila; devolve o tipo do job executado, ou false se não havia nada pronto. */
+export async function workOnce(db: Db, cfg: Config, deps: Deps, workerId: string): Promise<Job['type'] | false> {
   const job = claim(db, workerId);
   if (!job) return false;
   try {
     complete(db, job.id, await runJob(db, cfg, job, deps));
   } catch (e) {
     const err = e as Error;
-    if (err instanceof BlockedError) block(db, job.id, err.message);
+    if (err instanceof DeferError) defer(db, job, err.message, err.retryInMs);
+    else if (err instanceof BlockedError) block(db, job.id, err.message);
     else if (err instanceof TransientError) retryLater(db, job, err.message, err.retryAfterMs);
     else fail(db, job.id, err.message);
     log('job_error', { jobId: job.id, type: job.type, error: err.message.slice(0, 300) });
   }
-  return true;
+  return job.type;
+}
+
+export interface CycleResult { processed: number; byType: Record<string, number>; pending: number; ms: number }
+
+/**
+ * Ciclo diário autônomo: agenda (buscas nas fontes, monitor, recheck, composição) e trabalha a fila até esvaziar
+ * ou acabar o tempo. Vários jobs em paralelo: buscas e análises passam a maior parte do tempo esperando a rede.
+ * O que não couber fica na fila (com lease e idempotência) e o próximo ciclo continua de onde parou.
+ */
+export async function runCycle(db: Db, cfg: Config, deps: Deps, opts: { workerId: string; budgetMs: number; concurrency?: number; now?: Date }): Promise<CycleResult> {
+  const started = Date.now();
+  schedule(db, cfg, opts.now);
+  const byType: Record<string, number> = {};
+  let processed = 0;
+  const lane = async (n: number) => {
+    while (Date.now() - started < opts.budgetMs) {
+      const type = await workOnce(db, cfg, deps, `${opts.workerId}#${n}`);
+      if (!type) return;
+      processed++;
+      byType[type] = (byType[type] ?? 0) + 1;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, opts.concurrency ?? 4) }, (_, i) => lane(i)));
+  const pending = db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE status IN ('queued','retry','running')")!.n;
+  const result = { processed, byType, pending, ms: Date.now() - started };
+  log('cycle_done', { ...result });
+  return result;
 }
 
 /** Agenda descobertas (4 janelas/dia), composição 1h antes da edição e recheck diário. */
 export function schedule(db: Db, cfg: Config, now = new Date()) {
+  expireStaleAnalyses(db, cfg.ANALYZE_MAX_AGE_DAYS);
   const date = localDate(cfg.APP_TIMEZONE, now);
   const hhmm = localTime(cfg.APP_TIMEZONE, now);
   const slot = Math.floor(Number(hhmm.slice(0, 2)) / 6);

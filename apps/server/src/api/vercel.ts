@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureSecrets, loadConfig } from '../config.ts';
 import { REPO_ROOT, isRemote, openDb } from '../db/index.ts';
-import { defaultDeps, log, schedule, workOnce } from '../worker/runner.ts';
+import { defaultDeps, runCycle } from '../worker/runner.ts';
 import { buildApp } from './app.ts';
 
 const cfg = loadConfig();
@@ -24,8 +24,10 @@ const db = isRemote(cfg.dbPath) ? openDb(cfg.dbPath, cfg.DATABASE_AUTH_TOKEN) : 
 ensureSecrets(db, cfg);
 let app: Promise<FastifyInstance> | null = null;
 
-// Margem para terminar o job em curso antes do limite da função (maxDuration em build-vercel.mjs).
-const CRON_BUDGET_MS = 240_000;
+// Para de pegar jobs novos aos 180 s: no ciclo real de 2026-11-16 as análises em curso terminaram até 74 s depois
+// do corte, e a função morre aos 300 s (maxDuration em build-vercel.mjs). Se morrer mesmo assim, o lease expira
+// e o próximo ciclo retoma o job.
+const CRON_BUDGET_MS = 180_000;
 
 function cronAuthorized(header: string | undefined): boolean {
   if (!cfg.CRON_SECRET || !header) return false;
@@ -36,18 +38,19 @@ function cronAuthorized(header: string | undefined): boolean {
 
 async function cron(req: IncomingMessage, res: ServerResponse) {
   res.setHeader('content-type', 'application/json');
-  if (!cronAuthorized(req.headers.authorization) || cfg.ephemeral) {
+  if (!cronAuthorized(req.headers.authorization)) {
     res.statusCode = 401;
     res.end(JSON.stringify({ code: 'unauthorized' }));
     return;
   }
-  const started = Date.now();
-  schedule(db, cfg);
-  const deps = defaultDeps(cfg);
-  let processed = 0;
-  while (Date.now() - started < CRON_BUDGET_MS && (await workOnce(db, cfg, deps, `vercel:${process.pid}`))) processed++;
-  log('cron_tick', { processed, ms: Date.now() - started });
-  res.end(JSON.stringify({ ok: true, processed }));
+  if (cfg.ephemeral) {
+    // Na vitrine o banco some quando a instância recicla: buscar e analisar aqui seria trabalho (e custo) perdido.
+    res.statusCode = 409;
+    res.end(JSON.stringify({ code: 'needs_database', message: 'Ciclo diário desligado na vitrine: conecte o Turso (docs/deploy-vercel.md).' }));
+    return;
+  }
+  const result = await runCycle(db, cfg, defaultDeps(cfg), { workerId: `vercel:${process.pid}`, budgetMs: CRON_BUDGET_MS, concurrency: cfg.CYCLE_CONCURRENCY });
+  res.end(JSON.stringify({ ok: true, ...result }));
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {

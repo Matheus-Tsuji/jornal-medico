@@ -114,12 +114,18 @@ describe('fila de jobs', () => {
     complete(db, a.id);
   });
 
-  it('job de análise sem chave OpenAI fica bloqueado (não falha em loop nem inventa)', async () => {
+  it('job de análise sem chave OpenAI é adiado sem gastar tentativa (não falha em loop nem inventa)', async () => {
     const { db, cfg } = fresh();
     await discover(db, cfg, fakeAdapter(), 'hipertensao-arterial');
-    while (await workOnce(db, cfg, { adapter: fakeAdapter(), provider: null }, 't')) { /* drena */ }
-    const rows = db.all<{ status: string; last_error: string }>("SELECT status, last_error FROM jobs WHERE type = 'analyze'");
-    expect(rows.every((r) => r.status === 'blocked' && /OPENAI_API_KEY/.test(r.last_error))).toBe(true);
+    while (await workOnce(db, cfg, { adapter: fakeAdapter(), provider: null }, 't')) { /* drena: adiados não voltam na mesma rodada */ }
+    const rows = db.all<{ status: string; last_error: string; attempts: number; next_run_at: string }>("SELECT status, last_error, attempts, next_run_at FROM jobs WHERE type = 'analyze'");
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(r.status).toBe('retry');
+      expect(r.last_error).toMatch(/OPENAI_API_KEY/);
+      expect(r.attempts).toBe(0);
+      expect(Date.parse(r.next_run_at)).toBeGreaterThan(Date.now() + 5 * 3_600_000); // volta no próximo ciclo
+    }
     expect(db.get<{ n: number }>('SELECT COUNT(*) AS n FROM analyses WHERE is_demo = 0')!.n).toBe(0);
   });
 });

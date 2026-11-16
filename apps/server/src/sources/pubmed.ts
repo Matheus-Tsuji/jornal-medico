@@ -126,12 +126,19 @@ export function parsePubmedXml(xml: string): NormalizedRecord[] {
 }
 
 export function pubmedAdapter(cfg: Config, f: FetchLike = fetch): ScientificSourceAdapter {
-  const minGap = cfg.NCBI_API_KEY ? 110 : 350;
+  // NCBI: até 3 req/s sem chave e 10 com chave. Na prática 350 ms ainda gerou HTTP 429 (ciclo real de 2026-11-16).
+  const minGap = cfg.NCBI_API_KEY ? 120 : 500;
   let last = 0;
+  // Fila única: com vários jobs em paralelo, as chamadas ao NCBI continuam espaçadas (limite de 3/s sem chave).
+  let gate: Promise<void> = Promise.resolve();
   const call = async (path: string, params: Record<string, string>) => {
-    const wait = last + minGap - Date.now();
-    if (wait > 0) await sleep(wait);
-    last = Date.now();
+    const turn = gate.then(async () => {
+      const wait = last + minGap - Date.now();
+      if (wait > 0) await sleep(wait);
+      last = Date.now();
+    });
+    gate = turn.catch(() => {});
+    await turn;
     const qs = new URLSearchParams({ ...params, tool: cfg.NCBI_TOOL });
     if (cfg.NCBI_CONTACT_EMAIL) qs.set('email', cfg.NCBI_CONTACT_EMAIL);
     if (cfg.NCBI_API_KEY) qs.set('api_key', cfg.NCBI_API_KEY);

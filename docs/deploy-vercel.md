@@ -91,9 +91,18 @@ Sem e-mail real, a API sobe só com acesso de visitante: o pedido de código res
    - Entre com um e-mail de `ADMIN_EMAILS` e confira as flags em `/admin/flags`.
    - Em **Settings → Cron Jobs**, o job `/api/v1/cron/tick` deve aparecer. Dá para rodar manualmente por lá.
 
-## 3. Como o cron trabalha
+## 3. Ciclo diário (retroalimentação automática)
 
-A cada execução, a função agenda as buscas no PubMed e processa a fila (busca, análise por IA, composição) por até 4 minutos. O que não couber fica para a próxima execução: os jobs têm lease e idempotência, então nada é perdido nem duplicado. No plano Hobby isso acontece uma vez por dia; no Pro, de hora em hora.
+Cada execução do cron chama `runCycle` (`apps/server/src/worker/runner.ts`), o mesmo ciclo do worker local e de `npm run pipeline -- cycle`:
+
+1. **Agenda** (idempotente por data e janela de 6 h): busca no PubMed para cada tema, monitor de documentos oficiais, recheck de retratações dos últimos 180 dias e composição da edição.
+2. **Busca** pela data de entrada no PubMed (`edat`), lendo a janela inteira desde o último cursor, com 3 dias de sobreposição (`INGEST_MAX_PER_TOPIC`, padrão 200). Estudos publicados há meses e indexados agora entram. Se uma janela vier maior que o limite, isso fica registrado na busca, em vez de se perder em silêncio.
+3. **Analisa** os elegíveis em paralelo (`CYCLE_CONCURRENCY`, padrão 4), respeitando `AI_MAX_ARTICLES_PER_DAY`. O que passa do limite do dia, ou chega enquanto a IA ainda não está configurada, é **adiado** (sem gastar tentativa) e entra sozinho no próximo ciclo. Nada fica bloqueado esperando alguém rodar comando.
+4. **Entrega**: a capa (prévia) abre com o que o ciclo trouxe nas últimas 36 h, os mais bem avaliados primeiro, e mostra "N novos nas últimas 36 h". Publicar uma edição oficial continua exigindo editor humano.
+
+Na Vercel, o ciclo para de pegar trabalho novo aos 200 s (a função vai até 300 s). O que sobra continua na próxima execução, com lease e idempotência: nada é perdido nem duplicado. No plano Hobby o cron roda 1 vez por dia; no Pro, `VERCEL_CRON_SCHEDULE="0 * * * *"` faz de hora em hora.
+
+**Requisitos para o ciclo rodar na Vercel:** banco permanente (Turso), `CRON_SECRET` e as variáveis da OpenAI. Na vitrine o cron responde `409 needs_database`, porque o que ele buscasse se perderia.
 
 ## Limitações conhecidas
 
