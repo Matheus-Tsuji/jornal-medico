@@ -23,9 +23,14 @@ switch (cmd) {
   case 'monitor':
     for (const source of arg ? [arg] : automaticSources) out(await syncMonitor(db, source));
     break;
-  case 'discover':
-    out(await discover(db, cfg, deps.adapter, arg ?? 'hipertensao-arterial'));
+  case 'discover': {
+    // discover <tema> [fonte]   ex.: discover hipertensao-arterial europepmc
+    const src = process.argv[4];
+    const adapter = src ? deps.extraAdapters?.find((a) => a.slug === src) : deps.adapter;
+    if (!adapter) throw new Error(`Fonte sem adaptador: ${src}`);
+    out(await discover(db, cfg, adapter, arg ?? 'hipertensao-arterial'));
     break;
+  }
   case 'analyze':
     out(await analyzeArticle(db, cfg, deps.provider, arg ?? ''));
     break;

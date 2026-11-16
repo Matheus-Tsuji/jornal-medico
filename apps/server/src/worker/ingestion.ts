@@ -29,7 +29,7 @@ export function upsertRecord(db: Db, sourceId: string, topicId: string, r: Norma
   return db.tx(() => {
     const existing =
       (r.doi && db.get<{ id: string }>('SELECT id FROM articles WHERE doi = ?', r.doi)) ||
-      db.get<{ id: string }>('SELECT id FROM articles WHERE pmid = ?', r.pmid) ||
+      (r.pmid && db.get<{ id: string }>('SELECT id FROM articles WHERE pmid = ?', r.pmid)) ||
       (r.pmcid && db.get<{ id: string }>('SELECT id FROM articles WHERE pmcid = ?', r.pmcid)) ||
       undefined;
     const hash = sha256(JSON.stringify([r.title, r.abstract, r.publicationTypes, r.retracted, r.corrected]));
@@ -63,7 +63,7 @@ export function upsertRecord(db: Db, sourceId: string, topicId: string, r: Norma
       `INSERT INTO articles (id, slug, doi, pmid, pmcid, original_title, authors, journal_id, source_id, publication_types, pub_date, indexed_at, canonical_url,
         access_status, retraction_status, language, mesh_terms, triage_status, triage_reason, created_at, updated_at)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      articleId, `${slugify(r.title, 70)}-pmid${r.pmid}`, r.doi, r.pmid, r.pmcid, r.title, JSON.stringify(r.authors), journalId, sourceId,
+      articleId, `${slugify(r.title, 70)}-${r.pmid ? `pmid${r.pmid}` : slugify(r.pmcid ?? r.externalId, 30)}`, r.doi, r.pmid, r.pmcid, r.title, JSON.stringify(r.authors), journalId, sourceId,
       JSON.stringify(r.publicationTypes), r.pubDate, r.indexedAt, r.url, r.abstract ? 'abstract_only' : 'metadata_only', retraction, r.language,
       JSON.stringify(r.mesh), t.status, t.reason, nowIso(), nowIso(),
     );

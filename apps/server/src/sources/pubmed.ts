@@ -9,7 +9,7 @@ const BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
 
 export interface NormalizedRecord {
   externalId: string;
-  pmid: string;
+  pmid: string | null;
   pmcid: string | null;
   doi: string | null;
   title: string;

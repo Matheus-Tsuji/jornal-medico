@@ -44,10 +44,10 @@ export function fakeAdapter(xml = fixtureXml, opts: { failSearch?: Error } = {})
     async search() {
       this.calls++;
       if (opts.failSearch) throw opts.failSearch;
-      return { ids: recs.map((r) => r.pmid), total: recs.length };
+      return { ids: recs.map((r) => r.pmid!), total: recs.length };
     },
     async fetchDetails(ids) {
-      return recs.filter((r) => ids.includes(r.pmid));
+      return recs.filter((r) => ids.includes(r.pmid!));
     },
   };
 }

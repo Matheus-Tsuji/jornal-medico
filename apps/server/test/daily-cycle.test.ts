@@ -27,10 +27,10 @@ function dailyAdapter(): ScientificSourceAdapter & { day: string } {
     day: '',
     async search() {
       const recs = parsePubmedXml(this.day);
-      return { ids: recs.map((r) => r.pmid), total: recs.length };
+      return { ids: recs.map((r) => r.pmid!), total: recs.length };
     },
     async fetchDetails(ids) {
-      return parsePubmedXml(this.day).filter((r) => ids.includes(r.pmid));
+      return parsePubmedXml(this.day).filter((r) => ids.includes(r.pmid!));
     },
   };
 }

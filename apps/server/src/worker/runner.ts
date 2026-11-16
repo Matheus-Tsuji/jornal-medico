@@ -8,13 +8,16 @@ import { openAiProvider, type AiProvider } from '../ai/provider.ts';
 import { composeEdition } from '../modules/editorial.ts';
 import { block, claim, complete, defer, enqueue, expireStaleAnalyses, fail, retryLater, type Job } from '../modules/jobs.ts';
 import { pubmedAdapter, type ScientificSourceAdapter } from '../sources/pubmed.ts';
+import { europePmcAdapter } from '../sources/europepmc.ts';
 import { automaticSources, syncMonitor } from '../modules/monitor.ts';
 import { discover, upsertRecord } from './ingestion.ts';
 
-export interface Deps { adapter: ScientificSourceAdapter; provider: AiProvider | null; monitorFetch?: FetchLike }
+/** adapter = PubMed (busca e recheck de retratações); extraAdapters = outras fontes científicas, só busca. */
+export interface Deps { adapter: ScientificSourceAdapter; extraAdapters?: ScientificSourceAdapter[]; provider: AiProvider | null; monitorFetch?: FetchLike }
 
 export const defaultDeps = (cfg: Config): Deps => ({
   adapter: pubmedAdapter(cfg),
+  extraAdapters: [europePmcAdapter()],
   provider: cfg.OPENAI_API_KEY ? openAiProvider(cfg.OPENAI_API_KEY) : null,
 });
 
@@ -23,8 +26,11 @@ export async function runJob(db: Db, cfg: Config, job: Job, deps: Deps): Promise
   switch (job.type) {
     case 'monitor':
       return syncMonitor(db, p.source!, deps.monitorFetch);
-    case 'discover':
-      return discover(db, cfg, deps.adapter, p.topic!, job.id);
+    case 'discover': {
+      const adapter = !p.source || p.source === deps.adapter.slug ? deps.adapter : deps.extraAdapters?.find((a) => a.slug === p.source);
+      if (!adapter) return { skipped: `sem adaptador para ${p.source}` };
+      return discover(db, cfg, adapter, p.topic!, job.id);
+    }
     case 'analyze':
       return analyzeArticle(db, cfg, deps.provider, p.articleId!, job.id);
     case 'compose':
@@ -103,6 +109,9 @@ export function schedule(db: Db, cfg: Config, now = new Date()) {
   for (const source of automaticSources) enqueue(db, 'monitor', `monitor:${source}:${date}:${slot}`, { source });
   const topics = db.all<{ slug: string }>("SELECT slug FROM topics WHERE enabled = 1 AND source_query IS NOT NULL");
   for (const t of topics) enqueue(db, 'discover', `discover:pubmed:${t.slug}:${date}:${slot}`, { topic: t.slug });
+  // Outras fontes científicas: 1 vez por dia por tema (o volume fora do PubMed é pequeno).
+  const extra = db.all<{ slug: string }>("SELECT slug FROM sources WHERE enabled = 1 AND kind = 'bibliographic_api' AND slug <> 'pubmed'");
+  for (const s of extra) for (const t of topics) enqueue(db, 'discover', `discover:${s.slug}:${t.slug}:${date}`, { topic: t.slug, source: s.slug });
   const [h, m] = cfg.EDITION_HOUR.split(':').map(Number) as [number, number];
   const composeAt = `${String(Math.max(0, h - 1)).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   if (hhmm >= composeAt) enqueue(db, 'compose', `compose:${date}`, { date });
