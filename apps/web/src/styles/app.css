@@ -27,39 +27,39 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-paper: #16120f;
-    --color-surface: #1f1a16;
-    --color-ink: #f1ebdd;
-    --color-muted: #b8ae9c;
-    --color-line: #3a322a;
-    --color-line-strong: #f1ebdd;
-    --color-primary: #e7a2ab;
-    --color-primary-soft: #33191d;
-    --color-accent: #d7bd8c;
+    --color-paper: #14120f;
+    --color-surface: #1e1b16;
+    --color-ink: #ece4d2;
+    --color-muted: #a89f8e;
+    --color-line: #3a3226;
+    --color-line-strong: #ece4d2;
+    --color-primary: #c9a96e;
+    --color-primary-soft: #2a2318;
+    --color-accent: #e2d9c6;
     --color-gold: #b89b6a;
-    --color-warning: #eda766;
-    --color-warning-soft: #2f2214;
+    --color-warning: #e39a5b;
+    --color-warning-soft: #2b2014;
     --color-danger: #f28b82;
     --color-danger-soft: #3a1a17;
-    --color-on-primary: #1c1a17;
+    --color-on-primary: #14120f;
   }
 }
 :root[data-theme="dark"] {
-  --color-paper: #16120f;
-  --color-surface: #1f1a16;
-  --color-ink: #f1ebdd;
-  --color-muted: #b8ae9c;
-  --color-line: #3a322a;
-  --color-line-strong: #f1ebdd;
-  --color-primary: #e7a2ab;
-  --color-primary-soft: #33191d;
-  --color-accent: #d7bd8c;
+  --color-paper: #14120f;
+  --color-surface: #1e1b16;
+  --color-ink: #ece4d2;
+  --color-muted: #a89f8e;
+  --color-line: #3a3226;
+  --color-line-strong: #ece4d2;
+  --color-primary: #c9a96e;
+  --color-primary-soft: #2a2318;
+  --color-accent: #e2d9c6;
   --color-gold: #b89b6a;
-  --color-warning: #eda766;
-  --color-warning-soft: #2f2214;
+  --color-warning: #e39a5b;
+  --color-warning-soft: #2b2014;
   --color-danger: #f28b82;
   --color-danger-soft: #3a1a17;
-  --color-on-primary: #1c1a17;
+  --color-on-primary: #14120f;
 }
 
 html {
@@ -161,9 +161,9 @@ details[open] > nav { transform-origin: top right; }
 .topic-text { color: var(--topic, var(--color-primary)); }
 .topic-rule { border-top: 3px solid var(--topic, var(--color-primary)); }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .topic-text { color: color-mix(in srgb, var(--topic, #e7a2ab) 45%, #ffffff); }
+  :root:not([data-theme="light"]) .topic-text { color: color-mix(in srgb, var(--topic, #c9a96e) 45%, #ffffff); }
 }
-:root[data-theme="dark"] .topic-text { color: color-mix(in srgb, var(--topic, #e7a2ab) 45%, #ffffff); }
+:root[data-theme="dark"] .topic-text { color: color-mix(in srgb, var(--topic, #c9a96e) 45%, #ffffff); }
 
 /* Leitura editorial: números em sans, texto corrido com medida confortável. */
 body { line-height: 1.6; }

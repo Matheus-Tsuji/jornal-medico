@@ -176,7 +176,7 @@ test('acessibilidade básica: link de pular, botões com nome, foco visível, te
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.screenshot({ path: `${SHOTS}/jornal-escuro.png` });
   const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  expect(bg).toBe('rgb(22, 18, 15)');
+  expect(bg).toBe('rgb(20, 18, 15)');
 });
 
 test('leitura ampliada no celular mantém resultados acessíveis', async ({ page }) => {
