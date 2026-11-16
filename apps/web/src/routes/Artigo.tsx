@@ -199,7 +199,7 @@ const MESES = ['jan.', 'fev.', 'mar.', 'abr.', 'maio', 'jun.', 'jul.', 'ago.', '
 
 /** Referência de artigo de periódico conforme ABNT NBR 6023:2018 (até 3 autores; mais que isso, o primeiro + et al.). */
 function abntReference(a: Pick<ArticleDetail, 'authors' | 'originalTitle' | 'journal' | 'sourceName' | 'pubDate' | 'doi' | 'canonicalUrl'>, today = new Date()) {
-  const au = a.authors.length === 0 ? '' : a.authors.length > 3 ? `${abntAuthor(a.authors[0])} et al. ` : `${a.authors.map(abntAuthor).join('; ')}. `;
+  const au = a.authors.length === 0 ? '' : a.authors.length > 3 ? `${abntAuthor(a.authors[0]!)} et al. ` : `${a.authors.map(abntAuthor).join('; ')}. `;
   const url = a.doi ? `https://doi.org/${a.doi}` : a.canonicalUrl;
   const acesso = `${today.getDate()} ${MESES[today.getMonth()]} ${today.getFullYear()}`;
   return `${au}${a.originalTitle.replace(/\.$/, '')}. ${a.journal ?? a.sourceName}, ${a.pubDate?.slice(0, 4) ?? '[s. d.]'}.${a.doi ? ` DOI: ${a.doi}.` : ''}${url ? ` Disponível em: ${url}. Acesso em: ${acesso}.` : ''}`;
