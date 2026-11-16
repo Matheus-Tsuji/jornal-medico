@@ -93,6 +93,7 @@ export function ResultLine({ k }: { k: KeyResult }) {
 
 const TIER_LABEL = { A: 'grupo A', B: 'grupo B', C: 'grupo C' } as const;
 const tierOf = (g: EvidenceGrade) => g[0] as keyof typeof TIER_LABEL;
+const GRADE_SCALE = [['A', 'Metanálise, revisão sistemática, ensaio randomizado'], ['B', 'Coorte, caso-controle, diretriz'], ['C', 'Demais desenhos']] as const;
 
 /** Selo "Evidência A1" (nota do estudo) e "Qualis A1" (nota da revista na CAPES). */
 export function EvidenceChips({ a }: { a: Pick<ArticleCard, 'evidence' | 'journalQualis'> }) {
@@ -119,12 +120,21 @@ export function WhyGrade({ evidence }: { evidence: ArticleCard['evidence'] }) {
   return (
     <details className="why-grade">
       <summary>
-        <span className={`chip chip-grade-${t}`}>{evidence.grade}</span>
-        Como foi classificado: {evidence.grade}?
+        <span className={`grade-badge grade-badge-${t}`}><strong className="grade-badge-grade">{evidence.grade}</strong></span>
+        <span className="grid">
+          <span className="why-grade-title">Por que {evidence.grade}?</span>
+          <span className="why-grade-hint">Veja o que pesou na nota</span>
+        </span>
+        <svg className="why-grade-chevron" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </summary>
-      <div className="grid gap-1.5 px-3 pb-3 text-sm">
-        <ul className="m-0 list-disc pl-5">{evidence.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
-        <p className="m-0 text-xs text-muted">Classificação automática própria do jornal, ainda sujeita à validação editorial; não equivale a uma avaliação GRADE. A letra vem do desenho do estudo (A: metanálise, revisão sistemática ou ensaio randomizado; B: coorte, caso-controle, diretriz; C: demais). O número cai com resultado sem IC/p-valor, amostra abaixo de 500 ou sinais de incerteza. A revista não entra nesta nota.</p>
+      <div className="grid gap-3 p-3 text-sm">
+        <ul className="m-0 grid gap-1 list-disc pl-5">{evidence.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
+        <div className="grade-scale">
+          {GRADE_SCALE.map(([g, d]) => (
+            <div key={g} aria-current={g === t ? 'true' : undefined}><strong>{g}</strong>{d}</div>
+          ))}
+        </div>
+        <p className="m-0 text-xs text-muted">A letra vem do desenho do estudo. O número (1 a 3) cai quando falta IC ou p-valor, a amostra é menor que 500 ou há sinais de incerteza. Classificação automática do jornal, sujeita à validação editorial; não é uma avaliação GRADE e não considera a revista.</p>
       </div>
     </details>
   );
