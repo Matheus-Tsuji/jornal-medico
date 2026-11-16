@@ -73,7 +73,6 @@ export function StatusChips({ a }: { a: Pick<ArticleCard, 'isDemo' | 'reviewStat
       {a.isDemo && <span className="chip chip-demo">Fictício · demonstração</span>}
       {a.reviewStatus === 'corrected' && <span className="chip chip-demo">Corrigido</span>}
       {a.reviewStatus === 'reviewed' && <span className="chip chip-ok">Revisado por editor</span>}
-      {a.accessStatus === 'abstract_only' && <span className="chip">Baseado no abstract</span>}
     </span>
   );
 }

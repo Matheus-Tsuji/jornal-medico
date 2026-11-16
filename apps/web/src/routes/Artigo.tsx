@@ -179,6 +179,10 @@ function Actions({ a }: { a: ArticleDetail }) {
       {(save.error || done.error || feedback.error) && <p role="alert" className="m-0 text-sm text-danger">{(save.error || done.error || feedback.error)?.message} Tente novamente.</p>}
       {copied === 'erro' && <p role="alert" className="m-0 text-sm text-danger">Não foi possível copiar. Selecione o texto e copie manualmente.</p>}
       {report && <ReportDialog articleId={a.id} onClose={() => setReport(false)} />}
+      <div className="rule-top mt-2 pt-3">
+        <p className="kicker m-0 mb-1 text-muted">Comentários</p>
+        <p className="m-0 rounded border border-dashed border-line px-3 py-3 text-sm text-muted">Em breve você poderá comentar e discutir este estudo com outros leitores.</p>
+      </div>
     </aside>
   );
 }
@@ -218,11 +222,6 @@ export default function Artigo() {
         </ol>
       </nav>
 
-      {a.reviewStatus === 'ai_unreviewed' && (
-        <p className="m-0 mb-4 border-l-4 border-warning bg-warning-soft px-3 py-2 text-sm font-medium text-warning">
-          Análise de estudo real gerada por IA ({a.model}) e ainda <strong>não revisada</strong> pela equipe editorial. Os números foram conferidos automaticamente com o texto da fonte, mas confira na publicação original antes de usar.
-        </p>
-      )}
       {a.isDemo && <p className="m-0 mb-4 border-l-4 border-warning bg-warning-soft px-3 py-2 text-sm font-medium text-warning">Estudo fictício de demonstração. Nenhum número desta página existe na literatura.</p>}
       {a.retractionStatus === 'retracted' && (
         <div role="alert" className="mb-4 border-l-4 border-danger bg-danger-soft px-4 py-3">
@@ -243,8 +242,17 @@ export default function Artigo() {
           <header className="grid gap-3 pb-6">
             <p className="kicker m-0 text-muted">{designLabels[a.studyDesign]} · {a.publicationType}</p>
             <h1 className="m-0 font-serif text-3xl leading-tight font-bold tracking-tight text-balance sm:text-[2.6rem]">{a.headline}</h1>
-            <StatusChips a={a} />
-            <p className="m-0 text-sm text-muted">{a.journal ?? a.sourceName} · {fmtDate(a.pubDate)}</p>
+            {a.authors.length > 0 && (
+              <p className="m-0 text-base font-medium">
+                {a.authors.slice(0, 6).join(', ')}{a.authors.length > 6 && <span className="text-muted"> e mais {a.authors.length - 6}</span>}
+              </p>
+            )}
+            <span className="inline-flex flex-wrap items-center gap-1.5">
+              <StatusChips a={a} />
+              <span className="chip" title="Base onde o estudo foi encontrado">{a.sourceName.replace(/\s*\(.*\)$/, '')}</span>
+              {a.pubDate && <span className="chip"><span className="sr-only">Publicado em </span>{fmtDate(a.pubDate)}</span>}
+            </span>
+            {a.journal && <p className="m-0 text-sm text-muted italic">{a.journal}</p>}
           </header>
 
           <nav aria-label="Nesta análise" className="article-jump mb-6">
@@ -382,6 +390,11 @@ export default function Artigo() {
             </div>
           )}
           {an && prefs.quick && <p className="rule-top mt-6 pt-4 text-sm text-muted">Modo leitura rápida ativo. Desligue “Leitura rápida” no topo para ver a análise aprofundada.</p>}
+          {a.reviewStatus === 'ai_unreviewed' && (
+            <p className="m-0 mt-6 border-l-2 border-warning bg-warning-soft px-3 py-2 text-xs text-warning">
+              Gerada por IA ({a.model}), ainda não revisada por editor. Confira os números na publicação original.
+            </p>
+          )}
         </div>
         <Actions a={a} />
       </div>
