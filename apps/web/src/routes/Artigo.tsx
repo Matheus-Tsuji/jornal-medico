@@ -151,7 +151,7 @@ function Actions({ a }: { a: ArticleDetail }) {
     try { await navigator.clipboard.writeText(text); setCopied(what); setTimeout(() => setCopied(''), 2000); } catch { setCopied('erro'); }
   };
   return (
-    <aside aria-label="Ações" className="grid content-start gap-2 xl:sticky xl:top-36 xl:self-start">
+    <aside aria-label="Ações" className="grid content-start gap-2 xl:sticky xl:top-16 xl:self-start">
       {a.canonicalUrl ? (
         <a href={a.canonicalUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary"><ExternalLink size={16} aria-hidden /> Abrir publicação original</a>
       ) : (
@@ -424,7 +424,7 @@ export default function Artigo() {
               </Section>
             </div>
           )}
-          {an && prefs.quick && <p className="rule-top mt-6 pt-4 text-sm text-muted">Modo leitura rápida ativo. Desligue “Leitura rápida” no topo para ver a análise aprofundada.</p>}
+          {an && prefs.quick && <p className="rule-top mt-6 pt-4 text-sm text-muted">Modo leitura rápida ativo. Recarregue a página para ver a análise aprofundada.</p>}
           {a.reviewStatus === 'ai_unreviewed' && (
             <p className="m-0 mt-6 border-l-2 border-warning bg-warning-soft px-3 py-2 text-xs text-warning">
               Gerada por IA ({a.model}), ainda não revisada por editor. Confira os números na publicação original.

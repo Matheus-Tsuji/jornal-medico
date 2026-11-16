@@ -22,7 +22,8 @@ const THEMES: Theme[] = ['system', 'light', 'dark'];
 
 export function useReadingPrefs() {
   const [scale, setScale] = useState(() => read('jm:fs', '1'));
-  const [quick, setQuick] = useState(() => read('jm:quick', '0') === '1');
+  // ponytail: o botão "Leitura rápida" saiu do topo (2026-11-16); começa desligado para ninguém ficar preso nele.
+  const [quick, setQuick] = useState(false);
   useEffect(() => {
     document.documentElement.style.setProperty('--fs-scale', scale);
     write('jm:fs', scale);

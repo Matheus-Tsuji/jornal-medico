@@ -185,7 +185,15 @@ test('leitura ampliada no celular mantém resultados acessíveis', async ({ page
   await page.goto('/artigos/demo-001');
   await expect(page.getByRole('table')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
-  await page.getByRole('button', { name: 'Leitura rápida', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Limitações em destaque' })).toBeVisible();
-  await expect(page.getByRole('table')).toHaveCount(0);
+});
+
+test('barra de seções fica presa no topo sem mudar a altura do cabeçalho ao rolar', async ({ page }) => {
+  await page.goto('/artigos/demo-001');
+  const h = () => page.evaluate(() => document.body.scrollHeight);
+  const before = await h();
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await page.waitForTimeout(100);
+  expect(await h()).toBe(before);
+  const top = await page.getByRole('navigation', { name: 'Seções' }).evaluate((n) => n.getBoundingClientRect().top);
+  expect(top).toBeLessThanOrEqual(1);
 });

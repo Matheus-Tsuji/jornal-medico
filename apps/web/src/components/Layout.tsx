@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Monitor, Moon, Sun, Type, UserRound } from 'lucide-react';
-import { Seal, SealMini, Wordmark } from './Brand';
+import { Monitor, Moon, Search, Sun, Type, UserRound } from 'lucide-react';
+import { Seal, Wordmark } from './Brand';
 import { api, fmtLongDate, useConfig, useMe, useTopics } from '../lib/api';
 import ScrollRow from './ScrollRow';
 import { useReadingPrefs } from '../lib/prefs';
@@ -44,24 +44,22 @@ function AccountMenu() {
 
 const themeLabel = { system: 'Automático', light: 'Claro', dark: 'Escuro' } as const;
 
+// O cabeçalho NÃO muda de altura com a rolagem: no Safari (iOS e macOS), encolher o header pela posição do scroll
+// mudava a altura da página, que mudava o scroll, que desfazia o encolhimento (flicker). Agora o logo grande rola
+// normalmente e só a barra de seções fica presa no topo.
 function Masthead({ prefs }: { prefs: LayoutCtx }) {
   const cfg = useConfig();
-  const [compact, setCompact] = useState(false);
-  useEffect(() => {
-    const on = () => setCompact(window.scrollY > 80);
-    on();
-    window.addEventListener('scroll', on, { passive: true });
-    return () => window.removeEventListener('scroll', on);
-  }, []);
   const brand = cfg.data?.brandName ?? 'Jornal Médico';
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-paper/95 backdrop-blur-sm">
+    <>
+    <header className="border-b border-line bg-paper">
       <div className="mx-auto max-w-6xl px-4">
         <div className="flex items-center justify-between gap-3 py-2 text-xs text-muted">
           <p className="masthead-date m-0 first-letter:uppercase">{fmtLongDate(todayIso())}</p>
           <div className="masthead-tools flex items-center gap-1.5">
-            <button type="button" onClick={prefs.toggleQuick} aria-pressed={prefs.quick} className={`btn !min-h-9 !px-2.5 text-xs ${prefs.quick ? 'btn-primary' : 'btn-ghost'}`} aria-label="Leitura rápida" title="Mostra só a camada de leitura rápida">
-              <BookOpen size={14} aria-hidden /> <span className="hidden sm:inline">Leitura rápida</span>
+            {/* Busca: só o lugar no layout por enquanto (pedido do Matheus, 2026-11-16). */}
+            <button type="button" className="btn btn-ghost !min-h-9 !px-2.5 text-xs" aria-label="Pesquisar (em breve)" title="Pesquisa em breve" aria-disabled="true">
+              <Search size={14} aria-hidden />
             </button>
             <button type="button" onClick={prefs.cycleScale} className="btn btn-ghost !min-h-9 !px-2.5 text-xs" aria-label={`Tamanho do texto: ${Math.round(Number(prefs.scale) * 100)}%`}>
               <Type size={14} aria-hidden /> Aa
@@ -74,19 +72,18 @@ function Masthead({ prefs }: { prefs: LayoutCtx }) {
           </div>
         </div>
         <Link to="/jornal" className="flex items-center justify-center gap-3 no-underline sm:gap-5" aria-label={`${brand} — edição de hoje`}>
-          {compact ? (
-            <span className="flex items-center gap-2.5 py-1"><SealMini size={30} /><Wordmark name={brand} size="sm" tagline={false} /></span>
-          ) : (
-            <span className="flex items-center gap-3 py-2 sm:gap-5 sm:py-3">
-              <span className="sm:hidden"><Seal size={56} /></span>
-              <span className="hidden sm:block"><Seal size={88} /></span>
-              <Wordmark name={brand} size="lg" />
-            </span>
-          )}
+          <span className="flex items-center gap-3 py-2 sm:gap-5 sm:py-3">
+            <span className="sm:hidden"><Seal size={56} /></span>
+            <span className="hidden sm:block"><Seal size={88} /></span>
+            <Wordmark name={brand} size="lg" />
+          </span>
         </Link>
       </div>
-      <AreaNav />
     </header>
+    <div className="sticky top-0 z-20 border-b border-line bg-paper">
+      <AreaNav />
+    </div>
+    </>
   );
 }
 

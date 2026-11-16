@@ -139,7 +139,7 @@ body { line-height: 1.6; }
 ::selection { background: var(--color-primary); color: var(--color-on-primary); }
 input, textarea { caret-color: var(--color-primary); }
 h1, h2, h3, p, dd { overflow-wrap: anywhere; }
-h1, h2, h3 { scroll-margin-top: 13rem; }
+h1, h2, h3 { scroll-margin-top: 4.5rem; }
 .article-reading { font-size: 1.0625rem; line-height: 1.75; }
 .article-reading section > p, .article-reading section > ul { max-width: 70ch; }
 .article-jump { display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; padding: .8rem 0; border-block: 1px solid var(--color-line); }
@@ -152,7 +152,7 @@ h1, h2, h3 { scroll-margin-top: 13rem; }
 .grade-badge-A { border-color: var(--color-primary); background: var(--color-primary); color: var(--color-paper); }
 .grade-badge-B { border-color: var(--color-accent); color: var(--color-accent); }
 @media (max-width: 639px) {
-  h1, h2, h3 { scroll-margin-top: 12rem; }
+  h1, h2, h3 { scroll-margin-top: 4.5rem; }
   .masthead-date { display: none; }
   .masthead-tools { width: 100%; justify-content: flex-end; }
 }
@@ -166,7 +166,7 @@ h1, h2, h3 { scroll-margin-top: 13rem; }
 .publication-toggle svg { transition: transform 0.15s ease; }
 .publication-details[open] .publication-toggle svg { transform: rotate(180deg); }
 .publication-details summary:hover .publication-toggle { border-color: var(--color-primary); color: var(--color-primary); }
-section[id] { scroll-margin-top: 13rem; }
+section[id] { scroll-margin-top: 4.5rem; }
 @media (max-width: 1279px) {
   .results-table, .results-table tbody { display: block; }
   .results-table thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
