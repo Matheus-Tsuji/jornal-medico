@@ -65,14 +65,15 @@ export function DemoBanner() {
 
 export function StatusChips({ a }: { a: Pick<ArticleCard, 'isDemo' | 'reviewStatus' | 'retractionStatus'> & Partial<Pick<ArticleCard, 'evidence' | 'journalQualis'>> & { accessStatus?: string } }) {
   return (
-    <span className="inline-flex flex-wrap gap-1.5">
-      {a.isDemo && <span className="chip chip-demo">Fictício · demonstração</span>}
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      {/* A nota do estudo vem primeiro e em destaque (pedido do Matheus, 2026-11-16). O aviso de que a análise é
+          automática e ainda não revisada fica no banner da capa (PreviewBanner), não em cada card. */}
+      {a.evidence && <EvidenceChips a={{ evidence: a.evidence, journalQualis: a.journalQualis ?? null }} />}
       {a.retractionStatus === 'retracted' && <span className="chip chip-danger"><AlertTriangle size={12} aria-hidden /> Retratado</span>}
+      {a.isDemo && <span className="chip chip-demo">Fictício · demonstração</span>}
       {a.reviewStatus === 'corrected' && <span className="chip chip-demo">Corrigido</span>}
       {a.reviewStatus === 'reviewed' && <span className="chip chip-ok">Revisado por editor</span>}
-      {a.reviewStatus === 'ai_unreviewed' && <span className="chip chip-demo">IA · não revisado por editor</span>}
       {a.accessStatus === 'abstract_only' && <span className="chip">Baseado no abstract</span>}
-      {a.evidence && <EvidenceChips a={{ evidence: a.evidence, journalQualis: a.journalQualis ?? null }} />}
     </span>
   );
 }
@@ -98,8 +99,10 @@ export function EvidenceChips({ a }: { a: Pick<ArticleCard, 'evidence' | 'journa
   const t = tierOf(a.evidence.grade);
   return (
     <>
-      <span className={`chip chip-grade-${t}`} title={a.evidence.reasons.join(' · ')}>
-        <span className="sr-only">Força da evidência do estudo: </span>Classificação automática {a.evidence.grade}<span className="sr-only"> ({TIER_LABEL[t]})</span>
+      <span className={`grade-badge grade-badge-${t}`} title={`Classificação automática do jornal: ${a.evidence.reasons.join(' · ')}`}>
+        <span className="sr-only">Força da evidência do estudo (classificação automática): </span>
+        <strong className="grade-badge-grade">{a.evidence.grade}</strong>
+        <span className="grade-badge-label">{TIER_LABEL[t].replace(/^e/, 'E')}</span>
       </span>
       {a.journalQualis && (
         <span className="chip" title={`Qualis CAPES ${a.journalQualis.cycle} da revista. Classifica a revista, não o estudo.`}>

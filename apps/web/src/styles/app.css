@@ -142,6 +142,15 @@ h1, h2, h3 { scroll-margin-top: 13rem; }
 .article-jump a { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-primary); text-decoration: underline; text-underline-offset: 4px; font-size: .875rem; }
 .chip { white-space: normal; line-height: 1.4; }
 .chip-grade-A { color: var(--color-primary); background: var(--color-primary-soft); }
+/* Nota do estudo (A1…C3): primeiro selo do card e o mais visível. A = cheio na cor da marca. */
+.grade-badge { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2rem; padding: 0.2rem 0.75rem 0.2rem 0.3rem; border-radius: 999px; border: 2px solid var(--color-line); font-size: 0.8rem; font-weight: 600; line-height: 1; }
+.grade-badge-grade { display: inline-grid; place-items: center; min-width: 1.75rem; height: 1.6rem; padding: 0 0.35rem; border-radius: 999px; font-size: 0.95rem; font-weight: 800; letter-spacing: 0.02em; }
+.grade-badge-A { border-color: var(--color-primary); background: var(--color-primary); color: var(--color-paper); }
+.grade-badge-A .grade-badge-grade { background: var(--color-paper); color: var(--color-primary); }
+.grade-badge-B { border-color: var(--color-accent); color: var(--color-accent); }
+.grade-badge-B .grade-badge-grade { background: var(--color-accent); color: var(--color-paper); }
+.grade-badge-C { color: var(--color-muted); }
+.grade-badge-C .grade-badge-grade { background: var(--color-line); color: var(--color-ink); }
 @media (max-width: 639px) {
   h1, h2, h3 { scroll-margin-top: 12rem; }
   .masthead-date { display: none; }

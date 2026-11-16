@@ -106,14 +106,15 @@ function AreaNav() {
     <nav aria-label="Seções" className="border-t border-line">
       <div className="mx-auto max-w-6xl"><ScrollRow className="flex justify-center-safe px-2" label="seções">
         <NavLink to="/jornal" className={cls} end>Hoje</NavLink>
-        <NavLink to="/regulacao" className={cls}>Saúde pública e regulação</NavLink>
-        <NavLink to="/publicacoes" className={cls}>Publicações científicas</NavLink>
         {areas.map((a) => (
           <NavLink key={a.slug} to={`/areas/${a.slug}`} className={cls}>
             {a.label}
             {!a.enabled && <span className="ml-1.5 text-[0.65rem] text-muted">em preparação</span>}
           </NavLink>
         ))}
+        {/* Áreas médicas primeiro; regulação e publicações logo antes de Edições (pedido do Matheus, 2026-11-16). */}
+        <NavLink to="/regulacao" className={cls}>Saúde pública e regulação</NavLink>
+        <NavLink to="/publicacoes" className={cls}>Publicações científicas</NavLink>
         <NavLink to="/edicoes" className={cls}>Edições</NavLink>
         <NavLink to="/mais-lidos" className={cls}>Mais lidos</NavLink>
       </ScrollRow></div>
