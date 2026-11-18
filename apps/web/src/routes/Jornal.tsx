@@ -79,20 +79,20 @@ export default function Jornal() {
 
         {/* Para você (esquerda) + Em alta (direita, no estilo "o que está acontecendo") */}
         <section className="grid gap-8 py-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-          <div aria-labelledby="para-voce" className="lg:border-r lg:border-line lg:pr-8">
+          <section aria-labelledby="para-voce" className="lg:border-r lg:border-line lg:pr-8">
             <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-ink pb-1">
               <h2 id="para-voce" className="kicker m-0 text-ink">Para você</h2>
               <p className="m-0 text-xs text-muted">
                 {me.data ? <>Pelos seus interesses · <Link to="/configuracoes" className="link">Ajustar</Link></> : <>Seleção geral · <Link to="/entrar" className="link">Entre para personalizar</Link></>}
               </p>
             </div>
-            {forYouLead ? <LeadStory a={forYouLead} /> : <p className="text-muted">Sem estudos nesta edição.</p>}
+            {forYouLead ? <LeadStory a={forYouLead} reasons={'reasons' in forYouLead ? (forYouLead as { reasons?: string[] }).reasons : undefined} /> : <p className="text-muted">Sem estudos nesta edição.</p>}
             {forYouRest.length > 0 && (
               <div className="mt-8 grid gap-6 sm:grid-cols-2">
                 {forYouRest.map((a) => <div key={a.id} className="rule-top pt-4"><CompactStory a={a} reasons={a.reasons} /></div>)}
               </div>
             )}
-          </div>
+          </section>
           <TrendingPanel items={all} />
         </section>
 

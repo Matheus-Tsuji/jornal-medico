@@ -8,11 +8,6 @@ import type { LayoutCtx } from '../components/Layout';
 import { ErrorState, KeyResultPanel, Loading, StatusChips } from '../components/ui';
 
 const locatorLabel: Record<string, string> = { title: 'título', abstract: 'abstract', result: 'resultados', table: 'tabela', section: 'seção do texto', metadata: 'metadados' };
-const missingLabel: Record<string, string> = {
-  not_reported_in_available_material: 'não reportado no material disponível',
-  not_applicable: 'não se aplica a este tipo de publicação',
-  requires_full_text: 'exige o texto integral',
-};
 
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
@@ -289,7 +284,6 @@ export default function Artigo() {
               <a href="#desenho">População e métodos</a>
               <a href="#resultados">Resultados</a>
               <a href="#limitacoes">Limitações</a>
-              <a href="#rastreabilidade">Fontes e revisão</a>
             </>}
           </nav>
 
@@ -297,7 +291,7 @@ export default function Artigo() {
           <section aria-labelledby="rapida" className="rule-strong pt-4">
             <h2 id="rapida" className="kicker m-0 mb-3 text-ink">Leitura rápida</h2>
             {a.inShort && <p className="m-0 mb-4 border-l-4 border-primary bg-primary-soft px-4 py-3 font-serif text-lg leading-relaxed"><span className="kicker mb-1 block text-primary">Em poucas palavras</span>{a.inShort}</p>}
-            {a.keyResult && <div className="mb-5"><KeyResultPanel k={a.keyResult} evidence={a.evidence} /></div>}
+            {a.keyResult && <div className="mb-5"><KeyResultPanel k={a.keyResult} evidence={a.evidence} design={a.studyDesign} /></div>}
             {an && <div className="mb-5 border-y border-line py-4">
               <h3 className="m-0 mb-2 font-serif text-xl font-bold">Limitações em destaque</h3>
               {an.limitations.length
@@ -391,43 +385,13 @@ export default function Artigo() {
                   <div><dt className="kicker text-muted">Financiamento</dt><dd className="m-0">{an.funding ?? <span className="text-muted italic">não informado</span>}</dd></div>
                   <div><dt className="kicker text-muted">Conflitos de interesse</dt><dd className="m-0">{an.conflictsOfInterest ?? <span className="text-muted italic">não informado</span>}</dd></div>
                 </dl>
-                {an.missingFields.length > 0 && (
-                  <div className="mt-4">
-                    <h3 className="kicker m-0 mb-1 text-muted">Dados ausentes</h3>
-                    <ul className="m-0 pl-5 text-sm">{an.missingFields.map((m) => <li key={m.field}><code>{m.field}</code>: {missingLabel[m.reason] ?? m.reason}</li>)}</ul>
-                  </div>
-                )}
-              </Section>
-              <Section id="rastreabilidade" title="Rastreabilidade">
-                <ul className="m-0 grid gap-2 pl-5 text-sm">
-                  {an.claims.map((c, i) => (
-                    <li key={i}>
-                      {c.text}{' '}
-                      <span className="text-muted">— {c.origin === 'authors' ? 'afirmação dos autores' : c.origin === 'observed_data' ? 'dado observado' : 'interpretação editorial'}; origem: {locatorLabel[c.locator]}{c.quote ? <>: “<span lang="en">{c.quote}</span>”</> : ''}</span>
-                    </li>
-                  ))}
-                </ul>
-                {an.results.some((r) => r.evidenceRef.quote) && (
-                  <>
-                    <h3 className="kicker m-0 mt-4 mb-1 text-muted">Trechos da fonte para cada número</h3>
-                    <ul className="m-0 grid gap-1 pl-5 text-sm">
-                      {an.results.filter((r) => r.evidenceRef.quote).map((r) => (
-                        <li key={r.id}>{r.outcome} <span className="text-muted">({locatorLabel[r.evidenceRef.locator]}): “<span lang="en">{r.evidenceRef.quote}</span>”</span></li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-                <dl className="tnum m-0 mt-4 grid gap-1 text-xs text-muted">
-                  <div>Status: {a.isDemo ? 'automático em demonstração (fictício)' : a.reviewStatus === 'retracted' ? 'retratado' : a.reviewStatus === 'ai_unreviewed' ? 'gerado por IA, aguardando revisão editorial' : a.reviewStatus === 'corrected' ? 'corrigido' : 'revisado por editor'}{a.reviewedAt ? ` em ${fmtDateTime(a.reviewedAt)}` : ''}</div>
-                  <div>Versão da análise: {a.analysisVersion} · prompt {a.promptVersion} · modelo {a.model}</div>
-                </dl>
               </Section>
             </div>
           )}
           {an && prefs.quick && <p className="rule-top mt-6 pt-4 text-sm text-muted">Modo leitura rápida ativo. Recarregue a página para ver a análise aprofundada.</p>}
           {a.reviewStatus === 'ai_unreviewed' && (
             <p className="m-0 mt-6 border-l-2 border-warning bg-warning-soft px-3 py-2 text-xs text-warning">
-              Gerada por IA ({a.model}), ainda não revisada por editor. Confira os números na publicação original.
+              Analisado por IA ({a.model}), ainda sem revisão de editor. Confira os números na publicação original.
             </p>
           )}
         </div>

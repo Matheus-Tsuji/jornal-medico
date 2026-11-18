@@ -36,12 +36,14 @@ test('leitor: login, onboarding, edição, detalhe, salvar e persistência', asy
   await page.screenshot({ path: `${SHOTS}/jornal-desktop.png`, fullPage: true });
 
   // Detalhe científico
-  await page.locator('#conteudo').getByRole('link', { name: 'Ler a análise completa' }).click();
+  // A capa abre com a seleção pessoal (Para você); a manchete editorial é o demo-001.
+  await expect(page.locator('#conteudo').getByRole('link', { name: 'Ler a análise completa' }).first()).toBeVisible();
+  await page.goto('/artigos/demo-001');
   await expect(page.getByRole('heading', { name: 'Leitura rápida' })).toBeVisible();
   await page.getByRole('navigation', { name: 'Nesta análise' }).getByRole('link', { name: 'Limitações', exact: true }).click();
   await expect(page).toHaveURL(/#limitacoes$/);
   await expect(page.getByRole('heading', { name: 'Limitações, vieses e conflitos' })).toBeInViewport();
-  await expect(page.getByRole('table')).toContainText('0,64 a 0,95');
+  await expect(page.locator('table.results-table')).toContainText('0,64 a 0,95');
   await expect(page.getByRole('group', { name: /Gráfico de efeito/ })).toContainText('Desfecho composto cardiovascular'); // nome completo, sem reticências
   await expect(page.getByRole('group', { name: /Gráfico de efeito/ })).toBeVisible();
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
@@ -131,7 +133,7 @@ for (const width of [320, 360, 390, 768, 820, 1024, 1440]) {
         const details = page.locator('.publication-details');
         await expect(details).not.toHaveAttribute('open', '');
         await expect(page.getByRole('heading', { name: 'Limitações em destaque' })).toBeVisible();
-        const table = page.getByRole('table');
+        const table = page.locator('table.results-table');
         expect(await table.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
         await details.getByText('Sobre a publicação', { exact: false }).click();
         await expect(details).toHaveAttribute('open', '');
@@ -183,13 +185,13 @@ test('leitura ampliada no celular mantém resultados acessíveis', async ({ page
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => localStorage.setItem('jm:fs', '1.25'));
   await page.goto('/artigos/demo-001');
-  await expect(page.getByRole('table')).toBeVisible();
+  await expect(page.locator('table.results-table')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
 });
 
 test('barra de seções fica presa no topo sem mudar a altura do cabeçalho ao rolar', async ({ page }) => {
   await page.goto('/artigos/demo-001');
-  await expect(page.getByRole('table')).toBeVisible();
+  await expect(page.locator('table.results-table')).toBeVisible();
   const h = () => page.evaluate(() => document.body.scrollHeight);
   const before = await h();
   await page.evaluate(() => window.scrollTo(0, 400));

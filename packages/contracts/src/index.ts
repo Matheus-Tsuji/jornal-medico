@@ -200,6 +200,10 @@ export interface KeyResult {
   ci: { level: number; lower: number; upper: number; raw: string } | null;
   pRaw: string | null;
   p: { operator: '=' | '<' | '<=' | '>' | '>='; value: number } | null;
+  /** PICO/PECO: população, intervenção ou exposição e comparação, como a análise extraiu (null quando ausentes). */
+  population?: string | null;
+  intervention?: string | null;
+  comparator?: string | null;
 }
 
 export interface ArticleCard {

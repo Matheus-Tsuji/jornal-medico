@@ -77,7 +77,7 @@ export default function Landing() {
                 <p className="kicker m-0 text-muted">{a.topics[0]?.label} · {designLabels[a.studyDesign]}</p>
                 <p className={`m-0 font-serif leading-snug font-bold ${i ? 'text-lg' : 'text-2xl'}`}>{a.headline}</p>
                 <StatusChips a={a} />
-                {i === 0 && a.keyResult && <KeyResultPanel k={a.keyResult} evidence={a.evidence} compact />}
+                {i === 0 && a.keyResult && <KeyResultPanel k={a.keyResult} evidence={a.evidence} design={a.studyDesign} compact />}
               </div>
             ))}
             {!e && !ed.isLoading && !ed.error && <p className="py-6 text-muted">A prévia aparece quando houver uma edição publicada.</p>}

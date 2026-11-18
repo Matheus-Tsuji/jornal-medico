@@ -92,7 +92,7 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null): 
     const kr = keyResults.find((k) => k.analysis_id === aid);
     const sc = scores.get(aid)!;
     const key: KeyResult | null = kr
-      ? (() => { const x = resultRow(kr); return { plain: p.plainResult ?? null, outcome: x.outcome, measure: x.measure, estimate: x.estimate, estimateRaw: x.estimateRaw, unit: x.unit, ci: x.confidenceInterval, pRaw: x.pValue?.raw ?? null, p: x.pValue ? { operator: x.pValue.operator, value: x.pValue.value } : null }; })()
+      ? (() => { const x = resultRow(kr); return { plain: p.plainResult ?? null, outcome: x.outcome, measure: x.measure, estimate: x.estimate, estimateRaw: x.estimateRaw, unit: x.unit, ci: x.confidenceInterval, pRaw: x.pValue?.raw ?? null, p: x.pValue ? { operator: x.pValue.operator, value: x.pValue.value } : null, population: (kr.population as string | null) ?? p.population?.description ?? null, intervention: p.interventionOrExposure ?? null, comparator: (kr.comparator as string | null) ?? p.comparator ?? null }; })()
       : null;
     const retraction = r.retraction_status as ArticleCard['retractionStatus'];
     const card: ArticleCard = {

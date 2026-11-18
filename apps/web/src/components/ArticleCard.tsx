@@ -16,10 +16,11 @@ function Meta({ a }: { a: Card }) {
   );
 }
 
-export function LeadStory({ a }: { a: Card }) {
+export function LeadStory({ a, reasons }: { a: Card; reasons?: string[] }) {
   return (
     <article className="grid gap-3" aria-labelledby={`h-${a.id}`}>
       <TopicKicker topics={a.topics} extra={designLabels[a.studyDesign]} />
+      {reasons && reasons.length > 0 && <p className="m-0 text-xs text-accent">{reasons.join(' · ')}</p>}
       <Link to={`/artigos/${a.slug}`} className="headline-link">
         <h2 id={`h-${a.id}`} className="m-0 font-serif text-[2rem] leading-[1.08] font-bold tracking-tight text-balance sm:text-[2.6rem] lg:text-[2.9rem]">
           {a.headline}
@@ -27,7 +28,7 @@ export function LeadStory({ a }: { a: Card }) {
       </Link>
       {a.inShort && <p className="m-0 max-w-[60ch] font-serif text-lg leading-relaxed text-ink/90">{a.inShort}</p>}
       <StatusChips a={a} />
-      {a.keyResult && <KeyResultPanel k={a.keyResult} evidence={a.evidence} />}
+      {a.keyResult && <KeyResultPanel k={a.keyResult} evidence={a.evidence} design={a.studyDesign} />}
       <Meta a={a} />
       <Link to={`/artigos/${a.slug}`} className="link w-fit text-sm font-semibold">Ler a análise completa</Link>
     </article>
@@ -43,7 +44,7 @@ export function SecondaryStory({ a, showResult = true }: { a: Card; showResult?:
       </Link>
       {a.inShort && <p className="m-0 text-[0.95rem] leading-relaxed text-muted">{a.inShort}</p>}
       <StatusChips a={a} />
-      {a.keyResult && (showResult ? <KeyResultPanel k={a.keyResult} evidence={a.evidence} compact /> : <ResultLine k={a.keyResult} />)}
+      {a.keyResult && (showResult ? <KeyResultPanel k={a.keyResult} evidence={a.evidence} design={a.studyDesign} compact /> : <ResultLine k={a.keyResult} />)}
       <Meta a={a} />
     </article>
   );

@@ -128,30 +128,39 @@ export function WhyGrade({ evidence }: { evidence: ArticleCard['evidence'] }) {
 }
 
 /** Resultado principal: frase clara, tabela com medida, IC e p, e o "Por que A1?". Só números reportados; ausências aparecem como ausências. */
-export function KeyResultPanel({ k, evidence, compact = false }: { k: KeyResult; evidence?: ArticleCard['evidence']; compact?: boolean }) {
+// PICO (estudos experimentais: Intervenção) ou PECO (observacionais: Exposição).
+const EXPERIMENTAL = new Set(['rct', 'cluster_rct']);
+const OBSERVATIONAL = new Set(['cohort', 'case_control', 'cross_sectional']);
+
+/** Resultado principal: frase clara, tabela PICO/PECO e a linha do resultado (medida, IC, p). Só números reportados; ausências aparecem como ausências. */
+export function KeyResultPanel({ k, evidence, design, compact = false }: { k: KeyResult; evidence?: ArticleCard['evidence']; design?: string; compact?: boolean }) {
+  const ie = design && EXPERIMENTAL.has(design) ? { l: 'I', t: 'Intervenção' } : design && OBSERVATIONAL.has(design) ? { l: 'E', t: 'Exposição' } : { l: 'I/E', t: 'Intervenção ou exposição' };
+  const rows: [string, string, string | null | undefined][] = [
+    ['P', 'População', k.population],
+    [ie.l, ie.t, k.intervention],
+    ['C', 'Comparação', k.comparator],
+    ['O', 'Desfecho', k.outcome],
+  ];
+  const na = <span className="font-normal text-muted">não reportado</span>;
   return (
     <section aria-label="Resultado principal" className="tnum grid gap-2 border-t border-line pt-2 text-sm">
       <p className="kicker m-0 text-muted">Resultado principal</p>
       {k.plain && <p className={`m-0 font-serif font-semibold leading-snug ${compact ? 'text-base' : 'text-lg'}`}>{k.plain}</p>}
-      <dl className={`m-0 grid gap-x-5 gap-y-1 ${compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}>
-        <div className="col-span-full">
-          <dt className="kicker text-muted">Desfecho</dt>
-          <dd className="m-0 font-medium">{k.outcome}</dd>
-        </div>
-        <div>
-          <dt className="kicker text-muted">{k.measure ?? 'Medida'}</dt>
-          <dd className="m-0 font-semibold">{fmtVal(k.estimate, k.estimateRaw)}{k.unit === '%' ? '%' : k.unit ? ` ${k.unit}` : ''}</dd>
-        </div>
-        <div>
-          <dt className="kicker text-muted">IC {k.ci ? `${fmtNum(k.ci.level)}%` : ''}</dt>
-          <dd className="m-0 font-semibold">{k.ci ? fmtCi(k.ci) : <span className="font-normal text-muted">não reportado</span>}</dd>
-        </div>
-        {!compact && (
-          <div>
-            <dt className="kicker text-muted">p-valor</dt>
-            <dd className="m-0 font-semibold">{fmtP(k.p, k.pRaw) ?? <span className="font-normal text-muted">não reportado</span>}</dd>
-          </div>
-        )}
+      <table className={`pico ${compact ? 'pico-compact' : ''}`}>
+        <caption className="sr-only">Pergunta do estudo ({ie.l === 'E' ? 'PECO' : 'PICO'}) e resultado principal</caption>
+        <tbody>
+          {rows.map(([l, t, v]) => (
+            <tr key={t}>
+              <th scope="row"><span className="pico-letter" aria-hidden>{l}</span><span className="pico-label">{t}</span></th>
+              <td><span className="pico-value">{v || na}</span></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <dl className={`pico-result m-0 grid ${compact ? 'grid-cols-2' : 'grid-cols-3'}`}>
+        <div><dt>{k.measure ?? 'Medida'}</dt><dd>{fmtVal(k.estimate, k.estimateRaw)}{k.unit === '%' ? '%' : k.unit ? ` ${k.unit}` : ''}</dd></div>
+        <div><dt>IC {k.ci ? `${fmtNum(k.ci.level)}%` : ''}</dt><dd>{k.ci ? fmtCi(k.ci) : na}</dd></div>
+        {!compact && <div><dt>p-valor</dt><dd>{fmtP(k.p, k.pRaw) ?? na}</dd></div>}
       </dl>
       {evidence && <WhyGrade evidence={evidence} />}
     </section>
