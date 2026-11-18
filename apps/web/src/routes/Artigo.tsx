@@ -5,7 +5,7 @@ import { AlertTriangle, Bookmark, BookmarkCheck, Check, ChevronDown, Copy, Exter
 import { designLabels, type ArticleDetail, type EvidenceResultDto } from '@jm/contracts';
 import { api, ApiError, fmtCi, fmtDate, fmtDateTime, fmtNum, fmtP, fmtVal, useMe, useTopics } from '../lib/api';
 import type { LayoutCtx } from '../components/Layout';
-import { ErrorState, KeyResultPanel, Loading, StatusChips } from '../components/ui';
+import { ErrorState, KeyResultPanel, Loading, PicoTable, StatusChips } from '../components/ui';
 
 const locatorLabel: Record<string, string> = { title: 'título', abstract: 'abstract', result: 'resultados', table: 'tabela', section: 'seção do texto', metadata: 'metadados' };
 
@@ -280,6 +280,7 @@ export default function Artigo() {
 
           <nav aria-label="Nesta análise" className="article-jump mb-6">
             <a href="#rapida">Leitura rápida</a>
+            <a href="#sobre" onClick={() => { const d = document.getElementById('sobre') as HTMLDetailsElement | null; if (d) d.open = true; }}>Sobre a publicação</a>
             {an && !prefs.quick && <>
               <a href="#desenho">População e métodos</a>
               <a href="#resultados">Resultados</a>
@@ -299,6 +300,7 @@ export default function Artigo() {
                 : <Missing>Limitações não informadas no material disponível.</Missing>}
               {!prefs.quick && <a href="#limitacoes" className="link mt-2 inline-flex min-h-11 items-center text-sm">Ver limitações, vieses e conflitos</a>}
             </div>}
+            {a.keyResult && <PicoTable k={a.keyResult} design={a.studyDesign} />}
             <div className="prose-jm font-serif text-[1.08rem]"><p>{a.summary}</p></div>
             <p className="m-0 text-xs text-muted">
               {an?.inputScope === 'abstract_only' || a.accessStatus === 'abstract_only' ? 'Análise baseada somente no abstract.' : an?.inputScope === 'full_text' ? 'Análise baseada no texto integral autorizado.' : ''}
@@ -306,7 +308,7 @@ export default function Artigo() {
 
           </section>
 
-          <details className="publication-details my-6 border-y border-line py-2">
+          <details id="sobre" className="publication-details my-6 border-y border-line py-2">
             <summary className="flex min-h-11 cursor-pointer items-center gap-2 font-semibold text-primary">
               Sobre a publicação · autores, DOI e classificação
               <span className="publication-toggle ml-auto inline-flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-medium text-muted">

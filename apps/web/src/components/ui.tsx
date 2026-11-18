@@ -132,37 +132,44 @@ export function WhyGrade({ evidence }: { evidence: ArticleCard['evidence'] }) {
 const EXPERIMENTAL = new Set(['rct', 'cluster_rct']);
 const OBSERVATIONAL = new Set(['cohort', 'case_control', 'cross_sectional']);
 
-/** Resultado principal: frase clara, tabela PICO/PECO e a linha do resultado (medida, IC, p). Só números reportados; ausências aparecem como ausências. */
-export function KeyResultPanel({ k, evidence, design, compact = false }: { k: KeyResult; evidence?: ArticleCard['evidence']; design?: string; compact?: boolean }) {
-  const ie = design && EXPERIMENTAL.has(design) ? { l: 'I', t: 'Intervenção' } : design && OBSERVATIONAL.has(design) ? { l: 'E', t: 'Exposição' } : { l: 'I/E', t: 'Intervenção ou exposição' };
-  const rows: [string, string, string | null | undefined][] = [
-    ['P', 'População', k.population],
-    [ie.l, ie.t, k.intervention],
-    ['C', 'Comparação', k.comparator],
-    ['O', 'Desfecho', k.outcome],
-  ];
+const picoKind = (design?: string) => (design && EXPERIMENTAL.has(design) ? { l: 'I', t: 'Intervenção', name: 'PICO' } : design && OBSERVATIONAL.has(design) ? { l: 'E', t: 'Exposição', name: 'PECO' } : { l: 'I/E', t: 'Intervenção ou exposição', name: 'PICO/PECO' });
+
+/** Resultado principal: frase clara, desfecho e a faixa medida | IC | p. Só números reportados; ausências aparecem como ausências. */
+export function KeyResultPanel({ k, evidence, compact = false }: { k: KeyResult; evidence?: ArticleCard['evidence']; design?: string; compact?: boolean }) {
   const na = <span className="font-normal text-muted">não reportado</span>;
   return (
     <section aria-label="Resultado principal" className="tnum grid gap-2 border-t border-line pt-2 text-sm">
       <p className="kicker m-0 text-muted">Resultado principal</p>
       {k.plain && <p className={`m-0 font-serif font-semibold leading-snug ${compact ? 'text-base' : 'text-lg'}`}>{k.plain}</p>}
-      <table className={`pico ${compact ? 'pico-compact' : ''}`}>
-        <caption className="sr-only">Pergunta do estudo ({ie.l === 'E' ? 'PECO' : 'PICO'}) e resultado principal</caption>
-        <tbody>
-          {rows.map(([l, t, v]) => (
-            <tr key={t}>
-              <th scope="row"><span className="pico-letter" aria-hidden>{l}</span><span className="pico-label">{t}</span></th>
-              <td><span className="pico-value">{v || na}</span></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <p className="m-0"><span className="kicker mr-1.5 text-muted">Desfecho</span>{k.outcome}</p>
       <dl className={`pico-result m-0 grid ${compact ? 'grid-cols-2' : 'grid-cols-3'}`}>
         <div><dt>{k.measure ?? 'Medida'}</dt><dd>{fmtVal(k.estimate, k.estimateRaw)}{k.unit === '%' ? '%' : k.unit ? ` ${k.unit}` : ''}</dd></div>
         <div><dt>IC {k.ci ? `${fmtNum(k.ci.level)}%` : ''}</dt><dd>{k.ci ? fmtCi(k.ci) : na}</dd></div>
         {!compact && <div><dt>p-valor</dt><dd>{fmtP(k.p, k.pRaw) ?? na}</dd></div>}
       </dl>
       {evidence && <WhyGrade evidence={evidence} />}
+    </section>
+  );
+}
+
+/** Pergunta do estudo em PICO (experimentais: Intervenção) ou PECO (observacionais: Exposição). Conteúdo de assinante (por ora aberto). */
+export function PicoTable({ k, design }: { k: KeyResult; design?: string }) {
+  const ie = picoKind(design);
+  const rows: [string, string, string | null | undefined][] = [['P', 'População', k.population], [ie.l, ie.t, k.intervention], ['C', 'Comparação', k.comparator], ['O', 'Desfecho', k.outcome]];
+  return (
+    <section aria-labelledby="pico" className="mb-5">
+      <h3 id="pico" className="m-0 mb-2 flex flex-wrap items-center gap-2 font-serif text-xl font-bold">Pergunta do estudo ({ie.name}) <span className="chip">Assinantes</span></h3>
+      <table className="pico">
+        <caption className="sr-only">Pergunta do estudo no formato {ie.name}</caption>
+        <tbody>
+          {rows.map(([l, t, v]) => (
+            <tr key={t}>
+              <th scope="row"><span className="pico-letter" aria-hidden>{l}</span><span className="pico-label">{t}</span></th>
+              <td>{v || <span className="text-muted">não reportado</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }
