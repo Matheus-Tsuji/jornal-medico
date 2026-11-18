@@ -52,8 +52,10 @@ export default function Jornal() {
             <span className="text-muted"> · {e.isPreview ? 'Prévia automática (não é edição publicada)' : `Edição nº ${e.number}${e.version > 1 ? ` (versão ${e.version})` : ''}`}</span>
           </p>
           <p className="tnum m-0 text-muted">
-            {all.length} {all.length === 1 ? 'estudo' : 'estudos'}{e.isPreview && ' na capa'}
-            {e.isPreview && e.freshCount !== undefined && <> · {e.freshCount} {e.freshCount === 1 ? 'novo' : 'novos'} nas últimas 36 h</>} · cerca de {e.totalReadingMinutes} min de leitura
+            {e.isPreview && e.todayCount !== undefined
+              ? <><strong className="font-semibold text-ink">{e.todayCount} {e.todayCount === 1 ? 'estudo analisado' : 'estudos analisados'} hoje</strong> · {all.length} na capa</>
+              : <>{all.length} {all.length === 1 ? 'estudo' : 'estudos'}</>}
+            {' '}· cerca de {e.totalReadingMinutes} min de leitura
             {e.publishedAt && <> · publicada {fmtDateTime(e.publishedAt)}</>}
           </p>
         </div>

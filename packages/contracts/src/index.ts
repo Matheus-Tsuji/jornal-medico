@@ -260,6 +260,7 @@ export interface EditionDto {
   isPreview?: boolean;
   /** Prévia: quantos estudos o ciclo diário trouxe nas últimas 36 h (vêm primeiro na capa). */
   freshCount?: number;
+  todayCount?: number;
   coverageNote: string | null;
   headline: ArticleCard | null;
   secondary: ArticleCard[];

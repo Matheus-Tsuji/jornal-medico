@@ -28,10 +28,10 @@ export default function TrendingPanel({ items }: { items: ArticleCard[] }) {
       <ol className="m-0 grid list-none p-0">
         {trends.map((t, i) => (
           <li key={t.topic.slug}>
-            <Link to={`/temas/${t.topic.slug}`} className="trend-row">
+            <Link to={`/artigos/${t.top.slug}`} className="trend-row">
               <span className="text-xs text-muted">{i + 1} · Em alta em <span className="topic-text" style={{ '--topic': t.topic.color ?? undefined } as React.CSSProperties}>{t.topic.label}</span></span>
               <span className="trend-title">{t.top.headline}</span>
-              <span className="tnum text-xs text-muted">{t.count} {t.count === 1 ? 'estudo' : 'estudos'} hoje · melhor nota {t.best}</span>
+              <span className="tnum text-xs text-muted">{t.count} {t.count === 1 ? 'estudo' : 'estudos'} na capa · melhor nota {t.best}</span>
             </Link>
           </li>
         ))}

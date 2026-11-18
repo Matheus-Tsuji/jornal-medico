@@ -3,7 +3,7 @@
 import type { AiAnalysis, ArticleCard, ArticleDetail, EditionDto, EditionSummary, EvidenceResultDto, KeyResult } from '@jm/contracts';
 import type { Db, Params, Row } from '../db/index.ts';
 import { json } from '../db/index.ts';
-import { AppError } from '../lib/util.ts';
+import { AppError, localDate } from '../lib/util.ts';
 import { flag } from './audit.ts';
 import { rankBest, scoreAnalyses } from './grade.ts';
 
@@ -273,6 +273,8 @@ export function previewEdition(db: Db, userId: string | null, today: string): Ed
     id: `preview-${today}`, date: today, number: 0, version: 1, publishedAt: null, isDemo: false, isPreview: true,
     coverageNote: 'Prévia automática: análises de IA ainda sem revisão editorial.',
     freshCount: fresh.size,
+    // Estudos analisados hoje (fuso de Brasília): o número objetivo do dia para a linha da edição.
+    todayCount: rows.filter((r) => localDate('America/Sao_Paulo', new Date(r.created_at)) === localDate('America/Sao_Paulo')).length,
     headline: all[0] ?? null, secondary: all.slice(1, 4), sections, forYou: [],
     totalReadingMinutes: all.reduce((s, c) => s + c.readingMinutes, 0),
   };
