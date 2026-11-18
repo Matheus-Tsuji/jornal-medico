@@ -134,19 +134,31 @@ const OBSERVATIONAL = new Set(['cohort', 'case_control', 'cross_sectional']);
 
 const picoKind = (design?: string) => (design && EXPERIMENTAL.has(design) ? { l: 'I', t: 'Intervenção', name: 'PICO' } : design && OBSERVATIONAL.has(design) ? { l: 'E', t: 'Exposição', name: 'PECO' } : { l: 'I/E', t: 'Intervenção ou exposição', name: 'PICO/PECO' });
 
-/** Resultado principal: frase clara, desfecho e a faixa medida | IC | p. Só números reportados; ausências aparecem como ausências. */
+/** Resultado principal: frase clara, desfecho e tabela de medida, IC e p-valor. Só números reportados; ausências aparecem como ausências. */
 export function KeyResultPanel({ k, evidence, compact = false }: { k: KeyResult; evidence?: ArticleCard['evidence']; design?: string; compact?: boolean }) {
   const na = <span className="font-normal text-muted">não reportado</span>;
   return (
     <section aria-label="Resultado principal" className="tnum grid gap-2 border-t border-line pt-2 text-sm">
       <p className="kicker m-0 text-muted">Resultado principal</p>
       {k.plain && <p className={`m-0 font-serif font-semibold leading-snug ${compact ? 'text-base' : 'text-lg'}`}>{k.plain}</p>}
-      <p className="m-0"><span className="kicker mr-1.5 text-muted">Desfecho</span>{k.outcome}</p>
-      <dl className={`pico-result m-0 grid ${compact ? 'grid-cols-2' : 'grid-cols-3'}`}>
-        <div><dt>{k.measure ?? 'Medida'}</dt><dd>{fmtVal(k.estimate, k.estimateRaw)}{k.unit === '%' ? '%' : k.unit ? ` ${k.unit}` : ''}</dd></div>
-        <div><dt>IC {k.ci ? `${fmtNum(k.ci.level)}%` : ''}</dt><dd>{k.ci ? fmtCi(k.ci) : na}</dd></div>
-        {!compact && <div><dt>p-valor</dt><dd>{fmtP(k.p, k.pRaw) ?? na}</dd></div>}
-      </dl>
+      <p className="key-result-outcome m-0"><span className="kicker mr-1.5 text-muted">Desfecho</span>{k.outcome}</p>
+      <table className="key-result-table">
+        <caption className="sr-only">Dados do resultado principal</caption>
+        <thead>
+          <tr>
+            <th scope="col">{k.measure ?? 'Medida'}</th>
+            <th scope="col">{k.ci ? 'IC ' + fmtNum(k.ci.level) + '%' : 'IC'}</th>
+            {!compact && <th scope="col">p-valor</th>}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>{fmtVal(k.estimate, k.estimateRaw)}{k.unit === '%' ? '%' : k.unit ? ' ' + k.unit : ''}</td>
+            <td>{k.ci ? fmtCi(k.ci) : na}</td>
+            {!compact && <td>{fmtP(k.p, k.pRaw) ?? na}</td>}
+          </tr>
+        </tbody>
+      </table>
       {evidence && <WhyGrade evidence={evidence} />}
     </section>
   );
