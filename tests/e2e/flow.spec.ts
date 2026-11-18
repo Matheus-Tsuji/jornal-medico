@@ -120,12 +120,12 @@ test('visitante: entra sem e-mail e a barra de seções indica que há mais iten
 for (const width of [320, 360, 390, 768, 820, 1024, 1440]) {
   test(`responsivo sem overflow horizontal em ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
-    for (const path of ['/', '/jornal', '/artigos/demo-001', '/areas/clinica-medica', '/entrar', '/regulacao', '/publicacoes']) {
+    for (const path of ['/', '/jornal', '/artigos/demo-001', '/areas/clinica-medica', '/entrar', '/regulacao', '/publicacoes', '/congressos']) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');
       if (path === '/jornal') {
-        await page.getByRole('navigation', { name: 'Nesta edição' }).getByRole('link', { name: 'Ler o resumo da edição' }).click();
-        await expect(page.getByRole('heading', { name: 'Em 1 minuto' })).toBeInViewport();
+        await page.getByRole('navigation', { name: 'Nesta edição' }).getByRole('link', { name: 'Em alta' }).click();
+        await expect(page.getByRole('heading', { name: 'Em alta' })).toBeInViewport();
       }
       if (path === '/artigos/demo-001') {
         const details = page.locator('.publication-details');

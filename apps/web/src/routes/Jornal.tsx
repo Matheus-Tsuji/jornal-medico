@@ -4,6 +4,7 @@ import type { EditionDto } from '@jm/contracts';
 import { api, fmtDate, fmtDateTime, fmtLongDate, useMe } from '../lib/api';
 import { CompactStory, LeadStory, SecondaryStory } from '../components/ArticleCard';
 import { DemoBanner, Empty, ErrorState, Loading } from '../components/ui';
+import TrendingPanel from '../components/TrendingPanel';
 
 function greeting() {
   const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }).format(new Date()));
@@ -25,13 +26,19 @@ export default function Jornal() {
     return (
       <div className="mx-auto max-w-6xl px-4">
         <Empty title="Ainda não há edição publicada">
-          Nenhum estudo foi aprovado pela equipe editorial até agora. Preferimos uma edição curta a completar a página com conteúdo sem revisão. <Link to="/edicoes" className="link">Ver edições anteriores</Link>.
+          Nenhum estudo foi aprovado pela equipe editorial até agora. Preferimos uma edição curta a completar a página com conteúdo sem revisão.
         </Empty>
       </div>
     );
   }
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
   const all = [e.headline, ...e.secondary, ...e.sections.flatMap((s) => s.items)].filter((x): x is NonNullable<typeof x> => !!x);
+  // Para você: a seleção pessoal (ou geral, sem login); a manchete abre quando não há seleção.
+  const picks = e.forYou.length ? e.forYou : [e.headline, ...e.secondary].filter((x): x is NonNullable<typeof x> => !!x);
+  const [forYouLead, ...rest] = picks;
+  const forYouRest = rest.slice(0, 4);
+  const shown = new Set([forYouLead, ...forYouRest].map((a) => a?.id));
+  const more = [e.headline, ...e.secondary].filter((x): x is NonNullable<typeof x> => !!x && !shown.has(x.id)).slice(0, 8);
 
   return (
     <>
@@ -63,52 +70,45 @@ export default function Jornal() {
         {e.coverageNote && !e.isDemo && !e.isPreview && <p className="m-0 border-b border-line py-2 text-sm text-warning">{e.coverageNote}</p>}
 
         <nav aria-label="Nesta edição" className="article-jump">
-          <a href="#briefing">Ler o resumo da edição</a>
-          <a href="#destaques">Ver os destaques</a>
-          {e.forYou.length > 0 && <a href="#para-voce">Ir para sua seleção</a>}
+          <a href="#para-voce">Para você</a>
+          <a href="#em-alta">Em alta</a>
+          <a href="#tambem">Também nesta edição</a>
         </nav>
 
-        {/* Capa: manchete + coluna secundária */}
-        <section id="destaques" aria-label="Destaques" className="grid gap-8 py-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-          <div className="lg:border-r lg:border-line lg:pr-8">{e.headline ? <LeadStory a={e.headline} /> : <p className="text-muted">Sem manchete nesta edição.</p>}</div>
-          {e.secondary.length > 0 && (
-            <div className="grid content-start gap-6">
-              <h2 className="kicker m-0 border-b border-ink pb-1 text-ink">Também nesta edição</h2>
-              {e.secondary.map((a, i) => (
-                <div key={a.id} className={i ? 'rule-top pt-5' : ''}><SecondaryStory a={a} /></div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Em 1 minuto */}
-        <section aria-labelledby="briefing" className="rule-strong grid gap-4 py-6 md:grid-cols-[12rem_1fr]">
-          <h2 id="briefing" className="m-0 font-serif text-2xl font-bold">Em 1 minuto</h2>
-          <ol className="m-0 grid list-none gap-3 p-0">
-            {all.map((a, i) => (
-              <li key={a.id} className="grid grid-cols-[2rem_1fr] gap-2">
-                <span className="tnum font-serif text-xl font-bold text-muted" aria-hidden>{i + 1}</span>
-                <p className="m-0 leading-snug">
-                  <Link to={`/artigos/${a.slug}`} className="font-semibold hover:underline">{a.headline}</Link>
-                  {a.inShort && <span className="text-muted"> — {a.inShort}</span>}
-                </p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {/* Para você (seleção pessoal, separada da seleção editorial) */}
-        {e.forYou.length > 0 && (
-          <section aria-labelledby="para-voce" className="rule-strong py-6">
-            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id="para-voce" className="m-0 font-serif text-2xl font-bold">Para você</h2>
-              <p className="m-0 text-sm text-muted">
-                {me.data ? <>Ordenado pelos seus interesses. <Link to="/configuracoes" className="link">Ajustar</Link></> : <>Seleção geral. <Link to="/entrar" className="link">Entre para personalizar</Link></>}
+        {/* Para você (esquerda) + Em alta (direita, no estilo "o que está acontecendo") */}
+        <section className="grid gap-8 py-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <div aria-labelledby="para-voce" className="lg:border-r lg:border-line lg:pr-8">
+            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-ink pb-1">
+              <h2 id="para-voce" className="kicker m-0 text-ink">Para você</h2>
+              <p className="m-0 text-xs text-muted">
+                {me.data ? <>Pelos seus interesses · <Link to="/configuracoes" className="link">Ajustar</Link></> : <>Seleção geral · <Link to="/entrar" className="link">Entre para personalizar</Link></>}
               </p>
             </div>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {e.forYou.map((a) => <div key={a.id} className="rule-top pt-3"><CompactStory a={a} reasons={a.reasons} /></div>)}
-            </div>
+            {forYouLead ? <LeadStory a={forYouLead} /> : <p className="text-muted">Sem estudos nesta edição.</p>}
+            {forYouRest.length > 0 && (
+              <div className="mt-8 grid gap-6 sm:grid-cols-2">
+                {forYouRest.map((a) => <div key={a.id} className="rule-top pt-4"><CompactStory a={a} reasons={a.reasons} /></div>)}
+              </div>
+            )}
+          </div>
+          <TrendingPanel items={all} />
+        </section>
+
+        {/* Também nesta edição: leitura rápida das demais escolhas da edição */}
+        {more.length > 0 && (
+          <section aria-labelledby="tambem" className="rule-strong py-6">
+            <h2 id="tambem" className="kicker m-0 mb-4 text-ink">Também nesta edição</h2>
+            <ol className="m-0 grid list-none gap-x-8 gap-y-4 p-0 md:grid-cols-2">
+              {more.map((a, i) => (
+                <li key={a.id} className="grid grid-cols-[1.75rem_1fr] gap-2">
+                  <span className="tnum font-serif text-xl font-bold text-muted" aria-hidden>{i + 1}</span>
+                  <p className="m-0 leading-snug">
+                    <Link to={`/artigos/${a.slug}`} className="font-semibold hover:underline">{a.headline}</Link>
+                    {a.evidence && <span className="ml-1.5 align-middle text-xs font-bold text-primary">{a.evidence.grade}</span>}
+                  </p>
+                </li>
+              ))}
+            </ol>
           </section>
         )}
 
@@ -126,7 +126,7 @@ export default function Jornal() {
         ))}
 
         <p className="rule-top m-0 py-6 text-center text-sm text-muted">
-          {e.isPreview ? 'Fim da prévia de ' : 'Fim da edição de '}{fmtDate(e.date, { day: 'numeric', month: 'long' })}. <Link to="/edicoes" className="link">Edições anteriores</Link>
+          {e.isPreview ? 'Fim da prévia de ' : 'Fim da edição de '}{fmtDate(e.date, { day: 'numeric', month: 'long' })}
         </p>
       </div>
     </>

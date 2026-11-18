@@ -29,7 +29,8 @@ export function scieloAdapter(f: FetchLike = fetch): ScientificSourceAdapter {
   const found = new Map<string, Item>();
   let gate: Promise<void> = Promise.resolve();
   const get = async (url: string) => {
-    const turn = gate.then(async () => { await sleep(300); });
+    // Crossref limita o pool público (HTTP 429 com 300 ms em 2026-11-18): 1 req/s.
+    const turn = gate.then(async () => { await sleep(1000); });
     gate = turn.catch(() => {});
     await turn;
     const res = await safeFetch(url, { timeoutMs: 30_000 }, f);

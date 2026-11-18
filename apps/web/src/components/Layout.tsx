@@ -107,11 +107,10 @@ function AreaNav() {
             {!a.enabled && <span className="ml-1.5 text-[0.65rem] text-muted">em preparação</span>}
           </NavLink>
         ))}
-        {/* Áreas médicas primeiro; regulação e publicações logo antes de Edições (pedido do Matheus, 2026-11-16). */}
+        {/* Áreas médicas, regulação, publicações e Congressos (no lugar de Edições e Mais lidos, pedido do Matheus, 2026-11-18). */}
         <NavLink to="/regulacao" className={cls}>Saúde pública e regulação</NavLink>
         <NavLink to="/publicacoes" className={cls}>Publicações científicas</NavLink>
-        <NavLink to="/edicoes" className={cls}>Edições</NavLink>
-        <NavLink to="/mais-lidos" className={cls}>Mais lidos</NavLink>
+        <NavLink to="/congressos" className={cls}>Congressos</NavLink>
       </ScrollRow></div>
     </nav>
     </>
@@ -129,7 +128,7 @@ function Footer() {
         </div>
         <nav aria-label="Rodapé" className="grid content-start gap-1.5">
           <Link to="/metodologia" className="link">Metodologia e fontes</Link>
-          <Link to="/edicoes" className="link">Edições anteriores</Link>
+          <Link to="/congressos" className="link">Congressos</Link>
           <Link to="/assinatura" className="link">Assinatura</Link>
           <Link to="/privacidade" className="link">Privacidade e termos</Link>
         </nav>

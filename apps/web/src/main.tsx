@@ -1,6 +1,6 @@
 import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createBrowserRouter, RouterProvider } from 'react-router';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './styles/app.css';
 import Layout from './components/Layout';
@@ -10,7 +10,8 @@ import BoasVindas from './routes/BoasVindas';
 import Jornal from './routes/Jornal';
 import Artigo from './routes/Artigo';
 import Explorar from './routes/Explorar';
-import { Edicoes, Historico, MaisLidos, Salvos } from './routes/Acervo';
+import { Edicoes, Historico, Salvos } from './routes/Acervo';
+import Congressos from './routes/Congressos';
 import Configuracoes from './routes/Configuracoes';
 import { Assinatura, SandboxCheckout } from './routes/Assinatura';
 import { CaixaDev, Metodologia, NaoEncontrado, Privacidade } from './routes/Paginas';
@@ -48,7 +49,8 @@ const router = createBrowserRouter([
       { path: '/temas/:slug', element: <Explorar /> },
       { path: '/salvos', element: <Salvos /> },
       { path: '/historico', element: <Historico /> },
-      { path: '/mais-lidos', element: <MaisLidos /> },
+      { path: '/mais-lidos', element: <Navigate to="/jornal#em-alta" replace /> },
+      { path: '/congressos', element: <Congressos /> },
       { path: '/configuracoes', element: <Configuracoes /> },
       { path: '/assinatura', element: <Assinatura /> },
       { path: '/assinatura/sandbox', element: <SandboxCheckout /> },
