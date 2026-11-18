@@ -125,6 +125,10 @@ test('visitante: entra sem e-mail e a barra de seções indica que há mais iten
   await page.getByRole('button', { name: 'Concluir depois' }).click();
   await expect(page).toHaveURL(/\/jornal$/);
   await expect(page.locator('summary', { hasText: 'Visitante' })).toBeVisible();
+  const sections = page.getByRole('navigation', { name: 'Seções' }).getByRole('link');
+  await expect(sections.nth(0)).toHaveText('Hoje');
+  await expect(sections.nth(1)).toHaveText('Congressos');
+  await expect(sections.nth(2)).toHaveText('Clínica médica');
   const more = page.getByRole('button', { name: 'Ver mais seções' });
   await expect(more).toBeVisible();
   await more.click();
