@@ -236,6 +236,8 @@ section[id] { scroll-margin-top: 4.5rem; }
 .key-result-table th, .key-result-table td { text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .key-result-table th { padding: 0.25rem 0.75rem 0 0; font-weight: 600; color: var(--color-muted); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .key-result-table td { padding: 0.1rem 0.75rem 0.25rem 0; font-size: 1rem; font-weight: 600; }
+/* Barras verticais finas separando as colunas (medida | IC | p-valor). */
+.key-result-table :is(th, td) + :is(th, td) { border-left: 1px solid color-mix(in srgb, var(--color-muted) 45%, transparent); padding-left: 0.75rem; }
 .article-reading .key-result-outcome { font-size: 1rem; font-weight: 600; }
 .article-reading .key-result-outcome .kicker { display: block; }
 .publication-details { scroll-margin-top: 4.5rem; }
