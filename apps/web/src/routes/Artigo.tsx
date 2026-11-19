@@ -288,6 +288,38 @@ export default function Artigo() {
             </>}
           </nav>
 
+          <details id="sobre" className="publication-details mb-6 border-y border-line py-2">
+            <summary className="flex min-h-11 cursor-pointer items-center gap-2 font-semibold text-primary">
+              Sobre a publicação · autores, DOI e classificação
+              <span className="publication-toggle ml-auto inline-flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-medium text-muted">
+                <span className="publication-toggle-label" />
+                <ChevronDown size={14} aria-hidden />
+              </span>
+            </summary>
+            <div className="grid gap-3 pb-3 pt-2">
+            <p className="m-0 text-sm text-muted">Título original: <span lang="en" className="italic">{a.originalTitle}</span></p>
+            <dl className="tnum m-0 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+              <div><dt className="inline text-muted">Autores: </dt><dd className="inline">{a.authors.join(', ') || '—'}</dd></div>
+              <div><dt className="inline text-muted">Periódico/fonte: </dt><dd className="inline">{a.journal ?? a.sourceName}</dd></div>
+              <div><dt className="inline text-muted">Publicação: </dt><dd className="inline">{fmtDate(a.pubDate)}</dd></div>
+              <div><dt className="inline text-muted">Processado: </dt><dd className="inline">{fmtDateTime(a.processedAt)}</dd></div>
+              {a.doi && <div><dt className="inline text-muted">DOI: </dt><dd className="inline"><a className="link" href={`https://doi.org/${a.doi}`} target="_blank" rel="noopener noreferrer">{a.doi}</a></dd></div>}
+              {a.pmid && <div><dt className="inline text-muted">PMID: </dt><dd className="inline">{a.pmid}</dd></div>}
+              {a.pmcid && <div><dt className="inline text-muted">PMCID: </dt><dd className="inline">{a.pmcid}</dd></div>}
+              <div><dt className="inline text-muted">Força da evidência do estudo: </dt><dd className="inline font-semibold">{a.evidence.grade}</dd></div>
+              <div>
+                <dt className="inline text-muted">Revista no Qualis CAPES: </dt>
+                <dd className="inline">
+                  {a.journalClassification
+                    ? <><strong>{a.journalClassification.stratum}</strong> ({a.journalClassification.cycle}, <a className="link" href={a.journalClassification.sourceUrl} target="_blank" rel="noopener noreferrer">Plataforma Sucupira</a>). Classifica a revista, não o estudo.</>
+                    : 'não encontrada na consulta 2021–2024'}
+                </dd>
+              </div>
+            </dl>
+            <div className="flex justify-end border-t border-line pt-3"><AbntButton a={a} /></div>
+            </div>
+          </details>
+
           {/* Camada 1: leitura rápida */}
           <section aria-labelledby="rapida" className="rule-strong pt-4">
             <h2 id="rapida" className="kicker m-0 mb-3 text-ink">Leitura rápida</h2>
@@ -308,37 +340,6 @@ export default function Artigo() {
 
           </section>
 
-          <details id="sobre" className="publication-details my-6 border-y border-line py-2">
-            <summary className="flex min-h-11 cursor-pointer items-center gap-2 font-semibold text-primary">
-              Sobre a publicação · autores, DOI e classificação
-              <span className="publication-toggle ml-auto inline-flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-medium text-muted">
-                <span className="publication-toggle-label" />
-                <ChevronDown size={14} aria-hidden />
-              </span>
-            </summary>
-            <div className="grid gap-3 pb-3 pt-2">
-            <AbntButton a={a} />
-            <p className="m-0 text-sm text-muted">Título original: <span lang="en" className="italic">{a.originalTitle}</span></p>
-            <dl className="tnum m-0 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-              <div><dt className="inline text-muted">Autores: </dt><dd className="inline">{a.authors.join(', ') || '—'}</dd></div>
-              <div><dt className="inline text-muted">Periódico/fonte: </dt><dd className="inline">{a.journal ?? a.sourceName}</dd></div>
-              <div><dt className="inline text-muted">Publicação: </dt><dd className="inline">{fmtDate(a.pubDate)}</dd></div>
-              <div><dt className="inline text-muted">Processado: </dt><dd className="inline">{fmtDateTime(a.processedAt)}</dd></div>
-              {a.doi && <div><dt className="inline text-muted">DOI: </dt><dd className="inline"><a className="link" href={`https://doi.org/${a.doi}`} target="_blank" rel="noopener noreferrer">{a.doi}</a></dd></div>}
-              {a.pmid && <div><dt className="inline text-muted">PMID: </dt><dd className="inline">{a.pmid}</dd></div>}
-              {a.pmcid && <div><dt className="inline text-muted">PMCID: </dt><dd className="inline">{a.pmcid}</dd></div>}
-              <div><dt className="inline text-muted">Força da evidência do estudo: </dt><dd className="inline font-semibold">{a.evidence.grade}</dd></div>
-              <div>
-                <dt className="inline text-muted">Revista no Qualis CAPES: </dt>
-                <dd className="inline">
-                  {a.journalClassification
-                    ? <><strong>{a.journalClassification.stratum}</strong> ({a.journalClassification.cycle}, <a className="link" href={a.journalClassification.sourceUrl} target="_blank" rel="noopener noreferrer">Plataforma Sucupira</a>). Classifica a revista, não o estudo.</>
-                    : 'não encontrada na consulta 2021–2024'}
-                </dd>
-              </div>
-            </dl>
-            </div>
-          </details>
 
           {a.locked && (
             <div className="rule-top mt-6 py-6">
