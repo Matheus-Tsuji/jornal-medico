@@ -1,5 +1,5 @@
 // Perfil do leitor: quem é, plano, interesses, acervo (salvos e histórico), aparência e conta.
-import { Link, Navigate, useNavigate, useOutletContext } from 'react-router';
+import { Link, useNavigate, useOutletContext } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bookmark, ChevronRight, Clock, CreditCard, LogOut, Mail, Monitor, Moon, SlidersHorizontal, Sun, Type } from 'lucide-react';
 import type { ArticleCard } from '@jm/contracts';
@@ -30,8 +30,9 @@ export default function Perfil() {
   const history = useQuery({ queryKey: ['/history', me.data?.id], enabled: !!me.data, queryFn: () => api<{ items: ArticleCard[] }>('/history') });
 
   if (me.isLoading) return <div className="mx-auto max-w-4xl px-4"><Loading /></div>;
-  if (!me.data) return <Navigate to="/entrar" replace />;
-  const u = me.data;
+  // Sem sessão: mostra o perfil de visitante (tudo vazio), em vez de mandar para o login.
+  const u = me.data ?? { id: 'visitante', email: '', isGuest: true, role: 'reader' as const, entitled: false, preferences: { topics: [] as string[], sources: [] as string[] } };
+  const hasSession = !!me.data;
   const name = u.isGuest ? 'Visitante' : u.email.split('@')[0]!;
   const role = u.role === 'admin' ? 'Administrador' : u.role === 'editor' ? 'Editor' : u.isGuest ? 'Visitante' : 'Leitor';
   const interests = (topics.data ?? []).filter((t) => u.preferences.topics.includes(t.slug));
@@ -110,7 +111,7 @@ export default function Perfil() {
 
       <div className="rule-top flex flex-wrap items-center justify-between gap-3 pt-4">
         {u.role !== 'reader' && <Link to="/admin" className="link text-sm font-semibold">Painel editorial</Link>}
-        <button type="button" onClick={logout} className="btn btn-danger ml-auto"><LogOut size={16} aria-hidden /> Sair</button>
+        {hasSession && <button type="button" onClick={logout} className="btn btn-danger ml-auto"><LogOut size={16} aria-hidden /> Sair</button>}
       </div>
     </div>
   );

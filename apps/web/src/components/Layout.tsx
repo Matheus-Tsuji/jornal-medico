@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
-import { Bookmark, Clock, Monitor, Moon, Search, Sun, UserRound } from 'lucide-react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router';
+import { Monitor, Moon, Search, Sun, UserRound } from 'lucide-react';
 import { IndiLogo, IndiMark } from './Brand';
-import { api, useConfig, useMe, useTopics } from '../lib/api';
+import { useConfig, useMe, useTopics } from '../lib/api';
 import ScrollRow from './ScrollRow';
 import { useReadingPrefs } from '../lib/prefs';
 
@@ -13,13 +12,10 @@ export type LayoutCtx = ReturnType<typeof useReadingPrefs>;
 // Cartão do leitor no cabeçalho: avatar, nome, atalhos (Salvos, Histórico) e Entrar ou menu da conta.
 function ReaderCard() {
   const me = useMe();
-  const qc = useQueryClient();
-  const nav = useNavigate();
   if (me.isLoading) return <span className="h-14 w-72" aria-hidden />;
   const u = me.data;
   const guest = !u || u.isGuest;
   const name = !u ? 'Visitante' : u.isGuest ? 'Visitante' : u.email.split('@')[0]!;
-  const logout = async () => { await api('/auth/logout', { method: 'POST' }); qc.clear(); nav('/'); };
   return (
     <div className="reader-card">
       <span className="reader-avatar" aria-hidden>{name[0]!.toUpperCase()}</span>
@@ -29,20 +25,8 @@ function ReaderCard() {
           ? <Link to="/entrar" className="link text-[13px]">Entre para personalizar sua capa</Link>
           : <Link to="/configuracoes" className="link text-[13px]">Preferências da capa</Link>}
       </div>
-      {/* Perfil: Salvos, Histórico e o resto ficam dentro do menu (visitante já tem sessão, então não há "Entrar"). */}
-      <details className="relative">
-        <summary className="btn btn-ghost !min-h-11 list-none" aria-label="Menu do perfil"><UserRound size={16} aria-hidden /> Perfil</summary>
-        <nav aria-label="Perfil" className="absolute right-0 z-30 mt-1 grid w-56 rounded-lg border border-line bg-surface py-1 text-sm shadow-sm">
-          <p className="truncate px-3 py-2 text-xs text-muted">{guest ? 'Visitante (sem e-mail)' : u!.email}</p>
-          <Link to="/perfil" className="px-3 py-2 font-semibold hover:bg-paper">Meu perfil</Link>
-          <Link to="/salvos" className="flex items-center gap-2 px-3 py-2 hover:bg-paper"><Bookmark size={15} aria-hidden /> Salvos</Link>
-          <Link to="/historico" className="flex items-center gap-2 px-3 py-2 hover:bg-paper"><Clock size={15} aria-hidden /> Histórico</Link>
-          {[['/configuracoes', 'Preferências'], ['/assinatura', 'Assinatura']].map(([to, label]) => <Link key={to} to={to!} className="px-3 py-2 hover:bg-paper">{label}</Link>)}
-          {guest && <Link to="/entrar" className="px-3 py-2 font-semibold text-primary hover:bg-paper">Guardar com meu e-mail</Link>}
-          {u && u.role !== 'reader' && <Link to="/admin" className="px-3 py-2 font-semibold text-accent hover:bg-paper">Painel editorial</Link>}
-          {u && <button type="button" onClick={logout} className="px-3 py-2 text-left hover:bg-paper">Sair</button>}
-        </nav>
-      </details>
+      {/* Perfil: abre a tela de perfil, onde ficam Salvos, Histórico, Preferências, Assinatura e Sair. */}
+      <Link to="/perfil" className="btn btn-ghost !min-h-11"><UserRound size={16} aria-hidden /> Perfil</Link>
     </div>
   );
 }
