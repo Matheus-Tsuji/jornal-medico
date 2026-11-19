@@ -278,15 +278,6 @@ export default function Artigo() {
             {a.journal && <p className="m-0 text-sm text-muted italic">{a.journal}</p>}
           </header>
 
-          <nav aria-label="Nesta análise" className="article-jump mb-6">
-            <a href="#rapida">Leitura rápida</a>
-            <a href="#sobre" onClick={() => { const d = document.getElementById('sobre') as HTMLDetailsElement | null; if (d) d.open = true; }}>Sobre a publicação</a>
-            {an && !prefs.quick && <>
-              <a href="#desenho">População e métodos</a>
-              <a href="#resultados">Resultados</a>
-              <a href="#limitacoes">Limitações</a>
-            </>}
-          </nav>
 
           <details id="sobre" className="publication-details mb-6 border-y border-line py-2">
             <summary className="flex min-h-11 cursor-pointer items-center gap-2 font-semibold text-primary">

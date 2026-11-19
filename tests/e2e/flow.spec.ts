@@ -40,11 +40,7 @@ test('leitor: login, onboarding, edição, detalhe, salvar e persistência', asy
   await expect(page.locator('#conteudo').getByRole('link', { name: 'Ler a análise completa' }).first()).toBeVisible();
   await page.goto('/artigos/demo-001');
   await expect(page.getByRole('heading', { name: 'Leitura rápida' })).toBeVisible();
-  const articleIndex = page.getByRole('navigation', { name: 'Nesta análise' });
-  await expect(articleIndex.getByRole('link')).toHaveText(['Leitura rápida', 'Sobre a publicação', 'População e métodos', 'Resultados', 'Limitações']);
-  await articleIndex.getByRole('link', { name: 'Sobre a publicação' }).click();
-  await expect(page).toHaveURL(/#sobre$/);
-  await expect(page.locator('#sobre')).toHaveAttribute('open', '');
+  await expect(page.getByRole('navigation', { name: 'Nesta análise' })).toHaveCount(0); // índice removido a pedido (2026-11-19)
   const mainResult = page.getByRole('region', { name: 'Resultado principal' });
   await expect(mainResult.getByText('Desfecho', { exact: true })).toBeVisible();
   const metrics = mainResult.getByRole('table', { name: 'Dados do resultado principal' });
@@ -55,7 +51,7 @@ test('leitor: login, onboarding, edição, detalhe, salvar e persistência', asy
   await expect(mainResult.getByRole('table')).toHaveCount(1);
   const limitations = page.getByRole('heading', { name: 'Limitações em destaque' });
   expect((await pico.boundingBox())!.y).toBeGreaterThan((await limitations.boundingBox())!.y);
-  await articleIndex.getByRole('link', { name: 'Limitações', exact: true }).click();
+  await page.getByRole('link', { name: 'Ver limitações, vieses e conflitos' }).click();
   await expect(page).toHaveURL(/#limitacoes$/);
   await expect(page.getByRole('heading', { name: 'Limitações, vieses e conflitos' })).toBeInViewport();
   await expect(page.locator('table.results-table')).toContainText('0,64 a 0,95');
