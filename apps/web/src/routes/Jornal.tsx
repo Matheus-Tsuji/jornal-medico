@@ -71,11 +71,6 @@ export default function Jornal() {
         )}
         {e.coverageNote && !e.isDemo && !e.isPreview && <p className="m-0 border-b border-line py-2 text-sm text-warning">{e.coverageNote}</p>}
 
-        <nav aria-label="Nesta edição" className="article-jump">
-          <a href="#para-voce">Para você</a>
-          <a href="#em-alta">Em alta</a>
-          <a href="#tambem">Também nesta edição</a>
-        </nav>
 
         {/* Para você (esquerda) + Em alta (direita, no estilo "o que está acontecendo") */}
         <section className="grid gap-8 py-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">

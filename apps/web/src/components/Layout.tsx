@@ -29,23 +29,19 @@ function ReaderCard() {
           ? <Link to="/entrar" className="link text-[13px]">Entre para personalizar sua capa</Link>
           : <Link to="/configuracoes" className="link text-[13px]">Preferências da capa</Link>}
       </div>
-      <nav aria-label="Atalhos do leitor" className="reader-shortcuts">
-        <Link to="/salvos"><Bookmark size={15} aria-hidden /> Salvos</Link>
-        <Link to="/historico"><Clock size={15} aria-hidden /> Histórico</Link>
-      </nav>
-      {guest ? (
-        <Link to="/entrar" className="btn btn-primary !min-h-11">Entrar</Link>
-      ) : (
-        <details className="relative">
-          <summary className="btn btn-ghost !min-h-11 list-none" aria-label="Menu da conta"><UserRound size={16} aria-hidden /></summary>
-          <nav aria-label="Conta" className="absolute right-0 z-30 mt-1 grid w-52 rounded-lg border border-line bg-surface py-1 text-sm shadow-sm">
-            <p className="truncate px-3 py-2 text-xs text-muted">{u.email}</p>
-            {[['/configuracoes', 'Preferências'], ['/assinatura', 'Assinatura']].map(([to, label]) => <Link key={to} to={to!} className="px-3 py-2 hover:bg-paper">{label}</Link>)}
-            {u.role !== 'reader' && <Link to="/admin" className="px-3 py-2 font-semibold text-accent hover:bg-paper">Painel editorial</Link>}
-            <button type="button" onClick={logout} className="px-3 py-2 text-left hover:bg-paper">Sair</button>
-          </nav>
-        </details>
-      )}
+      {/* Perfil: Salvos, Histórico e o resto ficam dentro do menu (visitante já tem sessão, então não há "Entrar"). */}
+      <details className="relative">
+        <summary className="btn btn-ghost !min-h-11 list-none" aria-label="Menu do perfil"><UserRound size={16} aria-hidden /> Perfil</summary>
+        <nav aria-label="Perfil" className="absolute right-0 z-30 mt-1 grid w-56 rounded-lg border border-line bg-surface py-1 text-sm shadow-sm">
+          <p className="truncate px-3 py-2 text-xs text-muted">{guest ? 'Visitante (sem e-mail)' : u!.email}</p>
+          <Link to="/salvos" className="flex items-center gap-2 px-3 py-2 hover:bg-paper"><Bookmark size={15} aria-hidden /> Salvos</Link>
+          <Link to="/historico" className="flex items-center gap-2 px-3 py-2 hover:bg-paper"><Clock size={15} aria-hidden /> Histórico</Link>
+          {[['/configuracoes', 'Preferências'], ['/assinatura', 'Assinatura']].map(([to, label]) => <Link key={to} to={to!} className="px-3 py-2 hover:bg-paper">{label}</Link>)}
+          {guest && <Link to="/entrar" className="px-3 py-2 font-semibold text-primary hover:bg-paper">Guardar com meu e-mail</Link>}
+          {u && u.role !== 'reader' && <Link to="/admin" className="px-3 py-2 font-semibold text-accent hover:bg-paper">Painel editorial</Link>}
+          {u && <button type="button" onClick={logout} className="px-3 py-2 text-left hover:bg-paper">Sair</button>}
+        </nav>
+      </details>
     </div>
   );
 }

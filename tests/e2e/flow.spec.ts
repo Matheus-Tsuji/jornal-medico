@@ -141,8 +141,7 @@ for (const width of [320, 360, 390, 768, 820, 1024, 1440]) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');
       if (path === '/jornal') {
-        await page.getByRole('navigation', { name: 'Nesta edição' }).getByRole('link', { name: 'Em alta' }).click();
-        await expect(page.getByRole('heading', { name: 'Em alta' })).toBeInViewport();
+        await expect(page.getByRole('heading', { name: 'Em alta' })).toBeVisible();
       }
       if (path === '/artigos/demo-001') {
         const details = page.locator('.publication-details');
