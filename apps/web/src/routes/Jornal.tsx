@@ -1,17 +1,17 @@
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import type { EditionDto } from '@jm/contracts';
-import { api, fmtDate, fmtDateTime, fmtLongDate, useMe } from '../lib/api';
+import { api, fmtDate, fmtLongDate, useMe } from '../lib/api';
 import { CompactStory, LeadStory, SecondaryStory } from '../components/ArticleCard';
 import { DemoBanner, Empty, ErrorState, Loading } from '../components/ui';
 import TrendingPanel from '../components/TrendingPanel';
 
-function greeting() {
-  const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }).format(new Date()));
-  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
-}
 
 export default function Jornal() {
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setSlot(document.getElementById('edition-strip')); }, []);
   const { date } = useParams();
   const me = useMe();
   const q = useQuery({
@@ -31,6 +31,13 @@ export default function Jornal() {
       </div>
     );
   }
+  // Faixa fina acima do cabeçalho (slot no Layout): só a data e o total do dia, sem destaque.
+  const editionLine = (
+    <div className="tnum mx-auto flex max-w-6xl flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-4 py-1.5 text-xs text-muted">
+      <span className="first-letter:uppercase">{fmtLongDate(e.date)}</span>
+      {e.todayCount !== undefined && <span>{e.todayCount} {e.todayCount === 1 ? 'estudo analisado' : 'estudos analisados'} hoje</span>}
+    </div>
+  );
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
   const all = [e.headline, ...e.secondary, ...e.sections.flatMap((s) => s.items)].filter((x): x is NonNullable<typeof x> => !!x);
   // Para você: a seleção pessoal (ou geral, sem login); a manchete abre quando não há seleção.
@@ -44,21 +51,7 @@ export default function Jornal() {
     <>
       {e.isDemo && <DemoBanner />}
       <div className="mx-auto max-w-6xl px-4">
-        {/* Linha da edição */}
-        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line py-3 text-sm">
-          <p className="m-0">
-            {me.data && !date && <span className="text-muted">{greeting()}. </span>}
-            <strong className="font-semibold first-letter:uppercase">{fmtLongDate(e.date)}</strong>
-            <span className="text-muted"> · {e.isPreview ? 'Prévia automática (não é edição publicada)' : `Edição nº ${e.number}${e.version > 1 ? ` (versão ${e.version})` : ''}`}</span>
-          </p>
-          <p className="tnum m-0 text-muted">
-            {e.isPreview && e.todayCount !== undefined
-              ? <><strong className="font-semibold text-ink">{e.todayCount} {e.todayCount === 1 ? 'estudo analisado' : 'estudos analisados'} hoje</strong> · {all.length} na capa</>
-              : <>{all.length} {all.length === 1 ? 'estudo' : 'estudos'}</>}
-            {' '}· cerca de {e.totalReadingMinutes} min de leitura
-            {e.publishedAt && <> · publicada {fmtDateTime(e.publishedAt)}</>}
-          </p>
-        </div>
+        {slot && createPortal(editionLine, slot)}
         {date && date !== today && (
           <p className="m-0 border-b border-line py-2 text-sm text-muted">
             Você está lendo uma edição anterior. Avisos de correção ou retratação aparecem atualizados. <Link to="/jornal" className="link">Ir para a edição mais recente</Link>

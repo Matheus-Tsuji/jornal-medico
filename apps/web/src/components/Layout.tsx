@@ -122,6 +122,8 @@ export default function Layout() {
   return (
     <>
       <a href="#conteudo" className="skip-link">Pular para o conteúdo</a>
+      {/* Faixa fina acima do cabeçalho; a edição de hoje (Jornal) preenche via portal. */}
+      <div id="edition-strip" className="border-b border-line empty:hidden" />
       <Masthead prefs={prefs} />
       {cfg.data && !cfg.data.realContent && !loc.pathname.startsWith('/admin') && (
         <p className="sr-only">Este site está exibindo uma edição de demonstração com estudos fictícios.</p>
