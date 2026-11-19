@@ -141,7 +141,6 @@ function Actions({ a }: { a: ArticleDetail }) {
   });
   const done = useMutation({ mutationFn: () => api('/events/read', { method: 'POST', body: { articleId: a.id, kind: 'complete' } }), onSuccess: refresh });
   const feedback = useMutation({ mutationFn: (value: string) => api('/feedback', { method: 'POST', body: { articleId: a.id, value } }), onSuccess: (_d, v) => setFb(v) });
-  const citation = `${a.authors.slice(0, 3).join(', ')}${a.authors.length > 3 ? ' et al' : ''}. ${a.originalTitle}. ${a.journal ?? a.sourceName}. ${a.pubDate?.slice(0, 4) ?? ''}.${a.doi ? ` doi:${a.doi}` : ''}${a.pmid ? ` PMID: ${a.pmid}` : ''}`;
   const copy = async (what: string, text: string) => {
     try { await navigator.clipboard.writeText(text); setCopied(what); setTimeout(() => setCopied(''), 2000); } catch { setCopied('erro'); }
   };
@@ -160,7 +159,7 @@ function Actions({ a }: { a: ArticleDetail }) {
           <Check size={16} aria-hidden /> {done.isSuccess ? 'Lido' : 'Marcar lido'}
         </button>
       </div>
-      <button type="button" className="btn btn-ghost" onClick={() => copy('cit', citation)}><Copy size={16} aria-hidden /> {copied === 'cit' ? 'Citação copiada' : 'Copiar citação'}</button>
+      <button type="button" className="btn btn-ghost" onClick={() => copy('cit', abntReference(a))}><Copy size={16} aria-hidden /> {copied === 'cit' ? 'Referência copiada' : 'Copiar referência (ABNT)'}</button>
       {a.doi && <button type="button" className="btn btn-ghost" onClick={() => copy('doi', a.doi!)}><Copy size={16} aria-hidden /> {copied === 'doi' ? 'DOI copiado' : 'Copiar DOI'}</button>}
       <div className="rule-top mt-2 pt-3">
         <p className="kicker m-0 mb-2 text-muted">Este estudo foi útil para você?</p>
@@ -200,20 +199,6 @@ function abntReference(a: Pick<ArticleDetail, 'authors' | 'originalTitle' | 'jou
   return `${au}${a.originalTitle.replace(/\.$/, '')}. ${a.journal ?? a.sourceName}, ${a.pubDate?.slice(0, 4) ?? '[s. d.]'}.${a.doi ? ` DOI: ${a.doi}.` : ''}${url ? ` Disponível em: ${url}. Acesso em: ${acesso}.` : ''}`;
 }
 
-function AbntButton({ a }: { a: ArticleDetail }) {
-  const [state, setState] = useState<'' | 'ok' | 'erro'>('');
-  const ref = abntReference(a);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(ref); setState('ok'); setTimeout(() => setState(''), 2000); } catch { setState('erro'); }
-  };
-  return (
-    <div className="grid gap-1">
-      <button type="button" className="btn btn-ghost w-fit" onClick={copy}><Copy size={16} aria-hidden /> {state === 'ok' ? 'Referência copiada' : 'Copiar referência (ABNT)'}</button>
-      {state === 'erro' && <p role="alert" className="m-0 text-sm text-danger">Não foi possível copiar. Selecione o texto abaixo e copie manualmente.</p>}
-      {state === 'erro' && <p className="m-0 text-sm select-all">{ref}</p>}
-    </div>
-  );
-}
 
 export default function Artigo() {
   const { slug = '' } = useParams();
@@ -307,7 +292,6 @@ export default function Artigo() {
                 </dd>
               </div>
             </dl>
-            <div className="flex justify-end border-t border-line pt-3"><AbntButton a={a} /></div>
             </div>
           </details>
 
