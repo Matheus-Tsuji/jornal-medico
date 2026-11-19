@@ -1,44 +1,52 @@
 import { useEffect } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Monitor, Moon, Search, Sun, Type, UserRound } from 'lucide-react';
-import { Seal, SealMini, Wordmark } from './Brand';
-import { api, fmtLongDate, useConfig, useMe, useTopics } from '../lib/api';
+import { Bookmark, Clock, Monitor, Moon, Search, Sun, UserRound } from 'lucide-react';
+import { IndiLogo, IndiMark } from './Brand';
+import { api, useConfig, useMe, useTopics } from '../lib/api';
 import ScrollRow from './ScrollRow';
 import { useReadingPrefs } from '../lib/prefs';
 
 export type LayoutCtx = ReturnType<typeof useReadingPrefs>;
 
-function todayIso() {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-}
 
-function AccountMenu() {
+// Cartão do leitor no cabeçalho: avatar, nome, atalhos (Salvos, Histórico) e Entrar ou menu da conta.
+function ReaderCard() {
   const me = useMe();
   const qc = useQueryClient();
   const nav = useNavigate();
-  if (me.isLoading) return <span className="h-11 w-20" aria-hidden />;
-  if (!me.data) return <Link to="/entrar" className="btn btn-ghost !min-h-9 !px-3 text-sm">Entrar</Link>;
-  const logout = async () => {
-    await api('/auth/logout', { method: 'POST' });
-    qc.clear();
-    nav('/');
-  };
+  if (me.isLoading) return <span className="h-14 w-72" aria-hidden />;
+  const u = me.data;
+  const guest = !u || u.isGuest;
+  const name = !u ? 'Visitante' : u.isGuest ? 'Visitante' : u.email.split('@')[0]!;
+  const logout = async () => { await api('/auth/logout', { method: 'POST' }); qc.clear(); nav('/'); };
   return (
-    <details className="relative">
-      <summary className="btn btn-ghost !min-h-9 list-none !px-3 text-sm" aria-label="Menu da conta">
-        <UserRound size={16} aria-hidden /> <span className="hidden sm:inline">{me.data.isGuest ? 'Visitante' : 'Minha conta'}</span>
-      </summary>
-      <nav aria-label="Conta" className="absolute right-0 z-30 mt-1 grid w-52 border border-line bg-surface py-1 text-sm shadow-sm">
-        <p className="truncate px-3 py-2 text-xs text-muted">{me.data.isGuest ? 'Visitante (sem e-mail)' : me.data.email}</p>
-        {me.data.isGuest && <Link to="/entrar" className="px-3 py-2 font-semibold text-primary hover:bg-paper">Guardar com meu e-mail</Link>}
-        {[['/salvos', 'Salvos'], ['/historico', 'Histórico'], ['/configuracoes', 'Preferências'], ['/assinatura', 'Assinatura']].map(([to, label]) => (
-          <Link key={to} to={to!} className="px-3 py-2 hover:bg-paper">{label}</Link>
-        ))}
-        {me.data.role !== 'reader' && <Link to="/admin" className="px-3 py-2 font-semibold text-accent hover:bg-paper">Painel editorial</Link>}
-        <button type="button" onClick={logout} className="px-3 py-2 text-left hover:bg-paper">Sair</button>
+    <div className="reader-card">
+      <span className="reader-avatar" aria-hidden>{name[0]!.toUpperCase()}</span>
+      <div className="grid gap-0.5">
+        <span className="text-sm font-semibold">{name}</span>
+        {guest
+          ? <Link to="/entrar" className="link text-[13px]">Entre para personalizar sua capa</Link>
+          : <Link to="/configuracoes" className="link text-[13px]">Preferências da capa</Link>}
+      </div>
+      <nav aria-label="Atalhos do leitor" className="reader-shortcuts">
+        <Link to="/salvos"><Bookmark size={15} aria-hidden /> Salvos</Link>
+        <Link to="/historico"><Clock size={15} aria-hidden /> Histórico</Link>
       </nav>
-    </details>
+      {guest ? (
+        <Link to="/entrar" className="btn btn-primary !min-h-11">Entrar</Link>
+      ) : (
+        <details className="relative">
+          <summary className="btn btn-ghost !min-h-11 list-none" aria-label="Menu da conta"><UserRound size={16} aria-hidden /></summary>
+          <nav aria-label="Conta" className="absolute right-0 z-30 mt-1 grid w-52 rounded-lg border border-line bg-surface py-1 text-sm shadow-sm">
+            <p className="truncate px-3 py-2 text-xs text-muted">{u.email}</p>
+            {[['/configuracoes', 'Preferências'], ['/assinatura', 'Assinatura']].map(([to, label]) => <Link key={to} to={to!} className="px-3 py-2 hover:bg-paper">{label}</Link>)}
+            {u.role !== 'reader' && <Link to="/admin" className="px-3 py-2 font-semibold text-accent hover:bg-paper">Painel editorial</Link>}
+            <button type="button" onClick={logout} className="px-3 py-2 text-left hover:bg-paper">Sair</button>
+          </nav>
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -48,42 +56,29 @@ const themeLabel = { system: 'Automático', light: 'Claro', dark: 'Escuro' } as 
 // mudava a altura da página, que mudava o scroll, que desfazia o encolhimento (flicker). Agora o logo grande rola
 // normalmente e só a barra de seções fica presa no topo.
 function Masthead({ prefs }: { prefs: LayoutCtx }) {
-  const cfg = useConfig();
-  const brand = cfg.data?.brandName ?? 'Jornal Médico';
   return (
     <>
     <header className="border-b border-line bg-paper">
-      <div className="mx-auto max-w-6xl px-4">
-        <div className="flex items-center justify-between gap-3 py-2 text-xs text-muted">
-          <p className="masthead-date m-0 first-letter:uppercase">{fmtLongDate(todayIso())}</p>
-          <div className="masthead-tools flex items-center gap-1.5">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-6 px-4 pt-7 pb-6">
+        {/* Encolhe com a rolagem só por transform (CSS, sem JS): a altura não muda, então o Safari não pisca. */}
+        <Link to="/jornal" className="masthead-logo no-underline" aria-label="Indi — Index Discovery, edição de hoje"><IndiLogo /></Link>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex gap-1.5">
             {/* Busca: só o lugar no layout por enquanto (pedido do Matheus, 2026-11-16). */}
-            <button type="button" className="btn btn-ghost !min-h-9 !px-2.5 text-xs" aria-label="Pesquisar (em breve)" title="Pesquisa em breve" aria-disabled="true">
-              <Search size={14} aria-hidden />
+            <button type="button" className="btn btn-ghost !min-h-11 !px-3" aria-label="Pesquisar (em breve)" title="Pesquisa em breve" aria-disabled="true"><Search size={18} aria-hidden /></button>
+            <button type="button" onClick={prefs.cycleScale} className="btn btn-ghost !min-h-11 !px-3.5" aria-label={`Tamanho do texto: ${Math.round(Number(prefs.scale) * 100)}%`}>Aa</button>
+            <button type="button" onClick={prefs.cycleTheme} className="btn btn-ghost !min-h-11 !px-3.5 font-medium" aria-label={`Tema: ${themeLabel[prefs.theme]}. Clique para trocar`} title={`Tema: ${themeLabel[prefs.theme]}`}>
+              {prefs.theme === 'light' ? <Sun size={16} aria-hidden /> : prefs.theme === 'dark' ? <Moon size={16} aria-hidden /> : <Monitor size={16} aria-hidden />}
+              {themeLabel[prefs.theme]}
             </button>
-            <button type="button" onClick={prefs.cycleScale} className="btn btn-ghost !min-h-9 !px-2.5 text-xs" aria-label={`Tamanho do texto: ${Math.round(Number(prefs.scale) * 100)}%`}>
-              <Type size={14} aria-hidden /> Aa
-            </button>
-            <button type="button" onClick={prefs.cycleTheme} className="btn btn-ghost !min-h-9 !px-2.5 text-xs" aria-label={`Tema: ${themeLabel[prefs.theme]}. Clique para trocar`} title={`Tema: ${themeLabel[prefs.theme]}`}>
-              {prefs.theme === 'light' ? <Sun size={14} aria-hidden /> : prefs.theme === 'dark' ? <Moon size={14} aria-hidden /> : <Monitor size={14} aria-hidden />}
-              <span className="hidden md:inline">{themeLabel[prefs.theme]}</span>
-            </button>
-            <AccountMenu />
           </div>
+          <ReaderCard />
         </div>
-        <Link to="/jornal" className="flex items-center justify-center gap-3 no-underline sm:gap-5" aria-label={`${brand} — edição de hoje`}>
-          {/* Encolhe com a rolagem só por transform (CSS, sem JS): a altura não muda, então o Safari não pisca. */}
-          <span className="masthead-logo flex items-center gap-3 py-2 sm:gap-5 sm:py-3">
-            <span className="sm:hidden"><Seal size={56} /></span>
-            <span className="hidden sm:block"><Seal size={88} /></span>
-            <Wordmark name={brand} size="lg" />
-          </span>
-        </Link>
       </div>
     </header>
     <div className="sticky top-0 z-20 border-b border-line bg-paper">
       <div className="mx-auto flex max-w-6xl items-center">
-        <Link to="/jornal" className="nav-seal shrink-0 pl-3" aria-label={`${brand} — edição de hoje`} tabIndex={-1}><SealMini size={28} /></Link>
+        <Link to="/jornal" className="nav-seal shrink-0 pl-3" aria-label="Indi — edição de hoje" tabIndex={-1}><IndiMark height={30} /></Link>
         <div className="min-w-0 flex-1"><AreaNav /></div>
       </div>
     </div>
@@ -123,7 +118,7 @@ function Footer() {
     <footer className="mt-16 border-t-2 border-ink">
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 text-sm text-muted sm:grid-cols-3">
         <div>
-          <div className="flex items-center gap-3"><Seal size={52} /><Wordmark name={cfg.data?.brandName ?? 'Jornal Médico'} size="sm" /></div>
+          <IndiLogo height={56} />
           <p className="mt-2">Conteúdo informativo para profissionais de saúde. Edições publicadas passam por revisão editorial. Prévias automáticas são identificadas e ainda aguardam revisão. Não substitui a leitura da fonte original nem orienta conduta para pacientes.</p>
         </div>
         <nav aria-label="Rodapé" className="grid content-start gap-1.5">

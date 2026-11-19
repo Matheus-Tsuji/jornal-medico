@@ -45,3 +45,37 @@ export function Wordmark({ name, size = 'lg', tagline = true }: { name: string; 
     </span>
   );
 }
+
+/** Bloco IN/DI vetorial da marca Indi (desenhado à mão no canvas "Indi branding"). Claro: vinho cheio; escuro: só contorno. */
+export function IndiMark({ height = 76, className = '' }: { height?: number; className?: string }) {
+  const I = 'M0,0H37V4H27V96H37V100H0V96H10V4H0Z';
+  return (
+    <svg viewBox="0 0 206 293" style={{ height, width: 'auto' }} className={`indi-mark block ${className}`} aria-hidden="true">
+      <rect x="2" y="2" width="202" height="289" className="indi-mark-bg" strokeWidth="4" />
+      <g className="indi-mark-fg">
+        <g transform="translate(36 36)">
+          <path d={I} />
+          <g transform="translate(40 0)">
+            <rect x="10" y="0" width="5" height="100" /><rect x="0" y="0" width="28" height="4" /><rect x="0" y="96" width="25" height="4" />
+            <polygon points="10,0 28,0 84,100 66,100" />
+            <rect x="79" y="0" width="5" height="100" /><rect x="69" y="0" width="25" height="4" />
+          </g>
+        </g>
+        <g transform="translate(36 157)">
+          <path fillRule="evenodd" d="M0,0H45C78,0 94,22 94,50C94,78 78,100 45,100H0V96H10V4H0Z M27,4H44C66,4 76,24 76,50C76,76 66,96 44,96H27Z" />
+          <path transform="translate(97 0)" d={I} />
+        </g>
+      </g>
+    </svg>
+  );
+}
+
+/** Logo completo: bloco IN/DI + "Index Discovery" rente à base. */
+export function IndiLogo({ height = 76 }: { height?: number }) {
+  return (
+    <span className="flex items-end gap-3">
+      <IndiMark height={height} />
+      <span className="flex flex-col gap-1 text-sm leading-none font-medium tracking-tight text-ink"><span>Index</span><span>Discovery</span></span>
+    </span>
+  );
+}
