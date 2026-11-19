@@ -78,6 +78,15 @@ export const taxonomy: T[] = [
       { slug: 'politicas-publicas', label: 'Políticas públicas', en: 'Health policy', enabled: true, query: q('"Health Policy"[MeSH Terms] OR "public health"[ti] OR "health system"[ti]') },
     ],
   },
+  {
+    slug: 'odontologia', label: 'Odontologia', en: 'Dentistry', enabled: true, color: '#2E5E7A',
+    children: [
+      { slug: 'odonto-clinica', label: 'Clínicas', en: 'Clinical dentistry', enabled: true, query: q('"Dental Caries"[MeSH Terms] OR "Periodontal Diseases"[MeSH Terms] OR "Endodontics"[MeSH Terms] OR "Orthodontics"[MeSH Terms] OR "Dental Restoration, Permanent"[MeSH Terms] OR periodontitis[ti] OR "dental caries"[ti] OR endodontic*[ti] OR orthodontic*[ti]') },
+      { slug: 'odonto-cirurgica', label: 'Cirúrgicas', en: 'Oral and maxillofacial surgery', enabled: true, query: q('"Surgery, Oral"[MeSH Terms] OR "Dental Implants"[MeSH Terms] OR "Tooth Extraction"[MeSH Terms] OR "Orthognathic Surgical Procedures"[MeSH Terms] OR "dental implant*"[ti] OR "third molar"[ti] OR maxillofacial[ti]') },
+      { slug: 'odonto-saude-publica', label: 'Saúde pública', en: 'Dental public health', enabled: true, query: q('"Public Health Dentistry"[MeSH Terms] OR "Oral Health"[MeSH Major Topic] OR fluoridation[ti] OR "oral health"[ti]') },
+      { slug: 'odonto-outros', label: 'Outros', en: 'Other dental topics', enabled: true, query: q('("Stomatognathic Diseases"[MeSH Major Topic] OR "Mouth Neoplasms"[MeSH Terms] OR "Temporomandibular Joint Disorders"[MeSH Terms] OR "oral lesion*"[ti] OR temporomandibular[ti] OR "oral cancer"[ti]) NOT ("Dental Caries"[MeSH Terms] OR "Periodontal Diseases"[MeSH Terms] OR "Dental Implants"[MeSH Terms])') },
+    ],
+  },
 ];
 
 export const sources = [
