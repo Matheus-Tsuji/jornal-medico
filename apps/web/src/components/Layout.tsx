@@ -24,7 +24,7 @@ function ReaderCard() {
     <div className="reader-card">
       <span className="reader-avatar" aria-hidden>{name[0]!.toUpperCase()}</span>
       <div className="grid gap-0.5">
-        <span className="text-sm font-semibold">{name}</span>
+        <Link to="/perfil" className="text-sm font-semibold text-ink no-underline hover:underline">{name}</Link>
         {guest
           ? <Link to="/entrar" className="link text-[13px]">Entre para personalizar sua capa</Link>
           : <Link to="/configuracoes" className="link text-[13px]">Preferências da capa</Link>}
@@ -34,6 +34,7 @@ function ReaderCard() {
         <summary className="btn btn-ghost !min-h-11 list-none" aria-label="Menu do perfil"><UserRound size={16} aria-hidden /> Perfil</summary>
         <nav aria-label="Perfil" className="absolute right-0 z-30 mt-1 grid w-56 rounded-lg border border-line bg-surface py-1 text-sm shadow-sm">
           <p className="truncate px-3 py-2 text-xs text-muted">{guest ? 'Visitante (sem e-mail)' : u!.email}</p>
+          <Link to="/perfil" className="px-3 py-2 font-semibold hover:bg-paper">Meu perfil</Link>
           <Link to="/salvos" className="flex items-center gap-2 px-3 py-2 hover:bg-paper"><Bookmark size={15} aria-hidden /> Salvos</Link>
           <Link to="/historico" className="flex items-center gap-2 px-3 py-2 hover:bg-paper"><Clock size={15} aria-hidden /> Histórico</Link>
           {[['/configuracoes', 'Preferências'], ['/assinatura', 'Assinatura']].map(([to, label]) => <Link key={to} to={to!} className="px-3 py-2 hover:bg-paper">{label}</Link>)}

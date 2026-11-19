@@ -12,6 +12,7 @@ import Artigo from './routes/Artigo';
 import Explorar from './routes/Explorar';
 import { Edicoes, Historico, Salvos } from './routes/Acervo';
 import Congressos from './routes/Congressos';
+import Perfil from './routes/Perfil';
 import Configuracoes from './routes/Configuracoes';
 import { Assinatura, SandboxCheckout } from './routes/Assinatura';
 import { CaixaDev, Metodologia, NaoEncontrado, Privacidade } from './routes/Paginas';
@@ -47,6 +48,7 @@ const router = createBrowserRouter([
       { path: '/areas/:area', element: <Explorar /> },
       { path: '/areas/:area/:subarea', element: <Explorar /> },
       { path: '/temas/:slug', element: <Explorar /> },
+      { path: '/perfil', element: <Perfil /> },
       { path: '/salvos', element: <Salvos /> },
       { path: '/historico', element: <Historico /> },
       { path: '/mais-lidos', element: <Navigate to="/jornal#em-alta" replace /> },
