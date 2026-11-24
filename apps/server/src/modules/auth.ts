@@ -33,21 +33,21 @@ const secretOf = (cfg: Config) => {
 };
 
 export async function requestCode(db: Db, cfg: Config, email: string, ip: string, send = sendMail): Promise<void> {
-  const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
-  const perEmail = db.get<{ n: number; last: string | null }>(
-    'SELECT COUNT(*) AS n, MAX(created_at) AS last FROM auth_challenges WHERE email = ? AND created_at > ?', email, hourAgo,
-  )!;
-  const perDay = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM auth_challenges WHERE email = ? AND created_at > ?', email, new Date(Date.now() - 86_400_000).toISOString())!;
-  if (perDay.n >= MAX_CODES_PER_EMAIL_DAY) throw new AppError(429, 'rate_limited', 'Limite diário de códigos atingido para este e-mail. Tente amanhã.');
-  const perIp = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM auth_challenges WHERE ip = ? AND created_at > ?', ip, hourAgo)!;
-  if (perEmail.n >= MAX_CODES_PER_EMAIL_HOUR || perIp.n >= MAX_CODES_PER_IP_HOUR) {
-    throw new AppError(429, 'rate_limited', 'Muitas solicitações. Aguarde alguns minutos e tente de novo.');
-  }
-  if (perEmail.last && Date.now() - Date.parse(perEmail.last) < RESEND_COOLDOWN_S * 1000) {
-    throw new AppError(429, 'resend_cooldown', `Aguarde ${RESEND_COOLDOWN_S} segundos para pedir um novo código.`);
-  }
   const code = sixDigitCode();
   db.tx(() => {
+    const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
+    const perEmail = db.get<{ n: number; last: string | null }>(
+      'SELECT COUNT(*) AS n, MAX(created_at) AS last FROM auth_challenges WHERE email = ? AND created_at > ?', email, hourAgo,
+    )!;
+    const perDay = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM auth_challenges WHERE email = ? AND created_at > ?', email, new Date(Date.now() - 86_400_000).toISOString())!;
+    if (perDay.n >= MAX_CODES_PER_EMAIL_DAY) throw new AppError(429, 'rate_limited', 'Limite diário de códigos atingido para este e-mail. Tente amanhã.');
+    const perIp = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM auth_challenges WHERE ip = ? AND created_at > ?', ip, hourAgo)!;
+    if (perEmail.n >= MAX_CODES_PER_EMAIL_HOUR || perIp.n >= MAX_CODES_PER_IP_HOUR) {
+      throw new AppError(429, 'rate_limited', 'Muitas solicitações. Aguarde alguns minutos e tente de novo.');
+    }
+    if (perEmail.last && Date.now() - Date.parse(perEmail.last) < RESEND_COOLDOWN_S * 1000) {
+      throw new AppError(429, 'resend_cooldown', `Aguarde ${RESEND_COOLDOWN_S} segundos para pedir um novo código.`);
+    }
     // Um código novo invalida os anteriores.
     db.run('UPDATE auth_challenges SET used_at = ? WHERE email = ? AND used_at IS NULL', nowIso(), email);
     db.run(
@@ -61,34 +61,33 @@ export async function requestCode(db: Db, cfg: Config, email: string, ip: string
 
 /** Verifica o código. Se houver sessão de visitante, a conta do visitante é convertida (ou mesclada) — nada se perde. */
 export function verifyCode(db: Db, cfg: Config, email: string, code: string, guestUserId?: string): { token: string; userId: string } {
-  const ch = db.get<{ id: string; code_hash: string; expires_at: string }>(
-    'SELECT id, code_hash, expires_at FROM auth_challenges WHERE email = ? AND used_at IS NULL ORDER BY created_at DESC LIMIT 1', email,
-  );
-  const invalid = new AppError(400, 'invalid_code', 'Código inválido ou expirado. Peça um novo código.');
-  if (!ch) throw invalid;
-  // Conta a tentativa ANTES de comparar, de forma atômica: requisições simultâneas não passam de MAX_ATTEMPTS.
-  const counted = db.run('UPDATE auth_challenges SET attempts = attempts + 1 WHERE id = ? AND attempts < ?', ch.id, MAX_ATTEMPTS);
-  if (Date.parse(ch.expires_at) < Date.now() || Number(counted.changes) !== 1) {
-    db.run('UPDATE auth_challenges SET used_at = ? WHERE id = ?', nowIso(), ch.id);
-    throw invalid;
-  }
-  if (!safeEqual(ch.code_hash, hmac(secretOf(cfg), `${email}:${code}`))) throw invalid;
-  return db.tx(() => {
-    // Marca como usado de forma atômica: se outra requisição usou antes, falha.
-    const used = db.run('UPDATE auth_challenges SET used_at = ? WHERE id = ? AND used_at IS NULL', nowIso(), ch.id);
-    if (Number(used.changes) !== 1) throw invalid;
+  const result = db.tx(() => {
+    const now = nowIso();
+    const ch = db.get<{ id: string; code_hash: string }>(
+      `UPDATE auth_challenges SET attempts = attempts + 1
+        WHERE id = (SELECT id FROM auth_challenges WHERE email = ? AND used_at IS NULL ORDER BY created_at DESC LIMIT 1)
+          AND expires_at > ? AND attempts < ?
+        RETURNING id, code_hash`,
+      email, now, MAX_ATTEMPTS,
+    );
+    // Retornar null confirma a contagem também para um código incorreto.
+    if (!ch || !safeEqual(ch.code_hash, hmac(secretOf(cfg), `${email}:${code}`))) return null;
+    db.run('UPDATE auth_challenges SET used_at = ? WHERE id = ?', now, ch.id);
     return signIn(db, cfg, email, guestUserId, { verified: true });
   });
+  if (!result) throw new AppError(400, 'invalid_code', 'Código inválido ou expirado. Peça um novo código.');
+  return result;
 }
 
 /** Cria (ou reaproveita) a conta do e-mail, absorve o visitante e abre uma sessão. Chamar dentro de db.tx. */
 function signIn(db: Db, cfg: Config, email: string, guestUserId: string | undefined, opts: { verified: boolean; passwordHash?: string; displayName?: string }): { token: string; userId: string } {
     let user = db.get<{ id: string; role: string; status: string; verified_at: string | null }>('SELECT id, role, status, verified_at FROM users WHERE email = ? AND is_guest = 0', email);
-    const guest = guestUserId ? db.get<{ id: string }>('SELECT id FROM users WHERE id = ? AND is_guest = 1', guestUserId) : undefined;
+    const guest = guestUserId ? db.get<{ id: string }>("SELECT id FROM users WHERE id = ? AND is_guest = 1 AND status = 'active'", guestUserId) : undefined;
     if (guest && !user) {
       // Visitante informa e-mail novo: a própria conta vira conta identificada.
       const role = opts.verified && cfg.adminEmails.has(email) ? 'admin' : 'reader';
       db.run('UPDATE users SET email = ?, is_guest = 0, role = ?, verified_at = ?, password_hash = COALESCE(?, password_hash), display_name = COALESCE(?, display_name) WHERE id = ?', email, role, opts.verified ? nowIso() : null, opts.passwordHash ?? null, opts.displayName ?? null, guest.id);
+      revokeAllSessions(db, guest.id);
       user = { id: guest.id, role, status: 'active', verified_at: opts.verified ? nowIso() : null };
       audit(db, guest.id, 'user.guest_upgraded', 'user', guest.id);
     } else if (guest && user) {
@@ -135,7 +134,11 @@ export interface SessionUser { id: string; email: string; role: Role; sessionId:
 const guestSig = (cfg: Config, uid: string, sid: string, exp: number) => hmac(secretOf(cfg), `guest:${uid}.${sid}.${exp}`);
 function insertGuest(db: Db, uid: string, sid: string, token: string, expiresAt: string) {
   db.run("INSERT OR IGNORE INTO users (id, email, role, is_guest, created_at) VALUES (?, ?, 'reader', 1, ?)", uid, `visitante-${uid}@visitante.invalid`, nowIso());
-  db.run('INSERT OR IGNORE INTO sessions (id, user_id, token_hash, created_at, expires_at, last_seen_at) VALUES (?,?,?,?,?,?)', sid, uid, sha256(token), nowIso(), expiresAt, nowIso());
+  db.run(
+    `INSERT OR IGNORE INTO sessions (id, user_id, token_hash, created_at, expires_at, last_seen_at)
+     SELECT ?, id, ?, ?, ?, ? FROM users WHERE id = ? AND is_guest = 1 AND status = 'active'`,
+    sid, sha256(token), nowIso(), expiresAt, nowIso(), uid,
+  );
 }
 
 export function createGuest(db: Db, cfg: Config): { token: string; userId: string } {
@@ -236,15 +239,18 @@ export async function registerWithPassword(db: Db, cfg: Config, email: string, p
 
 export async function loginWithPassword(db: Db, cfg: Config, email: string, password: string, guestUserId?: string) {
   const since = new Date(Date.now() - PASSWORD_FAILURE_WINDOW_MIN * 60_000).toISOString();
-  const fails = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM login_failures WHERE email = ? AND created_at > ?', email, since)!.n;
-  if (fails >= MAX_PASSWORD_FAILURES) throw new AppError(429, 'rate_limited', `Muitas tentativas para este e-mail. Aguarde ${PASSWORD_FAILURE_WINDOW_MIN} minutos.`);
+  // A reserva entra no teto antes do scrypt, inclusive entre instâncias.
+  const attempt = db.get<{ rowid: number }>(
+    `INSERT INTO login_failures (email, created_at) SELECT ?, ?
+     WHERE (SELECT COUNT(*) FROM login_failures WHERE email = ? AND created_at > ?) < ?
+     RETURNING rowid`,
+    email, nowIso(), email, since, MAX_PASSWORD_FAILURES,
+  );
+  if (!attempt) throw new AppError(429, 'rate_limited', `Muitas tentativas para este e-mail. Aguarde ${PASSWORD_FAILURE_WINDOW_MIN} minutos.`);
   const candidate = db.get<{ id: string; password_hash: string | null }>('SELECT id, password_hash FROM users WHERE email = ? AND is_guest = 0', email);
   const matches = await checkPassword(password, candidate?.password_hash ?? null);
   const invalid = new AppError(401, 'invalid_credentials', 'E-mail ou senha incorretos.');
-  if (!candidate || !matches) {
-    db.run('INSERT INTO login_failures (email, created_at) VALUES (?,?)', email, nowIso());
-    throw invalid;
-  }
+  if (!candidate || !matches) throw invalid;
   const session = db.tx(() => {
     // A credencial e a elegibilidade podem mudar durante o scrypt.
     const current = db.get<{ id: string; password_hash: string | null; role: string; verified_at: string | null }>(
@@ -253,12 +259,9 @@ export async function loginWithPassword(db: Db, cfg: Config, email: string, pass
     if (!current || current.id !== candidate.id || current.password_hash !== candidate.password_hash) return null;
     if (current.role !== 'reader' && !current.verified_at) return null;
     const result = signIn(db, cfg, email, guestUserId, { verified: false });
-    db.run('DELETE FROM login_failures WHERE email = ?', email);
+    db.run('DELETE FROM login_failures WHERE email = ? AND rowid <= ?', email, attempt.rowid);
     return result;
   });
-  if (!session) {
-    db.run('INSERT INTO login_failures (email, created_at) VALUES (?,?)', email, nowIso());
-    throw invalid;
-  }
+  if (!session) throw invalid;
   return session;
 }

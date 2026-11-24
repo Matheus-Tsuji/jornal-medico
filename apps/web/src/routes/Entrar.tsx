@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { passwordAuthInput, passwordRegisterInput, requestCodeInput, verifyCodeInput } from '@jm/contracts';
+import { MIN_REGISTER_PASSWORD_LENGTH, passwordAuthInput, passwordRegisterInput, requestCodeInput, verifyCodeInput } from '@jm/contracts';
 import { Eye, EyeOff } from 'lucide-react';
 import { api, ApiError, useConfig, useMe } from '../lib/api';
 
@@ -114,12 +114,12 @@ export default function Entrar() {
           <input id="email" type="email" inputMode="email" autoComplete="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} required aria-invalid={!!err} aria-describedby={err ? 'err' : undefined} />
           <label htmlFor="password" className="text-sm font-semibold">Senha</label>
           <div className="relative">
-            <input id="password" type={showPw ? 'text' : 'password'} autoComplete={register ? 'new-password' : 'current-password'} className="input !pr-12" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} aria-describedby={register ? 'pw-hint' : undefined} />
+            <input id="password" type={showPw ? 'text' : 'password'} autoComplete={register ? 'new-password' : 'current-password'} className="input !pr-12" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={register ? MIN_REGISTER_PASSWORD_LENGTH : 8} aria-describedby={register ? 'pw-hint' : undefined} />
             <button type="button" className="absolute top-0 right-0 grid h-11 w-11 place-items-center text-muted" onClick={() => setShowPw((s) => !s)} aria-label={showPw ? 'Esconder senha' : 'Mostrar senha'}>
               {showPw ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
             </button>
           </div>
-          {register && <p id="pw-hint" className="m-0 -mt-1 text-xs text-muted">Pelo menos 8 caracteres.</p>}
+          {register && <p id="pw-hint" className="m-0 -mt-1 text-xs text-muted">Pelo menos {MIN_REGISTER_PASSWORD_LENGTH} caracteres.</p>}
           {register && (
             <>
               <label htmlFor="password2" className="text-sm font-semibold">Repita a senha</label>

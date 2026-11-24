@@ -16,10 +16,14 @@ export const billingEventSchema = z.object({
 export type BillingEvent = z.infer<typeof billingEventSchema>;
 
 export const requestCodeInput = z.strictObject({ email: emailSchema });
-/** Cadastro/entrada com senha (8 a 128 caracteres). */
+/** Login mantém suporte a senhas antigas a partir de oito caracteres. */
 export const passwordAuthInput = z.strictObject({ email: emailSchema, password: z.string().min(8, 'A senha precisa ter pelo menos 8 caracteres.').max(128) });
 /** Cadastro: também o nome de exibição (espaços, acentos e maiúsculas permitidos). */
-export const passwordRegisterInput = passwordAuthInput.extend({ displayName: z.string().trim().min(2, 'Informe seu nome (pelo menos 2 letras).').max(80, 'Nome muito longo.') });
+export const MIN_REGISTER_PASSWORD_LENGTH = 12;
+export const passwordRegisterInput = passwordAuthInput.extend({
+  password: z.string().min(MIN_REGISTER_PASSWORD_LENGTH, `Use pelo menos ${MIN_REGISTER_PASSWORD_LENGTH} caracteres na nova senha.`).max(128),
+  displayName: z.string().trim().min(2, 'Informe seu nome (pelo menos 2 letras).').max(80, 'Nome muito longo.'),
+});
 export const verifyCodeInput = z.strictObject({
   email: emailSchema,
   code: z.string().regex(/^\d{6}$/, 'O código tem 6 dígitos.'),
