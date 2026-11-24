@@ -101,28 +101,32 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   });
 
   // ---------- Edições ----------
-  const withForYou = async (dto: ReturnType<typeof editionDto>, userId: string | null) => {
+  const forYou = async (userId: string | null) => {
     // "Para você" = só o que bate com os interesses de quem segue temas (sem completar com itens aleatórios).
     // Sem interesses (ou sem login), vira a seleção geral do sistema, rotulada como tal.
     const { ranked } = await recommend(db, cfg, userId, 40);
-    const follows = userId ? loadProfile(db, userId).topics.length > 0 : false;
-    const picked = follows ? ranked.filter((r) => r.reasons.some((x) => x.startsWith('Você segue'))) : ranked;
-    const m = cardMap(db, picked.map((r) => r.id), userId);
-    dto.forYou = picked
+    const prof = userId ? loadProfile(db, userId) : null;
+    // Filtra pelo dado estruturado (matchedTopics), não pelo texto do motivo. Personalização desligada = seleção geral.
+    const personal = !!prof && prof.personalization && prof.topics.length > 0;
+    const picked = personal ? ranked.filter((r) => r.matchedTopics.length > 0) : ranked;
+    const m = cardMap(db, picked.map((r) => r.id), userId, true);
+    return picked
       .flatMap((r): ArticleCard[] => { const c = m.get(r.id); return c ? [{ ...c, reasons: r.reasons }] : []; })
       .slice(0, 10);
-    return dto;
   };
   app.get('/editions/latest', async (req) => {
+    const userId = req.user?.id ?? null;
+    const recommendations = await forYou(userId);
+    // A prévia pública é selecionada após a espera pelo recomendador.
     const e = publishedEdition(db);
     const today = localDate(cfg.APP_TIMEZONE);
     // Prévia de IA ligada e sem edição revisada de hoje: mostra a prévia (rotulada) em vez de uma edição antiga.
     if (flag(db, 'real_content') && flag(db, 'ai_preview') && (!e || e.edition_date !== today)) {
-      const p = previewEdition(db, req.user?.id ?? null, today);
-      if (p) return { edition: await withForYou(p, req.user?.id ?? null) };
+      const p = previewEdition(db, userId, today);
+      if (p) return { edition: { ...p, forYou: recommendations } };
     }
     if (!e) return { edition: null };
-    return { edition: await withForYou(editionDto(db, e, req.user?.id), req.user?.id ?? null) };
+    return { edition: { ...editionDto(db, e, userId), forYou: recommendations } };
   });
   app.get('/editions', async () => ({ items: editionList(db) }));
   app.get('/editions/:date', async (req) => {
@@ -182,7 +186,7 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
 
   app.get('/recommendations', async (req) => {
     const { ranked, engine } = await recommend(db, cfg, req.user?.id ?? null, 10);
-    const m = cardMap(db, ranked.map((r) => r.id), req.user?.id);
+    const m = cardMap(db, ranked.map((r) => r.id), req.user?.id, true);
     return { engine, items: ranked.flatMap((r) => { const c = m.get(r.id); return c ? [{ ...c, reasons: r.reasons }] : []; }) };
   });
 

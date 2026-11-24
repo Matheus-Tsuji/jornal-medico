@@ -24,6 +24,16 @@ const date = (p?: { 'date-parts': number[][] }) => {
   return y ? `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : null;
 };
 const LANG: Record<string, string> = { en: 'eng', pt: 'por', es: 'spa' };
+const isOfficialScieloHost = (host: string) =>
+  host === 'doi.org' || host === 'dx.doi.org' || host === 'scielo.br' || host === 'scielo.org' || host.endsWith('.scielo.br') || host.endsWith('.scielo.org');
+function scieloUrl(raw: string | undefined, doi: string): string {
+  const safe = httpsUrl(raw);
+  if (safe) {
+    const u = new URL(safe);
+    if (!u.username && !u.password && (!u.port || u.port === '443') && isOfficialScieloHost(u.hostname)) return safe;
+  }
+  return `https://doi.org/${doi.split('/').map(encodeURIComponent).join('/')}`;
+}
 
 export function scieloAdapter(f: FetchLike = fetch): ScientificSourceAdapter {
   const found = new Map<string, Item>();
@@ -88,7 +98,7 @@ export function scieloAdapter(f: FetchLike = fetch): ScientificSourceAdapter {
           mesh: [],
           retracted: false,
           corrected: false,
-          url: httpsUrl(it.URL) ?? `https://doi.org/${it.DOI}`,
+          url: scieloUrl(it.URL, normalizeDoi(it.DOI) ?? it.DOI),
         }];
       });
     },

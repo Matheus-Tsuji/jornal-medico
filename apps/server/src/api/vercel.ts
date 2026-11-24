@@ -28,10 +28,11 @@ const db = isRemote(cfg.dbPath) ? openDb(cfg.dbPath, cfg.DATABASE_AUTH_TOKEN) : 
 ensureSecrets(db, cfg);
 let app: Promise<FastifyInstance> | null = null;
 
-// Para de pegar jobs novos aos 180 s: no ciclo real de 2026-11-16 as análises em curso terminaram até 74 s depois
+// Para de pegar jobs novos no corte abaixo: no ciclo real de 2026-11-16 as análises em curso terminaram até 74 s depois
 // do corte, e a função morre aos 300 s (maxDuration em build-vercel.mjs). Se morrer mesmo assim, o lease expira
 // e o próximo ciclo retoma o job.
-const CRON_BUDGET_MS = 180_000;
+// 115 s + no máximo 4 chamadas de IA de 45 s (AI_CALL_TIMEOUT_MS) cabem nos 300 s da função.
+const CRON_BUDGET_MS = 115_000;
 
 const cronAuthorized = (header: string | undefined) => !!cfg.CRON_SECRET && !!header && safeEqual(header, `Bearer ${cfg.CRON_SECRET}`);
 
@@ -48,8 +49,14 @@ async function cron(req: IncomingMessage, res: ServerResponse) {
     res.end(JSON.stringify({ code: 'needs_database', message: 'Ciclo diário desligado na vitrine: conecte o Turso (docs/deploy-vercel.md).' }));
     return;
   }
-  const result = await runCycle(db, cfg, defaultDeps(cfg), { workerId: `vercel:${process.pid}`, budgetMs: CRON_BUDGET_MS, concurrency: cfg.CYCLE_CONCURRENCY });
-  res.end(JSON.stringify({ ok: true, ...result }));
+  try {
+    const result = await runCycle(db, cfg, defaultDeps(cfg), { workerId: `vercel:${process.pid}`, budgetMs: CRON_BUDGET_MS, concurrency: cfg.CYCLE_CONCURRENCY });
+    res.end(JSON.stringify({ ok: true, ...result }));
+  } catch (e) {
+    console.error(JSON.stringify({ level: 'error', msg: 'cron_failed', error: (e instanceof Error ? e.message : String(e)).slice(0, 300) }));
+    res.statusCode = 500;
+    res.end(JSON.stringify({ ok: false, code: 'cycle_failed' }));
+  }
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {

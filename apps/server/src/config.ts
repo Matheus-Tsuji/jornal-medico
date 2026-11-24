@@ -53,6 +53,8 @@ const schema = z.object({
   PAYWALL_ENABLED: bool,
   BILLING_GRACE_DAYS: z.coerce.number().int().min(0).default(3),
   RECOMMENDER_URL: optStr,
+  /** Token compartilhado com o serviço Python (o mesmo valor em RECOMMENDER_TOKEN lá). */
+  RECOMMENDER_TOKEN: optStr,
   RANKING_MIN_READERS: z.coerce.number().int().min(1).default(3),
   WEB_DIST: optStr,
   /** Liga GET /api/v1/dev/outbox (códigos de login na tela). Só vale com NODE_ENV development/test. */

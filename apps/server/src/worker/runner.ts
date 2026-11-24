@@ -3,11 +3,11 @@ import { purgeAuthData } from '../modules/auth.ts';
 import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
 import { TransientError, type FetchLike } from '../lib/net.ts';
-import { localDate, localTime } from '../lib/util.ts';
+import { localDate, localTime, nowIso, sleep } from '../lib/util.ts';
 import { analyzeArticle, BlockedError, DeferError } from '../ai/analysis.ts';
 import { openAiProvider, type AiProvider } from '../ai/provider.ts';
 import { composeEdition } from '../modules/editorial.ts';
-import { block, claim, complete, defer, enqueue, expireStaleAnalyses, fail, retryLater, type Job } from '../modules/jobs.ts';
+import { LEASE_MS, block, claim, complete, defer, enqueue, expireStaleAnalyses, fail, heartbeat, retryLater, type Job } from '../modules/jobs.ts';
 import { pubmedAdapter, type ScientificSourceAdapter } from '../sources/pubmed.ts';
 import { europePmcAdapter } from '../sources/europepmc.ts';
 import { scieloAdapter } from '../sources/scielo.ts';
@@ -15,7 +15,7 @@ import { automaticSources, syncMonitor } from '../modules/monitor.ts';
 import { discover, upsertRecord } from './ingestion.ts';
 
 /** adapter = PubMed (busca e recheck de retratações); extraAdapters = outras fontes científicas, só busca. */
-export interface Deps { adapter: ScientificSourceAdapter; extraAdapters?: ScientificSourceAdapter[]; provider: AiProvider | null; monitorFetch?: FetchLike }
+export interface Deps { adapter: ScientificSourceAdapter; extraAdapters?: ScientificSourceAdapter[]; provider: AiProvider | null; monitorFetch?: FetchLike; recheckBatch?: number }
 
 export const defaultDeps = (cfg: Config): Deps => ({
   adapter: pubmedAdapter(cfg),
@@ -38,14 +38,18 @@ export async function runJob(db: Db, cfg: Config, job: Job, deps: Deps): Promise
     case 'compose':
       return composeEdition(db, p.date!);
     case 'recheck': {
-      // Revisita artigos reais recentes para captar retratações/correções.
-      const rows = db.all<{ pmid: string; topic_id: string; source_id: string }>(
-        `SELECT ar.pmid, MIN(at.topic_id) AS topic_id, ar.source_id FROM articles ar JOIN article_topics at ON at.article_id = ar.id
-          WHERE ar.is_demo = 0 AND ar.pmid IS NOT NULL AND ar.created_at > ? GROUP BY ar.id LIMIT 500`,
-        new Date(Date.now() - 180 * 86_400_000).toISOString(),
+      // Revisita artigos reais recentes para captar retratações/correções. Rodízio: nunca conferidos primeiro, depois
+      // os conferidos há mais tempo; o marcador é gravado a cada lote, então todos passam por aqui em ciclos sucessivos.
+      const rows = db.all<{ id: string; pmid: string; topic_id: string; source_id: string }>(
+        `SELECT ar.id, ar.pmid, MIN(at.topic_id) AS topic_id, ar.source_id FROM articles ar JOIN article_topics at ON at.article_id = ar.id
+          WHERE ar.is_demo = 0 AND ar.pmid IS NOT NULL AND ar.created_at > ? GROUP BY ar.id
+          ORDER BY ar.retraction_checked_at IS NOT NULL, ar.retraction_checked_at, ar.id LIMIT ?`,
+        new Date(Date.now() - 180 * 86_400_000).toISOString(), deps.recheckBatch ?? RECHECK_BATCH,
       );
       if (!rows.length) return { checked: 0, retracted: 0 };
       const recs = await deps.adapter.fetchDetails(rows.map((r) => r.pmid));
+      const checkedAt = nowIso();
+      db.tx(() => rows.forEach((r) => db.run('UPDATE articles SET retraction_checked_at = ? WHERE id = ?', checkedAt, r.id)));
       let retracted = 0;
       for (const r of recs) {
         const row = rows.find((x) => x.pmid === r.pmid);
@@ -58,19 +62,42 @@ export async function runJob(db: Db, cfg: Config, job: Job, deps: Deps): Promise
   }
 }
 
+export const RECHECK_BATCH = 500;
+const toError = (e: unknown) => (e instanceof Error ? e : new Error(String(e)));
+
 /** Executa um job da fila; devolve o tipo do job executado, ou false se não havia nada pronto. */
-export async function workOnce(db: Db, cfg: Config, deps: Deps, workerId: string): Promise<Job['type'] | false> {
-  const job = claim(db, workerId);
+export async function workOnce(db: Db, cfg: Config, deps: Deps, workerId: string, leaseMs = LEASE_MS): Promise<Job['type'] | false> {
+  const job = claim(db, workerId, leaseMs);
   if (!job) return false;
+  if (job.invalid) {
+    fail(db, job, job.invalid);
+    log('job_error', { jobId: job.id, type: job.type, error: job.invalid });
+    return job.type;
+  }
+  // Heartbeat: análises longas não perdem o lease no meio (e outro worker não pega o mesmo job).
+  const beat = setInterval(() => {
+    try {
+      heartbeat(db, job, leaseMs);
+    } catch (e) {
+      log('heartbeat_error', { jobId: job.id, error: toError(e).message.slice(0, 200) });
+    }
+  }, Math.max(1_000, leaseMs / 3));
   try {
-    complete(db, job.id, await runJob(db, cfg, job, deps));
+    complete(db, job, await runJob(db, cfg, job, deps));
   } catch (e) {
-    const err = e as Error;
-    if (err instanceof DeferError) defer(db, job, err.message, err.retryInMs);
-    else if (err instanceof BlockedError) block(db, job.id, err.message);
-    else if (err instanceof TransientError) retryLater(db, job, err.message, err.retryAfterMs);
-    else fail(db, job.id, err.message);
+    const err = toError(e);
+    try {
+      if (err instanceof DeferError) defer(db, job, err.message, err.retryInMs);
+      else if (err instanceof BlockedError) block(db, job, err.message);
+      else if (err instanceof TransientError) retryLater(db, job, err.message, err.retryAfterMs);
+      else fail(db, job, err.message);
+    } catch (e2) {
+      // Falha ao gravar o estado (ex.: banco instável): o lease vence e o job volta sozinho.
+      log('job_state_error', { jobId: job.id, error: toError(e2).message.slice(0, 300) });
+    }
     log('job_error', { jobId: job.id, type: job.type, error: err.message.slice(0, 300) });
+  } finally {
+    clearInterval(beat);
   }
   return job.type;
 }
@@ -81,23 +108,42 @@ export interface CycleResult { processed: number; byType: Record<string, number>
  * Ciclo diário autônomo: agenda (buscas nas fontes, monitor, recheck, composição) e trabalha a fila até esvaziar
  * ou acabar o tempo. Vários jobs em paralelo: buscas e análises passam a maior parte do tempo esperando a rede.
  * O que não couber fica na fila (com lease e idempotência) e o próximo ciclo continua de onde parou.
+ * Erros de infraestrutura (banco instável) são registrados e encerram só a lane afetada, nunca o processo.
  */
 export async function runCycle(db: Db, cfg: Config, deps: Deps, opts: { workerId: string; budgetMs: number; concurrency?: number; now?: Date }): Promise<CycleResult> {
   const started = Date.now();
-  purgeAuthData(db);
-  schedule(db, cfg, opts.now);
+  try {
+    purgeAuthData(db);
+    schedule(db, cfg, opts.now);
+  } catch (e) {
+    log('schedule_error', { error: toError(e).message.slice(0, 300) });
+  }
   const byType: Record<string, number> = {};
   let processed = 0;
   const lane = async (n: number) => {
+    let errors = 0;
     while (Date.now() - started < opts.budgetMs) {
-      const type = await workOnce(db, cfg, deps, `${opts.workerId}#${n}`);
+      let type: Job['type'] | false;
+      try {
+        type = await workOnce(db, cfg, deps, `${opts.workerId}#${n}`);
+      } catch (e) {
+        log('lane_error', { lane: n, error: toError(e).message.slice(0, 300) });
+        if (++errors >= 3) return;
+        await sleep(500 * errors);
+        continue;
+      }
       if (!type) return;
       processed++;
       byType[type] = (byType[type] ?? 0) + 1;
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, opts.concurrency ?? 4) }, (_, i) => lane(i)));
-  const pending = db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE status IN ('queued','retry','running')")!.n;
+  let pending = -1;
+  try {
+    pending = db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE status IN ('queued','retry','running')")!.n;
+  } catch (e) {
+    log('pending_error', { error: toError(e).message.slice(0, 300) });
+  }
   const result = { processed, byType, pending, ms: Date.now() - started };
   log('cycle_done', { ...result });
   return result;

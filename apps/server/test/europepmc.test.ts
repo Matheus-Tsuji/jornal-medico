@@ -38,8 +38,28 @@ describe('Europe PMC', () => {
     expect(total).toBe(1);
     expect(calls[0]).toContain('FIRST_IDATE');
     const [r] = await a.fetchDetails(ids);
-    expect(r).toMatchObject({ pmid: null, pmcid: 'PMC1', doi: '10.99999/abc', title: 'Drug A for hypertension: a meta-analysis', abstract: 'Background fictício .', authors: ['Silva A'] });
+    expect(r).toMatchObject({ pmid: null, pmcid: 'PMC1', doi: '10.99999/abc', title: 'Drug A for hypertension: a meta-analysis', abstract: 'Background fictício .', authors: ['Silva A'], url: 'https://europepmc.org/article/PMC/PMC1' });
     expect(r!.publicationTypes).toContain('Meta-Analysis');
     expect(triage(r!).status).toBe('eligible');
+  });
+
+  it('rejeita pmcid fora do formato no fullTextXML e codifica segmentos na url', async () => {
+    const hit = {
+      id: 'id/com?query', source: 'PPR/1', pmcid: '../search?x=1', title: 'Drug B for hypertension: a meta-analysis.', language: 'eng',
+      pubTypeList: { pubType: ['Journal Article'] },
+    };
+    const calls: string[] = [];
+    const f = (async (u: URL) => {
+      calls.push(String(u));
+      return new Response(JSON.stringify({ hitCount: 1, resultList: { result: [hit] } }));
+    }) as unknown as typeof fetch;
+    const a = europePmcAdapter(f);
+    const { ids } = await a.search(seedQuery, '2026-11-09', '2026-11-16', 50);
+    const [r] = await a.fetchDetails(ids);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('/search?');
+    expect(calls.some((u) => u.includes('fullTextXML'))).toBe(false);
+    expect(r!.abstract).toBeNull();
+    expect(r!.url).toBe('https://europepmc.org/article/PPR%2F1/id%2Fcom%3Fquery');
   });
 });

@@ -119,6 +119,8 @@ export function composeEdition(db: Db, date: string, opts: { maxItems?: number; 
     const rows = all.sort((a, b) => order.get(a.aid)! - order.get(b.aid)!).slice(0, max);
     const version = db.get<{ v: number }>('SELECT COALESCE(MAX(version),0)+1 AS v FROM editions WHERE edition_date = ? AND is_demo = 0', date)!.v;
     const number = db.get<{ n: number }>("SELECT COUNT(DISTINCT edition_date) + 1 AS n FROM editions WHERE is_demo = 0 AND status = 'published' AND edition_date < ?", date)!.n;
+    // Rascunhos anteriores da data saem de cena: um "publicar" repetido nunca recoloca uma versão velha no ar.
+    db.run("UPDATE editions SET status = 'superseded' WHERE edition_date = ? AND status = 'draft' AND is_demo = 0", date);
     const eid = id();
     db.run(
       `INSERT INTO editions (id, edition_date, version, number, status, is_demo, coverage_note, composed_at) VALUES (?,?,?,?, 'draft', 0, ?, ?)`,
@@ -132,11 +134,12 @@ export function composeEdition(db: Db, date: string, opts: { maxItems?: number; 
   });
 }
 
-export function publishEdition(db: Db, user: { id: string; role: string }, date: string) {
+export function publishEdition(db: Db, user: { id: string; role: string }, date: string, expectedEditionId?: string) {
   if (user.role !== 'editor' && user.role !== 'admin') throw new AppError(403, 'forbidden', 'Apenas editores publicam edições.');
   return db.tx(() => {
     const draft = db.get<Row>("SELECT * FROM editions WHERE edition_date = ? AND status = 'draft' AND is_demo = 0 ORDER BY version DESC LIMIT 1", date);
     if (!draft) throw new AppError(404, 'no_draft', 'Não há rascunho para esta data. Componha a edição primeiro.');
+    if (expectedEditionId && draft.id !== expectedEditionId) throw new AppError(409, 'draft_changed', 'O rascunho mudou desde a prévia. Recarregue e confira antes de publicar.');
     const n = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM edition_items WHERE edition_id = ?', draft.id as string)!.n;
     if (n === 0) throw new AppError(409, 'empty_edition', 'Edição sem itens aprovados não é publicada.');
     // Só itens com análise publicada (aprovada por humano) podem sair.

@@ -2,7 +2,7 @@
 
 Contrato (igual ao baseline TypeScript em apps/server/src/modules/ranking.ts):
   entrada: {"candidates": [Candidate], "profile": Profile, "k": int}
-  saida:   {"ranked": [{"id", "score", "reasons"}], "model_version": str}
+  saida:   {"ranked": [{"id", "score", "reasons", "matchedTopics"}], "model_version": str}
 
 MODEL_VERSION "content-tfidf-v1": baseline explicavel + similaridade de conteudo
 (TF-IDF sobre temas) com o perfil. Nenhum modelo foi treinado com dados reais: ainda nao
@@ -48,6 +48,8 @@ def rank(candidates: list[dict], profile: dict, k: int) -> list[dict]:
             s += W["topic"]
             label = c.get("labels", {}).get(matched, matched)
             reasons.append(f"Você segue {label}")
+        if personal and not follows and c["source"] in profile.get("sources", []):
+            reasons.append("Fonte que você segue")
         if personal:
             s += W["content"] * sim
             if c["source"] in profile.get("sources", []):
@@ -65,7 +67,8 @@ def rank(candidates: list[dict], profile: dict, k: int) -> list[dict]:
             reasons.append("Seleção geral")
         if not reasons:
             reasons.append("Seleção editorial recente")
-        scored.append({"c": c, "s": s, "reasons": reasons, "matched": bool(matched)})
+        matched_topics = [t for t in c["topics"] if t in follows] if personal else []
+        scored.append({"c": c, "s": s, "reasons": reasons, "matched": bool(matched), "matchedTopics": matched_topics})
     scored.sort(key=lambda x: (-x["s"], x["c"]["id"]))
 
     out, per_topic = [], {}
@@ -82,7 +85,7 @@ def rank(candidates: list[dict], profile: dict, k: int) -> list[dict]:
         if outsider:
             outsider["reasons"].append("Para ampliar o olhar: fora dos seus temas")
             out[-1] = outsider
-    return [{"id": x["c"]["id"], "score": round(x["s"], 3), "reasons": x["reasons"]} for x in out]
+    return [{"id": x["c"]["id"], "score": round(x["s"], 3), "reasons": x["reasons"], "matchedTopics": x["matchedTopics"]} for x in out]
 
 
 # ---------------- Avaliacao offline ----------------

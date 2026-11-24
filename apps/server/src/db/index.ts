@@ -77,11 +77,13 @@ export function migrate(db: Db): string[] {
   for (const name of readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort()) {
     if (done.has(name)) continue;
     const sql = readFileSync(join(MIGRATIONS_DIR, name), 'utf8');
-    db.tx(() => {
+    const installed = db.tx(() => {
+      if (db.get('SELECT 1 FROM schema_migrations WHERE name = ?', name)) return false;
       db.raw.exec(sql);
       db.run('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)', name, new Date().toISOString());
+      return true;
     });
-    applied.push(name);
+    if (installed) applied.push(name);
   }
   return applied;
 }

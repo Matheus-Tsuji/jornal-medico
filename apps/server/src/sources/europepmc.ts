@@ -40,6 +40,7 @@ export function typesFromTitle(title: string): string[] {
 
 const stripTags = (s: string) => s.replace(/<title>[^<]*<\/title>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 const LANG: Record<string, string> = { eng: 'eng', por: 'por', spa: 'spa', en: 'eng', pt: 'por', es: 'spa' };
+const PMCID = /^PMC\d+$/;
 
 type Hit = {
   id: string; source: string; pmid?: string; pmcid?: string; doi?: string; title: string; abstractText?: string; language?: string;
@@ -64,8 +65,13 @@ export function europePmcAdapter(f: FetchLike = fetch): ScientificSourceAdapter 
 
   const abstractOf = async (h: Hit) => {
     if (h.abstractText) return stripTags(h.abstractText);
-    if (!h.pmcid) return null;
-    const body = await (await get(`${BASE}/${h.pmcid}/fullTextXML`).catch(() => null))?.text();
+    if (!h.pmcid || !PMCID.test(h.pmcid)) return null;
+    // Só "não existe" (404) significa sem texto completo; 429/5xx/timeout propagam para o job tentar de novo depois.
+    const res = await get(`${BASE}/${h.pmcid}/fullTextXML`).catch((e: Error) => {
+      if (/HTTP 404/.test(e.message)) return null;
+      throw e;
+    });
+    const body = await res?.text();
     const m = body && /<abstract(?:\s[^>]*)?>([\s\S]*?)<\/abstract>/.exec(body);
     return m ? stripTags(m[1]!) || null : null;
   };
@@ -110,7 +116,9 @@ export function europePmcAdapter(f: FetchLike = fetch): ScientificSourceAdapter 
           mesh: (h.meshHeadingList?.meshHeading ?? []).map((m) => m.descriptorName),
           retracted: types.some((t) => /retract/i.test(t)),
           corrected: false,
-          url: h.pmcid ? `https://europepmc.org/article/PMC/${h.pmcid}` : `https://europepmc.org/article/${h.source}/${h.id}`,
+          url: h.pmcid && PMCID.test(h.pmcid)
+            ? `https://europepmc.org/article/PMC/${h.pmcid}`
+            : `https://europepmc.org/article/${encodeURIComponent(h.source)}/${encodeURIComponent(h.id)}`,
         });
       }
       return out;

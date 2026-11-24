@@ -27,7 +27,7 @@ else if (cmd === 'backup') {
   rmSync(file, { force: true });
   db.raw.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`);
   const x = openDb(file);
-  x.raw.exec("DELETE FROM sessions; DELETE FROM auth_challenges; DELETE FROM dev_outbox; DELETE FROM app_secrets; UPDATE jobs SET status = 'queued', locked_by = NULL, lease_until = NULL WHERE status = 'running';");
+  x.raw.exec("DELETE FROM sessions; DELETE FROM auth_challenges; DELETE FROM login_failures; DELETE FROM dev_outbox; DELETE FROM app_secrets; UPDATE jobs SET status = 'queued', locked_by = NULL, lease_until = NULL WHERE status = 'running';");
   if (vitrine) {
     x.raw.exec(`PRAGMA foreign_keys = OFF;
       DELETE FROM user_preferences; DELETE FROM bookmarks; DELETE FROM read_events; DELETE FROM feedback; DELETE FROM error_reports;

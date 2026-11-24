@@ -47,8 +47,24 @@ export function costUsd(p: Pricing, model: string, u: Usage): number | null {
   return ((u.inputTokens - cached) * m.input + cached * (m.cached_input ?? m.input) + u.outputTokens * m.output) / 1_000_000;
 }
 
-/** Orçamento: limite de artigos/dia sempre; limite em USD quando configurado (exige tabela de preços). */
-export function checkBudget(db: Db, cfg: Config, models: string[], jobId: string | null = null) {
+const RESERVATION_TTL_MS = 3_600_000;
+
+/** Custo máximo provável de um artigo (2 extrações + redação + triagem), para reservar antes de chamar a IA. */
+function estimateCost(p: Pricing, cfg: Config): number {
+  const one = (m: string | undefined) => (m && p.models[m] ? (8_000 * p.models[m]!.input + cfg.AI_MAX_OUTPUT_TOKENS * p.models[m]!.output) / 1_000_000 : 0);
+  return 2 * one(cfg.OPENAI_ANALYSIS_MODEL) + one(cfg.OPENAI_EDITORIAL_MODEL) + one(cfg.OPENAI_TRIAGE_MODEL);
+}
+
+export const releaseBudget = (db: Db, reservationId: string | null) => {
+  if (reservationId) db.run('DELETE FROM ai_budget_reservations WHERE id = ?', reservationId);
+};
+
+/**
+ * Orçamento: limite de artigos/dia sempre; limite em USD quando configurado (exige tabela de preços).
+ * Com limite em USD, reserva atomicamente o custo estimado (gasto + reservas em voo + estimativa ≤ teto) e devolve o
+ * id da reserva; quem chamou libera com releaseBudget ao terminar (o gasto real fica em ai_usage).
+ */
+export function checkBudget(db: Db, cfg: Config, models: string[], jobId: string | null = null): string | null {
   const dayStart = new Date(Date.now() - 86_400_000).toISOString();
   const monthStart = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const done = db.get<{ n: number }>("SELECT COUNT(DISTINCT article_id) AS n FROM ai_usage WHERE task = 'extraction' AND created_at > ?", dayStart)!.n;
@@ -65,11 +81,19 @@ export function checkBudget(db: Db, cfg: Config, models: string[], jobId: string
     const pricing = loadPricing();
     const missing = models.filter((m) => !pricing.models[m]);
     if (missing.length) throw new BlockedError(`Orçamento em USD configurado, mas ai-pricing.json não tem preço para: ${missing.join(', ')}.`);
-    const day = db.get<{ s: number | null }>('SELECT SUM(cost_usd) AS s FROM ai_usage WHERE created_at > ?', dayStart)!.s ?? 0;
-    const month = db.get<{ s: number | null }>('SELECT SUM(cost_usd) AS s FROM ai_usage WHERE created_at > ?', monthStart)!.s ?? 0;
-    if (cfg.AI_DAILY_BUDGET_USD && day >= cfg.AI_DAILY_BUDGET_USD) throw new DeferError(`Orçamento diário de IA (US$ ${cfg.AI_DAILY_BUDGET_USD}) atingido.`, SIX_HOURS);
-    if (cfg.AI_MONTHLY_BUDGET_USD && month >= cfg.AI_MONTHLY_BUDGET_USD) throw new DeferError(`Orçamento mensal de IA (US$ ${cfg.AI_MONTHLY_BUDGET_USD}) atingido.`, 4 * SIX_HOURS);
+    const estimate = estimateCost(pricing, cfg);
+    return db.tx(() => {
+      const reserved = db.get<{ s: number | null }>('SELECT SUM(amount_usd) AS s FROM ai_budget_reservations WHERE created_at > ?', new Date(Date.now() - RESERVATION_TTL_MS).toISOString())!.s ?? 0;
+      const day = (db.get<{ s: number | null }>('SELECT SUM(cost_usd) AS s FROM ai_usage WHERE created_at > ?', dayStart)!.s ?? 0) + reserved;
+      const month = (db.get<{ s: number | null }>('SELECT SUM(cost_usd) AS s FROM ai_usage WHERE created_at > ?', monthStart)!.s ?? 0) + reserved;
+      if (cfg.AI_DAILY_BUDGET_USD && day + estimate > cfg.AI_DAILY_BUDGET_USD) throw new DeferError(`Orçamento diário de IA (US$ ${cfg.AI_DAILY_BUDGET_USD}) atingido.`, SIX_HOURS);
+      if (cfg.AI_MONTHLY_BUDGET_USD && month + estimate > cfg.AI_MONTHLY_BUDGET_USD) throw new DeferError(`Orçamento mensal de IA (US$ ${cfg.AI_MONTHLY_BUDGET_USD}) atingido.`, 4 * SIX_HOURS);
+      const rid = id();
+      db.run('INSERT INTO ai_budget_reservations (id, job_id, amount_usd, created_at) VALUES (?,?,?,?)', rid, jobId, estimate, nowIso());
+      return rid;
+    });
   }
+  return null;
 }
 
 function recordUsage(db: Db, task: string, model: string, u: Usage, status: string, jobId: string | null, articleId: string) {
@@ -113,7 +137,16 @@ export async function analyzeArticle(db: Db, cfg: Config, provider: AiProvider |
   const existing = alreadyAnalyzed(db, articleId, inputHash, opts.retry);
   if (existing) return { analysisId: existing, status: 'skipped_existing' as const };
   if (art.triage_status === 'excluded') return { analysisId: null, status: 'excluded' as const };
-  checkBudget(db, cfg, [cfg.OPENAI_ANALYSIS_MODEL, cfg.OPENAI_EDITORIAL_MODEL, ...(cfg.OPENAI_TRIAGE_MODEL ? [cfg.OPENAI_TRIAGE_MODEL] : [])], jobId);
+  const reservation = checkBudget(db, cfg, [cfg.OPENAI_ANALYSIS_MODEL, cfg.OPENAI_EDITORIAL_MODEL, ...(cfg.OPENAI_TRIAGE_MODEL ? [cfg.OPENAI_TRIAGE_MODEL] : [])], jobId);
+  try {
+    return await runAnalysis(db, cfg, provider, articleId, jobId, doc, inputHash);
+  } finally {
+    releaseBudget(db, reservation);
+  }
+}
+
+async function runAnalysis(db: Db, cfg: Config, provider: AiProvider, articleId: string, jobId: string | null, doc: string, inputHash: string) {
+  if (!cfg.OPENAI_ANALYSIS_MODEL || !cfg.OPENAI_EDITORIAL_MODEL) throw new DeferError('Modelos de IA não configurados.', SIX_HOURS);
 
   // 0) Triagem barata: o tema é mesmo o foco? Evita gastar a análise cara com menções de passagem.
   if (cfg.OPENAI_TRIAGE_MODEL) {

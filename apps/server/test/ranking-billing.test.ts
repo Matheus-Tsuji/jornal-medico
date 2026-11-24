@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { rankCandidates, recommend, type Candidate } from '../src/modules/ranking.ts';
+import { describe, expect, it, vi } from 'vitest';
+import { loadCandidates, rankCandidates, recommend, type Candidate } from '../src/modules/ranking.ts';
 import { isEntitledSub, signPayload } from '../src/modules/billing.ts';
 import { H, login, setup } from './helpers.ts';
 
@@ -44,6 +44,44 @@ describe('ranking explicável', () => {
     expect(r.ranked.map((x) => x.id)).not.toContain(retracted);
     const bogus = (async () => new Response(JSON.stringify({ ranked: [{ id: 'inventado', score: 1, reasons: [] }] }))) as unknown as typeof fetch;
     expect((await recommend(db, cfg, null, 10, bogus)).engine).toBe('baseline-ts-v1');
+  });
+
+  it('omite da resposta uma recomendação retratada durante o ranqueamento', async () => {
+    const { app, db } = await setup({ RECOMMENDER_URL: 'http://127.0.0.1:9' });
+    const selected = loadCandidates(db, null)[0]!;
+    vi.stubGlobal('fetch', async () => {
+      db.run("UPDATE articles SET retraction_status = 'retracted' WHERE id = ?", selected.articleId);
+      return Response.json({ ranked: [{ id: selected.id, score: 1, reasons: ['Seleção geral'], matchedTopics: [] }] });
+    });
+    try {
+      const response = await app.inject({ url: '/api/v1/recommendations' });
+      expect(response.json()).toEqual({ engine: 'python:desconhecido', items: [] });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('usa redirect: error no recomendador loopback e ignora URLs fora de loopback', async () => {
+    const { db, cfg } = await setup({ RECOMMENDER_URL: 'http://127.0.0.1:8790' });
+    let seenUrl = '';
+    let seenInit: RequestInit | undefined;
+    const ok = (async (u: string | URL | Request, init?: RequestInit) => {
+      seenUrl = String(u);
+      seenInit = init;
+      return new Response(JSON.stringify({ ranked: [], model_version: 'v1' }));
+    }) as typeof fetch;
+    const rOk = await recommend(db, cfg, null, 5, ok);
+    expect(seenUrl).toBe('http://127.0.0.1:8790/rank');
+    expect(seenInit?.redirect).toBe('error');
+    expect(rOk.engine).toBe('python:v1');
+
+    for (const badUrl of ['http://169.254.169.254/latest', 'https://evil.example', 'http://user:pass@127.0.0.1:8790', 'http://127.0.0.1:8790/?x=1']) {
+      let called = false;
+      const spy = (async () => { called = true; return new Response('{}'); }) as typeof fetch;
+      const rBad = await recommend(db, { ...cfg, RECOMMENDER_URL: badUrl }, null, 5, spy);
+      expect(called).toBe(false);
+      expect(rBad.engine).toBe('baseline-ts-v1');
+    }
   });
 });
 

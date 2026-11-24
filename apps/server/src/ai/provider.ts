@@ -3,6 +3,9 @@
 import { z } from 'zod';
 import { safeFetch, TransientError, type FetchLike } from '../lib/net.ts';
 
+/** Teto por chamada de IA: 4 chamadas por artigo (triagem, 2 extrações, redação) cabem no ciclo da Vercel. */
+export const AI_CALL_TIMEOUT_MS = 45_000;
+
 export interface Usage { inputTokens: number; cachedTokens: number; outputTokens: number }
 export interface StructuredCall<T> { model: string; system: string; user: string; name: string; schema: z.ZodType<T>; maxOutputTokens: number }
 
@@ -34,7 +37,7 @@ export function openAiProvider(apiKey: string, f: FetchLike = fetch): AiProvider
     async structured<T>(c: StructuredCall<T>) {
       const res = await safeFetch('https://api.openai.com/v1/responses', {
         method: 'POST',
-        timeoutMs: 120_000,
+        timeoutMs: AI_CALL_TIMEOUT_MS,
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: c.model,

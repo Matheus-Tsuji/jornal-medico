@@ -67,17 +67,20 @@ export function cards(db: Db, analysisIds: string[], userId?: string | null): Ar
   return analysisIds.map((a) => m.get(a)).filter((c): c is ArticleCard => !!c);
 }
 
-export function cardMap(db: Db, analysisIds: string[], userId?: string | null): Map<string, ArticleCard> {
+export function cardMap(db: Db, analysisIds: string[], userId?: string | null, currentRecommendations = false): Map<string, ArticleCard> {
   if (!analysisIds.length) return new Map();
+  const current = currentRecommendations ? oneVisiblePerArticle(db) : null;
   const rows = db.all(
     `SELECT a.id AS aid, a.payload, a.status, a.is_demo, ar.id, ar.slug, ar.original_title, ar.publication_types, ar.pub_date,
             ar.retraction_status, ar.access_status, j.title AS journal, s.name AS source_name,
             (SELECT COUNT(*) FROM article_corrections c WHERE c.article_id = ar.id AND c.kind = 'correction') AS corrections
        FROM analyses a JOIN articles ar ON ar.id = a.article_id
        LEFT JOIN journals j ON j.id = ar.journal_id JOIN sources s ON s.id = ar.source_id
-      WHERE a.id IN (${ph(analysisIds.length)})`,
-    ...analysisIds,
+      WHERE a.id IN (${ph(analysisIds.length)})
+        ${current ? `AND (${current.sql}) AND ar.retraction_status <> 'retracted'` : ''}`,
+    ...analysisIds, ...(current?.params ?? []),
   );
+  if (!rows.length) return new Map();
   const articleIds = rows.map((r) => r.id as string);
   const topics = db.all(
     `SELECT at.article_id, t.slug, t.label_pt, COALESCE(t.color, p.color, pp.color) AS color

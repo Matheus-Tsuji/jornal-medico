@@ -151,12 +151,14 @@ export function userFromToken(db: Db, token: string | undefined, cfg?: Config): 
     const [, uid, sid, sig] = token.split('.');
     if (uid && sid && sig && safeEqual(sig, guestSig(cfg, uid, sid))) insertGuest(db, cfg, uid, sid, token);
   }
-  const row = db.get<{ id: string; email: string; role: SessionUser['role']; sid: string; last_seen_at: string | null; is_guest: number }>(
-    `SELECT u.id, u.email, u.role, u.is_guest, s.id AS sid, s.last_seen_at FROM sessions s JOIN users u ON u.id = s.user_id
+  const row = db.get<{ id: string; email: string; role: SessionUser['role']; sid: string; last_seen_at: string | null; is_guest: number; verified_at: string | null }>(
+    `SELECT u.id, u.email, u.role, u.is_guest, u.verified_at, s.id AS sid, s.last_seen_at FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND u.status = 'active'`,
     sha256(token), nowIso(),
   );
   if (!row) return null;
+  // Equipe sem e-mail comprovado não tem sessão válida (defesa em profundidade para promoções feitas direto no banco).
+  if (row.role !== 'reader' && !row.verified_at) return null;
   if (row.role !== 'reader' && row.last_seen_at && Date.now() - Date.parse(row.last_seen_at) > STAFF_IDLE_DAYS * 86_400_000) {
     revokeSession(db, row.sid);
     return null;
@@ -210,11 +212,11 @@ const checkPassword = async (pw: string, stored: string | null) => {
 };
 
 export async function registerWithPassword(db: Db, cfg: Config, email: string, password: string, guestUserId?: string, displayName?: string) {
-  if (db.get('SELECT 1 FROM users WHERE email = ? AND is_guest = 0', email)) {
-    throw new AppError(409, 'email_taken', 'Já existe uma conta com este e-mail. Use "Entrar".');
-  }
   const passwordHash = await hashPassword(password);
   return db.tx(() => {
+    if (db.get('SELECT 1 FROM users WHERE email = ? AND is_guest = 0', email)) {
+      throw new AppError(409, 'email_taken', 'Já existe uma conta com este e-mail. Use "Entrar".');
+    }
     const r = signIn(db, cfg, email, guestUserId, { verified: false, passwordHash, displayName });
     audit(db, r.userId, 'user.password_registered', 'user', r.userId);
     return r;
@@ -225,13 +227,27 @@ export async function loginWithPassword(db: Db, cfg: Config, email: string, pass
   const since = new Date(Date.now() - PASSWORD_FAILURE_WINDOW_MIN * 60_000).toISOString();
   const fails = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM login_failures WHERE email = ? AND created_at > ?', email, since)!.n;
   if (fails >= MAX_PASSWORD_FAILURES) throw new AppError(429, 'rate_limited', `Muitas tentativas para este e-mail. Aguarde ${PASSWORD_FAILURE_WINDOW_MIN} minutos.`);
-  const u = db.get<{ password_hash: string | null; role: string; verified_at: string | null }>('SELECT password_hash, role, verified_at FROM users WHERE email = ? AND is_guest = 0', email);
-  // Equipe só entra por senha depois de comprovar o e-mail (código), mesmo que a senha confira.
-  const ok = (await checkPassword(password, u?.password_hash ?? null)) && !(u && u.role !== 'reader' && !u.verified_at);
-  if (!ok) {
+  const candidate = db.get<{ id: string; password_hash: string | null }>('SELECT id, password_hash FROM users WHERE email = ? AND is_guest = 0', email);
+  const matches = await checkPassword(password, candidate?.password_hash ?? null);
+  const invalid = new AppError(401, 'invalid_credentials', 'E-mail ou senha incorretos.');
+  if (!candidate || !matches) {
     db.run('INSERT INTO login_failures (email, created_at) VALUES (?,?)', email, nowIso());
-    throw new AppError(401, 'invalid_credentials', 'E-mail ou senha incorretos.');
+    throw invalid;
   }
-  db.run('DELETE FROM login_failures WHERE email = ?', email);
-  return db.tx(() => signIn(db, cfg, email, guestUserId, { verified: false }));
+  const session = db.tx(() => {
+    // A credencial e a elegibilidade podem mudar durante o scrypt.
+    const current = db.get<{ id: string; password_hash: string | null; role: string; verified_at: string | null }>(
+      'SELECT id, password_hash, role, verified_at FROM users WHERE email = ? AND is_guest = 0', email,
+    );
+    if (!current || current.id !== candidate.id || current.password_hash !== candidate.password_hash) return null;
+    if (current.role !== 'reader' && !current.verified_at) return null;
+    const result = signIn(db, cfg, email, guestUserId, { verified: false });
+    db.run('DELETE FROM login_failures WHERE email = ?', email);
+    return result;
+  });
+  if (!session) {
+    db.run('INSERT INTO login_failures (email, created_at) VALUES (?,?)', email, nowIso());
+    throw invalid;
+  }
+  return session;
 }

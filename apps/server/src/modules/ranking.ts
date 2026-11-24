@@ -2,7 +2,14 @@
 // nunca gera texto novo por leitor. O serviço Python é opcional e tem fallback.
 import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
+import { z } from 'zod';
 import { oneVisiblePerArticle, visibility } from './content.ts';
+
+/** Contrato da resposta do serviço Python: tudo validado antes de chegar às rotas. */
+const pythonResponse = z.object({
+  ranked: z.array(z.object({ id: z.string(), score: z.number(), reasons: z.array(z.string()), matchedTopics: z.array(z.string()) })),
+  model_version: z.string().optional(),
+});
 
 export interface Candidate {
   id: string; // analysis id
@@ -16,7 +23,8 @@ export interface Candidate {
   labels?: Record<string, string>;
 }
 export interface Profile { topics: string[]; sources: string[]; lessTopics: string[]; personalization: boolean }
-export interface Ranked { id: string; score: number; reasons: string[] }
+/** matchedTopics: temas seguidos que o item contém (vazio sem personalização). É o critério do "Para você". */
+export interface Ranked { id: string; score: number; reasons: string[]; matchedTopics: string[] }
 
 export const DEFAULT_WEIGHTS = { recency: 0.3, topic: 0.35, source: 0.1, priority: 0.25, halfLifeDays: 7, readPenalty: 0.3, lessPenalty: 0.5, maxPerTopic: 2 };
 
@@ -44,7 +52,7 @@ export function rankCandidates(cands: Candidate[], profile: Profile, k: number, 
     if (recency > 0.8) reasons.push('Publicado recentemente');
     if (!personal) reasons.push('Seleção geral');
     if (!reasons.length) reasons.push('Seleção editorial recente');
-    return { c, s, reasons, matched: !!matched };
+    return { c, s, reasons, matched: !!matched, matchedTopics: personal ? c.topics.filter((t) => follows.has(t)) : [] };
   });
   scored.sort((a, b) => b.s - a.s || a.c.id.localeCompare(b.c.id));
 
@@ -65,7 +73,7 @@ export function rankCandidates(cands: Candidate[], profile: Profile, k: number, 
       out[out.length - 1] = outsider;
     }
   }
-  return out.map((x) => ({ id: x.c.id, score: Math.round(x.s * 1000) / 1000, reasons: x.reasons }));
+  return out.map((x) => ({ id: x.c.id, score: Math.round(x.s * 1000) / 1000, reasons: x.reasons, matchedTopics: x.matchedTopics }));
 }
 
 export function loadProfile(db: Db, userId: string | null): Profile {
@@ -119,28 +127,51 @@ export function loadCandidates(db: Db, userId: string | null, days = 30): Candid
   });
 }
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+
+/** Valida RECOMMENDER_URL: só loopback (http/https), sem credenciais, query ou fragmento. */
+export function recommenderEndpoint(raw: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return null;
+  }
+  if ((u.protocol !== 'http:' && u.protocol !== 'https:') || u.username || u.password || u.search || u.hash || !LOOPBACK_HOSTS.has(u.hostname)) {
+    return null;
+  }
+  return `${u.origin}${u.pathname.replace(/\/$/, '')}/rank`;
+}
+
 /** Tenta o serviço Python; qualquer falha ou atraso cai no baseline. */
 export async function recommend(db: Db, cfg: Config, userId: string | null, k = 6, f: typeof fetch = fetch): Promise<{ ranked: Ranked[]; engine: string }> {
   const cands = loadCandidates(db, userId);
   const profile = loadProfile(db, userId);
-  if (cfg.RECOMMENDER_URL) {
+  const endpoint = cfg.RECOMMENDER_URL ? recommenderEndpoint(cfg.RECOMMENDER_URL) : null;
+  if (endpoint) {
+    let why = '';
     try {
-      const res = await f(`${cfg.RECOMMENDER_URL.replace(/\/$/, '')}/rank`, {
+      const res = await f(endpoint, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...(cfg.RECOMMENDER_TOKEN ? { authorization: `Bearer ${cfg.RECOMMENDER_TOKEN}` } : {}) },
         body: JSON.stringify({ candidates: cands, profile, k }),
+        redirect: 'error',
         signal: AbortSignal.timeout(800),
       });
-      if (res.ok) {
-        const body = (await res.json()) as { ranked?: Ranked[]; model_version?: string };
+      if (!res.ok) why = `HTTP ${res.status}`;
+      else {
+        const body = pythonResponse.safeParse(await res.json());
         const valid = new Set(cands.map((c) => c.id));
-        if (Array.isArray(body.ranked) && body.ranked.every((r) => valid.has(r.id))) {
-          return { ranked: body.ranked.slice(0, k), engine: `python:${body.model_version ?? 'desconhecido'}` };
-        }
+        if (!body.success) why = 'resposta fora do contrato';
+        else if (new Set(body.data.ranked.map((r) => r.id)).size !== body.data.ranked.length) why = 'IDs repetidos';
+        else if (!body.data.ranked.every((r) => valid.has(r.id))) why = 'ID fora dos candidatos';
+        else return { ranked: body.data.ranked.slice(0, k), engine: `python:${body.data.model_version ?? 'desconhecido'}` };
       }
-    } catch {
-      // fallback silencioso: o jornal continua funcional
+    } catch (e) {
+      why = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
     }
+    // O jornal segue com o baseline, mas a falha fica registrada.
+    console.warn(JSON.stringify({ level: 'warn', msg: 'recommender_fallback', reason: why.slice(0, 200) }));
   }
   return { ranked: rankCandidates(cands, profile, k), engine: 'baseline-ts-v1' };
 }

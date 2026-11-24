@@ -120,11 +120,14 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     const { date } = dateParam.parse(req.params);
     const e = db.get("SELECT * FROM editions WHERE edition_date = ? AND is_demo = 0 ORDER BY version DESC LIMIT 1", date);
     if (!e) throw new AppError(404, 'not_found', 'Sem edição para esta data.');
-    return { status: e.status, edition: editionDto(db, e, u.id) };
+    return { status: e.status, editionId: e.id as string, edition: editionDto(db, e, u.id) };
   });
   app.post('/admin/editions/:date/publish', async (req) => {
     const u = editor(req);
-    return publishEdition(db, u, dateParam.parse(req.params).date);
+    // editionId (opcional): o rascunho exibido na prévia. Sem ele, publica o rascunho mais novo da data
+    // (compatibilidade com chamadas antigas por data); com ele, 409 se o rascunho mudou desde a prévia.
+    const { editionId } = z.strictObject({ editionId: z.string().max(64).optional() }).parse(req.body ?? {});
+    return publishEdition(db, u, dateParam.parse(req.params).date, editionId);
   });
 
   // ---------- Fontes, custos, relatos ----------
@@ -200,10 +203,17 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     const { id } = z.object({ id: z.string().max(64) }).parse(req.params);
     const body = z.strictObject({ role: z.enum(['reader', 'editor', 'admin']).optional(), status: z.enum(['active', 'disabled']).optional() }).parse(req.body);
     if (id === u.id) throw new AppError(409, 'self_change', 'Você não pode alterar o próprio papel ou status.');
-    db.run('UPDATE users SET role = COALESCE(?, role), status = COALESCE(?, status) WHERE id = ?', body.role ?? null, body.status ?? null, id);
-    if (body.status === 'disabled') db.run('UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL', nowIso(), id);
-    audit(db, u.id, 'user.changed', 'user', id, body);
-    return { ok: true };
+    // Checagem do alvo, papel, revogação e auditoria numa transação só: nada fica pela metade nem entre leitura e escrita.
+    return db.tx(() => {
+      const target = db.get<{ role: string; verified_at: string | null }>('SELECT role, verified_at FROM users WHERE id = ? AND is_guest = 0', id);
+      if (!target) throw new AppError(404, 'not_found', 'Usuário não encontrado.');
+      // Equipe só com e-mail comprovado: senão a sessão de quem cadastrou o e-mail alheio por senha herdaria o papel.
+      if (body.role && body.role !== 'reader' && !target.verified_at) throw new AppError(409, 'unverified', 'O usuário precisa comprovar o e-mail (login por código) antes de virar editor ou admin.');
+      db.run('UPDATE users SET role = COALESCE(?, role), status = COALESCE(?, status) WHERE id = ?', body.role ?? null, body.status ?? null, id);
+      if (body.status === 'disabled' || (body.role && body.role !== target.role)) db.run('UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL', nowIso(), id);
+      audit(db, u.id, 'user.changed', 'user', id, body);
+      return { ok: true };
+    });
   });
   app.get('/admin/audit', async (req) => {
     admin(req);

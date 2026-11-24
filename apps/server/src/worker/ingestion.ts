@@ -22,10 +22,19 @@ export function triage(r: NormalizedRecord): { status: 'eligible' | 'excluded'; 
   return { status: 'eligible', reason: 'Regras determinísticas atendidas' };
 }
 
-const normTitle = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+/**
+ * Artigo elegível ainda sem análise ganha job de análise, na mesma transação da gravação. Idempotente pela chave:
+ * reexecutar depois de uma falha no meio do lote não deixa artigo gravado sem job.
+ */
+function ensureAnalysisJob(db: Db, articleId: string, publicationTypes: string[]): boolean {
+  const a = db.get<{ triage_status: string; retraction_status: string }>('SELECT triage_status, retraction_status FROM articles WHERE id = ?', articleId)!;
+  if (a.triage_status !== 'eligible' || a.retraction_status === 'retracted') return false;
+  if (db.get('SELECT 1 FROM analyses WHERE article_id = ? LIMIT 1', articleId)) return false;
+  return enqueue(db, 'analyze', `analyze:${articleId}:${PROMPT_VERSION}`, { articleId }, { priority: analyzePriority(publicationTypes) }).created;
+}
 
 /** Upsert com deduplicação: DOI normalizado → PMID → PMCID. Título parecido gera candidato, não merge. */
-export function upsertRecord(db: Db, sourceId: string, topicId: string, r: NormalizedRecord): { articleId: string; inserted: boolean } {
+export function upsertRecord(db: Db, sourceId: string, topicId: string, r: NormalizedRecord): { articleId: string; inserted: boolean; queued: boolean } {
   return db.tx(() => {
     const existing =
       (r.doi && db.get<{ id: string }>('SELECT id FROM articles WHERE doi = ?', r.doi)) ||
@@ -43,12 +52,24 @@ export function upsertRecord(db: Db, sourceId: string, topicId: string, r: Norma
       );
       db.run("INSERT OR IGNORE INTO article_topics (article_id, topic_id, method, confidence) VALUES (?,?, 'source_query', 0.8)", existing.id, topicId);
       const prev = db.get<{ content_hash: string }>('SELECT content_hash FROM article_sources WHERE article_id = ? AND source_id = ? ORDER BY retrieved_at DESC LIMIT 1', existing.id, sourceId);
-      if (prev && prev.content_hash !== hash) {
+      if (!prev) {
+        // Primeira vez que esta fonte traz o artigo: registra (pode trazer o abstract que faltava).
+        insertSource(db, existing.id, sourceId, r, hash, '1');
+      } else if (prev.content_hash !== hash) {
         const n = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM article_sources WHERE article_id = ? AND source_id = ?', existing.id, sourceId)!.n;
         insertSource(db, existing.id, sourceId, r, hash, String(n + 1));
         if (r.retracted) db.run("INSERT INTO article_corrections (id, article_id, kind, note, created_at) VALUES (?,?, 'retraction', ?, ?)", id(), existing.id, 'PubMed indica retratação desta publicação.', nowIso());
       }
-      return { articleId: existing.id, inserted: false };
+      // Abstract que chegou depois: refaz a triagem só se o motivo da exclusão era a falta dele (exclusão por tipo,
+      // idioma ou pela triagem de IA continua valendo).
+      if (r.abstract) {
+        const cur = db.get<{ triage_status: string; triage_reason: string | null }>('SELECT triage_status, triage_reason FROM articles WHERE id = ?', existing.id)!;
+        const t = triage(r);
+        if (cur.triage_status === 'excluded' && cur.triage_reason?.startsWith('Sem abstract') && t.status === 'eligible') {
+          db.run("UPDATE articles SET triage_status = 'eligible', triage_reason = ?, access_status = 'abstract_only', updated_at = ? WHERE id = ?", t.reason, nowIso(), existing.id);
+        }
+      }
+      return { articleId: existing.id, inserted: false, queued: ensureAnalysisJob(db, existing.id, r.publicationTypes) };
     }
     let journalId: string | null = null;
     if (r.journal?.title) {
@@ -70,11 +91,9 @@ export function upsertRecord(db: Db, sourceId: string, topicId: string, r: Norma
     insertSource(db, articleId, sourceId, r, hash, '1');
     db.run("INSERT INTO article_topics (article_id, topic_id, method, confidence) VALUES (?,?, 'source_query', 0.8)", articleId, topicId);
     // Possível duplicata por título (ex.: preprint vs publicação): só sinaliza.
-    const twin = db.get<{ id: string }>('SELECT id FROM articles WHERE id <> ? AND lower(original_title) = ? LIMIT 1', articleId, r.title.toLowerCase());
-    if (twin || normTitle(r.title).length === 0) {
-      if (twin) db.run('INSERT OR IGNORE INTO duplicate_candidates (id, article_id, other_article_id, reason, created_at) VALUES (?,?,?,?,?)', id(), articleId, twin.id, 'Título idêntico com identificadores diferentes', nowIso());
-    }
-    return { articleId, inserted: true };
+    const twin = db.get<{ id: string }>('SELECT id FROM articles WHERE lower(original_title) = lower(?) AND id <> ? LIMIT 1', r.title, articleId);
+    if (twin) db.run('INSERT OR IGNORE INTO duplicate_candidates (id, article_id, other_article_id, reason, created_at) VALUES (?,?,?,?,?)', id(), articleId, twin.id, 'Título idêntico com identificadores diferentes', nowIso());
+    return { articleId, inserted: true, queued: ensureAnalysisJob(db, articleId, r.publicationTypes) };
   });
 }
 
@@ -103,33 +122,49 @@ export async function discover(db: Db, cfg: Config, adapter: ScientificSourceAda
     runId, source.id, topic.id, jobId, topic.source_query, topic.query_version, from, today, nowIso(),
   );
   try {
-    const { ids, total } = await adapter.search(topic.source_query, from, today, cfg.INGEST_MAX_PER_TOPIC, topic.label);
-    const records = await adapter.fetchDetails(ids);
+    // Janela maior que o limite por busca: divide o intervalo de datas ao meio até cada pedaço caber. Um único dia
+    // que ainda não cabe deixa a janela incompleta, e aí o cursor NÃO avança (nada fica para trás em silêncio).
+    const ids = new Set<string>();
+    let found = 0;
+    let incomplete: string | null = null;
+    const collect = async (a: string, b: string): Promise<void> => {
+      const res = await adapter.search(topic.source_query!, a, b, cfg.INGEST_MAX_PER_TOPIC, topic.label);
+      if (res.total > res.ids.length && a < b) {
+        const days = Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
+        const mid = addDays(`${a}T00:00:00Z`, Math.floor(days / 2)).slice(0, 10);
+        await collect(a, mid);
+        await collect(addDays(`${mid}T00:00:00Z`, 1).slice(0, 10), b);
+        return;
+      }
+      found += res.total;
+      res.ids.forEach((x) => ids.add(x));
+      if (res.total > res.ids.length) incomplete = `Dia ${a} com ${res.total} resultados e limite de ${res.ids.length}; aumente INGEST_MAX_PER_TOPIC.`;
+    };
+    await collect(from, today);
+    const records = await adapter.fetchDetails([...ids]);
     let inserted = 0;
     let duplicates = 0;
-    const eligible: { articleId: string; priority: number }[] = [];
+    let queued = 0;
     for (const r of records) {
       const res = upsertRecord(db, source.id, topic.id, r);
-      if (res.inserted) {
-        inserted++;
-        if (triage(r).status === 'eligible') eligible.push({ articleId: res.articleId, priority: analyzePriority(r.publicationTypes) });
-      } else duplicates++;
+      if (res.inserted) inserted++;
+      else duplicates++;
+      if (res.queued) queued++;
     }
     db.tx(() => {
-      // Corte: mais resultados que o limite lido. Fica registrado (aparece em /admin/jobs) em vez de se perder em silêncio.
-      const note = total > ids.length ? `Janela truncada: ${ids.length} de ${total} lidos; aumente INGEST_MAX_PER_TOPIC.` : null;
-      db.run("UPDATE ingestion_runs SET status = 'completed', found = ?, inserted = ?, duplicates = ?, error = ?, finished_at = ? WHERE id = ?", total, inserted, duplicates, note, nowIso(), runId);
-      db.run(
-        'INSERT INTO source_cursors (source_id, topic_id, cursor_date, updated_at) VALUES (?,?,?,?) ON CONFLICT (source_id, topic_id) DO UPDATE SET cursor_date = excluded.cursor_date, updated_at = excluded.updated_at',
-        source.id, topic.id, today, nowIso(),
-      );
+      db.run("UPDATE ingestion_runs SET status = 'completed', found = ?, inserted = ?, duplicates = ?, error = ?, finished_at = ? WHERE id = ?", found, inserted, duplicates, incomplete, nowIso(), runId);
+      if (!incomplete) {
+        db.run(
+          'INSERT INTO source_cursors (source_id, topic_id, cursor_date, updated_at) VALUES (?,?,?,?) ON CONFLICT (source_id, topic_id) DO UPDATE SET cursor_date = excluded.cursor_date, updated_at = excluded.updated_at',
+          source.id, topic.id, today, nowIso(),
+        );
+      }
       db.run('UPDATE sources SET last_success_at = ?, last_error = NULL WHERE id = ?', nowIso(), source.id);
-      for (const a of eligible) enqueue(db, 'analyze', `analyze:${a.articleId}:${PROMPT_VERSION}`, { articleId: a.articleId }, { priority: a.priority });
       syncQualis(db); // revistas novas que já estão na tabela consultada ganham o Qualis
     });
-    return { runId, found: total, fetched: records.length, inserted, duplicates, queuedForAnalysis: eligible.length };
+    return { runId, found, fetched: records.length, inserted, duplicates, queuedForAnalysis: queued, incomplete };
   } catch (e) {
-    const msg = (e as Error).message.slice(0, 500);
+    const msg = (e instanceof Error ? e.message : String(e)).slice(0, 500);
     db.run("UPDATE ingestion_runs SET status = 'failed', error = ?, finished_at = ? WHERE id = ?", msg, nowIso(), runId);
     db.run('UPDATE sources SET last_error = ? WHERE id = ?', msg, source.id);
     throw e;

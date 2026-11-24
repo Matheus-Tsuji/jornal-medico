@@ -77,3 +77,48 @@ def test_http_contract():
             assert e.code == 400
     finally:
         srv.shutdown()
+
+
+def test_parity_with_typescript_reasons_and_matched_topics():
+    case = json.loads((Path(__file__).parent / "parity_case.json").read_text(encoding="utf-8"))
+    out = rank(case["candidates"], case["profile"], len(case["candidates"]))
+    got = {x["id"]: {"reasons": x["reasons"], "matchedTopics": x["matchedTopics"]} for x in out}
+    assert got == case["expected"]
+
+
+def test_source_reason_parity():
+    r = rank(POOL, {**EMPTY, "sources": ["pubmed"]}, 2)
+    assert all("Fonte que você segue" in x["reasons"] for x in r)
+
+
+def _raw_post(port, headers, body=b""):
+    import http.client
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.putrequest("POST", "/rank")
+    for k, v in headers.items():
+        conn.putheader(k, v)
+    conn.endheaders()
+    if body:
+        conn.send(body)
+    status = conn.getresponse().status
+    conn.close()
+    return status
+
+
+def test_http_rejects_bad_input():
+    import serve
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    port = srv.server_port
+    try:
+        assert _raw_post(port, {"content-length": "abc"}) == 400
+        assert _raw_post(port, {"content-length": str(serve.MAX_BODY + 1)}) == 413
+        bad_profile = json.dumps({"candidates": POOL, "profile": [], "k": 2}).encode()
+        assert _raw_post(port, {"content-length": str(len(bad_profile))}, bad_profile) == 400
+        serve.TOKEN = "segredo-de-teste"
+        ok = json.dumps({"candidates": POOL, "profile": EMPTY, "k": 2}).encode()
+        assert _raw_post(port, {"content-length": str(len(ok))}, ok) == 401
+        assert _raw_post(port, {"content-length": str(len(ok)), "authorization": "Bearer segredo-de-teste"}, ok) == 200
+    finally:
+        serve.TOKEN = ""
+        srv.shutdown()

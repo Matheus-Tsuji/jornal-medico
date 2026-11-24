@@ -1,0 +1,123 @@
+{
+  "candidates": [
+    {
+      "id": "h1",
+      "articleId": "art-h1",
+      "topics": [
+        "hipertensao-arterial",
+        "cardiologia",
+        "clinica-medica"
+      ],
+      "primaryTopic": "hipertensao-arterial",
+      "source": "pubmed",
+      "ageDays": 2,
+      "priority": 0.9,
+      "read": false,
+      "labels": {
+        "hipertensao-arterial": "Tema hipertensao-arterial",
+        "cardiologia": "Área cardiologia"
+      }
+    },
+    {
+      "id": "d1",
+      "articleId": "art-d1",
+      "topics": [
+        "diabetes",
+        "endocrinologia",
+        "clinica-medica"
+      ],
+      "primaryTopic": "diabetes",
+      "source": "pubmed",
+      "ageDays": 1,
+      "priority": 0.5,
+      "read": false,
+      "labels": {
+        "diabetes": "Tema diabetes",
+        "endocrinologia": "Área endocrinologia"
+      }
+    },
+    {
+      "id": "i1",
+      "articleId": "art-i1",
+      "topics": [
+        "insuficiencia-cardiaca",
+        "cardiologia",
+        "clinica-medica"
+      ],
+      "primaryTopic": "insuficiencia-cardiaca",
+      "source": "pubmed",
+      "ageDays": 20,
+      "priority": 0.5,
+      "read": true,
+      "labels": {
+        "insuficiencia-cardiaca": "Tema insuficiencia-cardiaca",
+        "cardiologia": "Área cardiologia"
+      }
+    },
+    {
+      "id": "a1",
+      "articleId": "art-a1",
+      "topics": [
+        "asma",
+        "pneumologia",
+        "clinica-medica"
+      ],
+      "primaryTopic": "asma",
+      "source": "europepmc",
+      "ageDays": 10,
+      "priority": 0.5,
+      "read": false,
+      "labels": {
+        "asma": "Tema asma",
+        "pneumologia": "Área pneumologia"
+      }
+    }
+  ],
+  "profile": {
+    "topics": [
+      "hipertensao-arterial",
+      "cardiologia"
+    ],
+    "sources": [
+      "pubmed"
+    ],
+    "lessTopics": [
+      "diabetes"
+    ],
+    "personalization": true
+  },
+  "expected": {
+    "h1": {
+      "reasons": [
+        "Você segue Tema hipertensao-arterial",
+        "Destaque editorial",
+        "Publicado recentemente"
+      ],
+      "matchedTopics": [
+        "hipertensao-arterial",
+        "cardiologia"
+      ]
+    },
+    "i1": {
+      "reasons": [
+        "Você segue Área cardiologia"
+      ],
+      "matchedTopics": [
+        "cardiologia"
+      ]
+    },
+    "a1": {
+      "reasons": [
+        "Seleção editorial recente"
+      ],
+      "matchedTopics": []
+    },
+    "d1": {
+      "reasons": [
+        "Menos peso: você pediu menos deste tema",
+        "Publicado recentemente"
+      ],
+      "matchedTopics": []
+    }
+  }
+}

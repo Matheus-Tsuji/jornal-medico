@@ -13,8 +13,13 @@ export class TransientError extends Error {
 export type FetchLike = typeof fetch;
 
 export async function safeFetch(url: string, init: RequestInit & { timeoutMs?: number } = {}, f: FetchLike = fetch): Promise<Response> {
-  const u = new URL(url);
-  if (u.protocol !== 'https:' || !ALLOWED_HOSTS.has(u.hostname)) {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    throw new AppError(400, 'host_not_allowed', 'URL inválida.');
+  }
+  if (u.protocol !== 'https:' || u.username || u.password || (u.port && u.port !== '443') || !ALLOWED_HOSTS.has(u.hostname)) {
     throw new AppError(400, 'host_not_allowed', `Host não autorizado: ${u.hostname}`);
   }
   let res: Response;

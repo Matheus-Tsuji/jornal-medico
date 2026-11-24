@@ -41,8 +41,8 @@ await build({
 });
 
 // Arquivos lidos em tempo de execução (migrações, prompts, preços de IA, tabela Qualis).
-for (const dir of ['apps/server/src/db/migrations', 'apps/server/src/ai/prompts', 'apps/server/config', 'apps/server/data']) {
-  cpSync(dir, join(FUNC, 'root', dir), { recursive: true });
+for (const path of ['apps/server/src/db/migrations', 'apps/server/src/ai/prompts', 'apps/server/config', 'apps/server/data/vitrine.db']) {
+  cpSync(path, join(FUNC, 'root', path), { recursive: true });
 }
 
 // Vitrine: segredo novo a cada deploy, gravado só na cópia que vai dentro do pacote (nunca no Git). Assim todas

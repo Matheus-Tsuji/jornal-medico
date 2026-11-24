@@ -161,9 +161,9 @@ function Editions() {
   const qc = useQueryClient();
   const [date, setDate] = useState(today());
   const list = useAdmin<{ items: Row[] }>('/admin/editions');
-  const preview = useQuery({ queryKey: ['admin', 'preview', date], queryFn: () => api<{ status: string; edition: { headline: { headline: string } | null; secondary: unknown[]; sections: unknown[] } }>(`/admin/editions/${date}/preview`), retry: false });
+  const preview = useQuery({ queryKey: ['admin', 'preview', date], queryFn: () => api<{ status: string; editionId: string; edition: { headline: { headline: string } | null; secondary: unknown[]; sections: unknown[] } }>(`/admin/editions/${date}/preview`), retry: false });
   const act = useMutation({
-    mutationFn: (a: 'compose' | 'publish') => api(`/admin/editions/${date}/${a}`, { method: 'POST' }),
+    mutationFn: (a: 'compose' | 'publish') => api(`/admin/editions/${date}/${a}`, a === 'publish' ? { method: 'POST', body: { editionId: preview.data?.editionId } } : { method: 'POST' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin'] }),
   });
   return (

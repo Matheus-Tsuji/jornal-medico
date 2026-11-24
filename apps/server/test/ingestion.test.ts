@@ -5,7 +5,7 @@ import { parsePubmedXml, pubmedAdapter } from '../src/sources/pubmed.ts';
 import { discover, triage } from '../src/worker/ingestion.ts';
 import { claim, complete, enqueue, retryLater } from '../src/modules/jobs.ts';
 import { workOnce } from '../src/worker/runner.ts';
-import { TransientError } from '../src/lib/net.ts';
+import { safeFetch, TransientError } from '../src/lib/net.ts';
 import { fakeAdapter, fixtureXml, testConfig } from './helpers.ts';
 
 const fresh = () => {
@@ -92,6 +92,24 @@ describe('descoberta incremental', () => {
     expect(url).toContain('tool=jornal_medico');
     expect(url).toContain('datetype=edat');
   });
+
+  it('safeFetch rejeita URL inválida, credenciais, porta não padrão e host fora da allowlist', async () => {
+    let called = false;
+    const f = (async () => { called = true; return new Response('ok'); }) as typeof fetch;
+    for (const bad of [
+      'nao-e-url',
+      'http://api.crossref.org/works',
+      'https://evil.example/works',
+      'https://user:pass@api.crossref.org/works',
+      'https://api.crossref.org:8443/works',
+    ]) {
+      await expect(safeFetch(bad, {}, f)).rejects.toMatchObject({ code: 'host_not_allowed' });
+    }
+    expect(called).toBe(false);
+    const res = await safeFetch('https://api.crossref.org:443/works', {}, f);
+    expect(res.ok).toBe(true);
+    expect(called).toBe(true);
+  });
 });
 
 describe('fila de jobs', () => {
@@ -111,7 +129,7 @@ describe('fila de jobs', () => {
     const row = db.get<{ status: string; next_run_at: string }>('SELECT status, next_run_at FROM jobs WHERE id = ?', a.id)!;
     expect(row.status).toBe('retry');
     expect(Date.parse(row.next_run_at) - Date.now()).toBeGreaterThan(110_000);
-    complete(db, a.id);
+    expect(complete(db, again)).toBe(false); // depois de reagendado o job não é mais deste worker
   });
 
   it('job de análise sem chave OpenAI é adiado sem gastar tentativa (não falha em loop nem inventa)', async () => {
