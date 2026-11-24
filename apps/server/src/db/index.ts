@@ -21,6 +21,7 @@ const clean = <T>(r: unknown): T => {
 
 export class Db {
   readonly raw: Database.Database;
+  private readonly statements = new Map<string, Database.Statement<Params>>();
   constructor(path: string, authToken?: string) {
     if (isRemote(path)) {
       // authToken é aceito pela conexão remota (libsql/index.js), mas falta nos tipos publicados.
@@ -34,14 +35,27 @@ export class Db {
     this.raw.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
     if (file !== ':memory:') this.raw.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;');
   }
+  // Reutiliza apenas o SQL compilado. Cada execução consulta os dados atuais.
+  private prepare(sql: string) {
+    const cached = this.statements.get(sql);
+    if (cached) {
+      this.statements.delete(sql);
+      this.statements.set(sql, cached);
+      return cached;
+    }
+    const statement = this.raw.prepare<Params>(sql);
+    if (this.statements.size >= 128) this.statements.delete(this.statements.keys().next().value!);
+    this.statements.set(sql, statement);
+    return statement;
+  }
   get<T = Row>(sql: string, ...params: Params): T | undefined {
-    return clean<T | undefined>(this.raw.prepare(sql).get(...params));
+    return clean<T | undefined>(this.prepare(sql).get(...params));
   }
   all<T = Row>(sql: string, ...params: Params): T[] {
-    return (this.raw.prepare(sql).all(...params) as unknown[]).map((r) => clean<T>(r));
+    return (this.prepare(sql).all(...params) as unknown[]).map((r) => clean<T>(r));
   }
   run(sql: string, ...params: Params): { changes: number; lastInsertRowid: number | bigint } {
-    return this.raw.prepare(sql).run(...params);
+    return this.prepare(sql).run(...params);
   }
   /** Transação síncrona; desfaz tudo se a função lançar. */
   private depth = 0;
@@ -66,6 +80,7 @@ export class Db {
     }
   }
   close() {
+    this.statements.clear();
     this.raw.close();
   }
 }

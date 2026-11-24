@@ -159,7 +159,7 @@ export function recommenderEndpoint(raw: string): string | null {
 }
 
 /** Tenta o serviço Python; qualquer falha ou atraso cai no baseline. */
-export async function recommend(db: Db, cfg: Config, userId: string | null, k = 6, f: typeof fetch = fetch): Promise<{ ranked: Ranked[]; engine: string }> {
+export async function recommend(db: Db, cfg: Config, userId: string | null, k = 6, f: typeof fetch = fetch): Promise<{ ranked: Ranked[]; engine: string; profile: Profile }> {
   const cands = loadCandidates(db, userId);
   const profile = loadProfile(db, userId);
   const endpoint = cfg.RECOMMENDER_URL ? recommenderEndpoint(cfg.RECOMMENDER_URL) : null;
@@ -180,7 +180,7 @@ export async function recommend(db: Db, cfg: Config, userId: string | null, k = 
         if (!body.success) why = 'resposta fora do contrato';
         else if (new Set(body.data.ranked.map((r) => r.id)).size !== body.data.ranked.length) why = 'IDs repetidos';
         else if (!body.data.ranked.every((r) => valid.has(r.id))) why = 'ID fora dos candidatos';
-        else return { ranked: body.data.ranked.slice(0, k), engine: `python:${body.data.model_version ?? 'desconhecido'}` };
+        else return { profile, ranked: body.data.ranked.slice(0, k), engine: `python:${body.data.model_version ?? 'desconhecido'}` };
       }
     } catch (e) {
       why = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
@@ -188,5 +188,5 @@ export async function recommend(db: Db, cfg: Config, userId: string | null, k = 
     // O jornal segue com o baseline, mas a falha fica registrada.
     console.warn(JSON.stringify({ level: 'warn', msg: 'recommender_fallback', reason: why.slice(0, 200) }));
   }
-  return { ranked: rankCandidates(cands, profile, k), engine: 'baseline-ts-v1' };
+  return { profile, ranked: rankCandidates(cands, profile, k), engine: 'baseline-ts-v1' };
 }

@@ -224,8 +224,8 @@ export function articleDetail(db: Db, slug: string, opts: { userId?: string | nu
   const an = db.get('SELECT * FROM analyses WHERE id = ?', aid)!;
   const payload = json<AiAnalysis>(an.payload, {} as AiAnalysis);
   const review = db.get<{ created_at: string }>("SELECT created_at FROM editorial_reviews WHERE analysis_id = ? AND decision = 'approve' ORDER BY created_at DESC LIMIT 1", aid);
-  const results = db.all('SELECT * FROM evidence_results WHERE analysis_id = ? ORDER BY ord', aid).map(resultRow);
-  const claims = claimsOf(db, aid);
+
+
   const cls = db.get<{ system: string; stratum: string; cycle: string; source_url: string }>(
     'SELECT system, stratum, cycle, source_url FROM journal_classifications WHERE journal_id = ? ORDER BY imported_at DESC LIMIT 1', (art.jid as string) ?? '',
   );
@@ -246,7 +246,11 @@ export function articleDetail(db: Db, slug: string, opts: { userId?: string | nu
     locked,
     journalClassification: cls ? { system: cls.system, stratum: cls.stratum, cycle: cls.cycle, sourceUrl: cls.source_url } : null,
     summary: payload.summary ?? null,
-    analysis: locked ? null : { ...payload, results, claims },
+    analysis: locked ? null : {
+      ...payload,
+      results: db.all('SELECT * FROM evidence_results WHERE analysis_id = ? ORDER BY ord', aid).map(resultRow),
+      claims: claimsOf(db, aid),
+    },
     corrections: db.all<{ created_at: string; note: string }>('SELECT created_at, note FROM article_corrections WHERE article_id = ? ORDER BY created_at', art.id as string)
       .map((c) => ({ date: c.created_at, note: c.note })),
   };

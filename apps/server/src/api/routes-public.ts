@@ -10,7 +10,7 @@ import { createGuest, loginWithPassword, registerWithPassword, requestCode, revo
 import { listMonitor } from '../modules/monitor.ts';
 import { entitled } from '../modules/billing.ts';
 import { articleDetail, cardMap, cards, editionDto, editionList, oneVisiblePerArticle, previewEdition, publishedEdition, visibility } from '../modules/content.ts';
-import { loadProfile, recommend } from '../modules/ranking.ts';
+import { recommend } from '../modules/ranking.ts';
 import { requireUser, setSessionCookie, type Ctx } from './app.ts';
 
 export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
@@ -113,10 +113,10 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   const forYou = async (userId: string | null) => {
     // "Para você" = só o que bate com os interesses de quem segue temas (sem completar com itens aleatórios).
     // Sem interesses (ou sem login), vira a seleção geral do sistema, rotulada como tal.
-    const { ranked } = await recommend(db, cfg, userId, 40);
-    const prof = userId ? loadProfile(db, userId) : null;
+    const { ranked, profile } = await recommend(db, cfg, userId, 40);
+
     // Filtra pelo dado estruturado (matchedTopics), não pelo texto do motivo. Personalização desligada = seleção geral.
-    const personal = !!prof && prof.personalization && prof.topics.length > 0;
+    const personal = profile.personalization && profile.topics.length > 0;
     const picked = personal ? ranked.filter((r) => r.matchedTopics.length > 0) : ranked;
     const m = cardMap(db, picked.map((r) => r.id), userId, true);
     return picked
