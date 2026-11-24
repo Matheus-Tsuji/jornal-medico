@@ -12,6 +12,8 @@ import { defaultDeps, runCycle, schedule, workOnce } from './runner.ts';
 import { enqueue, requeue } from '../modules/jobs.ts';
 import { automaticSources, syncMonitor } from '../modules/monitor.ts';
 import { discover } from './ingestion.ts';
+import { exportPending, importAnalyses } from '../ai/handoff.ts';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 const [cmd, arg] = process.argv.slice(2);
 const cfg = loadConfig();
@@ -34,6 +36,20 @@ switch (cmd) {
   case 'analyze':
     out(await analyzeArticle(db, cfg, deps.provider, arg ?? ''));
     break;
+  case 'claude-export': {
+    // claude-export ARQUIVO [N]: documentos pendentes + prompts, para o Claude da rotina escrever as análises (sem chave de API).
+    if (!arg) throw new Error('Uso: claude-export ARQUIVO.json [N]');
+    const r = exportPending(db, Number(process.argv[4] ?? 10));
+    writeFileSync(arg, JSON.stringify(r, null, 2));
+    out({ file: arg, items: r.items.length, promptVersion: r.promptVersion });
+    break;
+  }
+  case 'claude-import': {
+    // claude-import ARQUIVO: revalida e grava como rascunho (in_review/blocked); nunca publica.
+    if (!arg) throw new Error('Uso: claude-import ARQUIVO.json');
+    out(importAnalyses(db, JSON.parse(readFileSync(arg, 'utf8'))));
+    break;
+  }
   case 'compose':
     out(composeEdition(db, arg ?? localDate(cfg.APP_TIMEZONE)));
     break;
@@ -91,7 +107,7 @@ switch (cmd) {
     break;
   }
   default:
-    console.log('Uso: pipeline <monitor [FONTE] | discover TEMA | analyze ARTICLE_ID | compose [YYYY-MM-DD] | schedule | cycle [SEGUNDOS] | retry-blocked | reanalyze | revalidate | run>');
+    console.log('Uso: pipeline <monitor [FONTE] | discover TEMA | analyze ARTICLE_ID | compose [YYYY-MM-DD] | schedule | cycle [SEGUNDOS] | retry-blocked | claude-export ARQ [N] | claude-import ARQ | reanalyze | revalidate | run>');
     process.exitCode = 1;
 }
 db.close();
