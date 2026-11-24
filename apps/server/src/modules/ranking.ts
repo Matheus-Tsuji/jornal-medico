@@ -71,7 +71,13 @@ export function rankCandidates(cands: Candidate[], profile: Profile, k: number, 
 export function loadProfile(db: Db, userId: string | null): Profile {
   if (!userId) return { topics: [], sources: [], lessTopics: [], personalization: false };
   const u = db.get<{ personalization_enabled: number }>('SELECT personalization_enabled FROM users WHERE id = ?', userId);
-  const topics = db.all<{ slug: string }>('SELECT t.slug FROM user_preferences p JOIN topics t ON t.id = p.topic_id WHERE p.user_id = ? AND p.follow = 1', userId).map((r) => r.slug);
+  // Seguir uma área ou subárea vale para tudo abaixo dela (ex.: seguir "Clínica médica" inclui "Diabetes").
+  const topics = db.all<{ slug: string }>(
+    `WITH RECURSIVE f(id) AS (
+       SELECT p.topic_id FROM user_preferences p WHERE p.user_id = ? AND p.follow = 1 AND p.topic_id IS NOT NULL
+       UNION SELECT t.id FROM topics t JOIN f ON t.parent_id = f.id)
+     SELECT DISTINCT t.slug FROM f JOIN topics t ON t.id = f.id`, userId,
+  ).map((r) => r.slug);
   const sources = db.all<{ slug: string }>('SELECT s.slug FROM user_preferences p JOIN sources s ON s.id = p.source_id WHERE p.user_id = ? AND p.follow = 1', userId).map((r) => r.slug);
   const lessTopics = db.all<{ slug: string }>(
     `SELECT DISTINCT t.slug FROM feedback f JOIN article_topics at ON at.article_id = f.article_id JOIN topics t ON t.id = at.topic_id

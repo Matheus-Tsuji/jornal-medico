@@ -9,7 +9,7 @@ import { createGuest, loginWithPassword, registerWithPassword, requestCode, revo
 import { listMonitor } from '../modules/monitor.ts';
 import { entitled } from '../modules/billing.ts';
 import { articleDetail, cardMap, cards, editionDto, editionList, previewEdition, publishedEdition, visibility } from '../modules/content.ts';
-import { recommend } from '../modules/ranking.ts';
+import { loadProfile, recommend } from '../modules/ranking.ts';
 import { requireUser, setSessionCookie, type Ctx } from './app.ts';
 
 export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
@@ -100,12 +100,15 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
 
   // ---------- Edições ----------
   const withForYou = async (dto: ReturnType<typeof editionDto>, userId: string | null) => {
-    const { ranked } = await recommend(db, cfg, userId, 6);
-    const inEdition = new Set([dto.headline?.id, ...dto.secondary.map((c) => c.id)]);
-    const m = cardMap(db, ranked.map((r) => r.id), userId);
-    dto.forYou = ranked
-      .flatMap((r): ArticleCard[] => { const c = m.get(r.id); return c && !inEdition.has(c.id) ? [{ ...c, reasons: r.reasons }] : []; })
-      .slice(0, 4);
+    // "Para você" = só o que bate com os interesses de quem segue temas (sem completar com itens aleatórios).
+    // Sem interesses (ou sem login), vira a seleção geral do sistema, rotulada como tal.
+    const { ranked } = await recommend(db, cfg, userId, 40);
+    const follows = userId ? loadProfile(db, userId).topics.length > 0 : false;
+    const picked = follows ? ranked.filter((r) => r.reasons.some((x) => x.startsWith('Você segue'))) : ranked;
+    const m = cardMap(db, picked.map((r) => r.id), userId);
+    dto.forYou = picked
+      .flatMap((r): ArticleCard[] => { const c = m.get(r.id); return c ? [{ ...c, reasons: r.reasons }] : []; })
+      .slice(0, 10);
     return dto;
   };
   app.get('/editions/latest', async (req) => {

@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
-import { Monitor, Moon, Search, Sun, UserRound } from 'lucide-react';
+import { Bookmark, ChevronRight, Clock, Menu, Monitor, Moon, Search, SlidersHorizontal, Sun, UserRound, X } from 'lucide-react';
 import { DISCLAIMER, IndiLogo, IndiMark } from './Brand';
 import { useConfig, useMe, useTopics } from '../lib/api';
 import ScrollRow from './ScrollRow';
@@ -33,6 +33,75 @@ function ReaderCard() {
 
 const themeLabel = { system: 'Automático', light: 'Claro', dark: 'Escuro' } as const;
 
+// Celular: menu em gaveta (padrão de apps de notícia como NYT e Guardian): conta, seções e ajustes num só lugar.
+// <dialog> nativo dá foco preso, Esc para fechar e fundo escurecido sem biblioteca.
+function MobileMenu({ prefs }: { prefs: LayoutCtx }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
+  const me = useMe();
+  const topics = useTopics();
+  const loc = useLocation();
+  const areas = (topics.data ?? []).filter((t) => t.level === 'area' && t.enabled);
+  const u = me.data;
+  const guest = !u || u.isGuest;
+  const name = guest ? 'Visitante' : u!.displayName ?? u!.email.split('@')[0]!;
+  useEffect(() => { ref.current?.close(); }, [loc.pathname]);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    if (!open && d.open) d.close();
+  }, [open]);
+  const sections: [string, string][] = [['/jornal', 'Hoje'], ['/congressos', 'Congressos'], ...areas.map((a) => [`/areas/${a.slug}`, a.label] as [string, string]), ['/regulacao', 'Saúde pública e regulação'], ['/publicacoes', 'Publicações científicas']];
+  return (
+    <>
+      <button type="button" className="btn btn-ghost !min-h-11 !px-3 md:hidden" aria-label="Abrir menu" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
+        <Menu size={22} aria-hidden />
+      </button>
+      <dialog ref={ref} className="mobile-menu" aria-label="Menu" onClose={() => setOpen(false)} onClick={(e) => { if (e.target === ref.current) setOpen(false); }}>
+        <div className="mobile-menu-panel">
+          <div className="flex items-center justify-between">
+            <IndiLogo height={40} />
+            <button type="button" className="btn btn-ghost !min-h-11 !px-3" aria-label="Fechar menu" onClick={() => setOpen(false)}><X size={22} aria-hidden /></button>
+          </div>
+
+          <Link to="/perfil" className="mobile-menu-user">
+            <span className="reader-avatar" aria-hidden>{name[0]!.toUpperCase()}</span>
+            <span className="grid flex-1"><span className="font-semibold">{name}</span><span className="text-xs text-muted">{guest ? 'Entre para personalizar sua capa' : 'Ver meu perfil'}</span></span>
+            <ChevronRight size={18} aria-hidden className="text-muted" />
+          </Link>
+          {guest
+            ? <Link to="/entrar" className="btn btn-primary">Entrar ou criar conta</Link>
+            : (
+              <div className="grid grid-cols-3 gap-2">
+                <Link to="/salvos" className="mobile-menu-tile"><Bookmark size={18} aria-hidden />Salvos</Link>
+                <Link to="/historico" className="mobile-menu-tile"><Clock size={18} aria-hidden />Histórico</Link>
+                <Link to="/configuracoes" className="mobile-menu-tile"><SlidersHorizontal size={18} aria-hidden />Interesses</Link>
+              </div>
+            )}
+
+          <nav aria-label="Seções (menu)" className="grid">
+            <p className="kicker m-0 mb-1 text-muted">Seções</p>
+            {sections.map(([to, label]) => (
+              <NavLink key={to} to={to} end={to === '/jornal'} className={({ isActive }) => `mobile-menu-link ${isActive ? 'is-active' : ''}`}>{label}<ChevronRight size={16} aria-hidden /></NavLink>
+            ))}
+          </nav>
+
+          <div className="grid gap-2">
+            <p className="kicker m-0 text-muted">Leitura</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={prefs.cycleTheme} className="btn btn-ghost">
+                {prefs.theme === 'light' ? <Sun size={16} aria-hidden /> : prefs.theme === 'dark' ? <Moon size={16} aria-hidden /> : <Monitor size={16} aria-hidden />} {themeLabel[prefs.theme]}
+              </button>
+              <button type="button" onClick={prefs.cycleScale} className="btn btn-ghost">Aa · {Math.round(Number(prefs.scale) * 100)}%</button>
+            </div>
+          </div>
+        </div>
+      </dialog>
+    </>
+  );
+}
+
 // O cabeçalho NÃO muda de altura com a rolagem: no Safari (iOS e macOS), encolher o header pela posição do scroll
 // mudava a altura da página, que mudava o scroll, que desfazia o encolhimento (flicker). Agora o logo grande rola
 // normalmente e só a barra de seções fica presa no topo.
@@ -40,10 +109,11 @@ function Masthead({ prefs }: { prefs: LayoutCtx }) {
   return (
     <>
     <header className="border-b border-line bg-paper">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-6 px-4 pt-7 pb-6">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 pt-4 pb-4 md:flex-wrap md:items-end md:pt-7 md:pb-6">
         {/* Encolhe com a rolagem só por transform (CSS, sem JS): a altura não muda, então o Safari não pisca. */}
-        <Link to="/jornal" className="masthead-logo no-underline" aria-label="Indi — Index Discovery, edição de hoje"><IndiLogo /></Link>
-        <div className="flex flex-wrap items-center gap-4">
+        <Link to="/jornal" className="masthead-logo no-underline" aria-label="Indi — Index Discovery, edição de hoje"><span className="md:hidden"><IndiLogo height={48} /></span><span className="hidden md:block"><IndiLogo /></span></Link>
+        <MobileMenu prefs={prefs} />
+        <div className="hidden flex-wrap items-center gap-4 md:flex">
           <div className="flex gap-1.5">
             {/* Busca: só o lugar no layout por enquanto (pedido do Matheus, 2026-11-16). */}
             <button type="button" className="btn btn-ghost !min-h-11 !px-3" aria-label="Pesquisar (em breve)" title="Pesquisa em breve" aria-disabled="true"><Search size={18} aria-hidden /></button>

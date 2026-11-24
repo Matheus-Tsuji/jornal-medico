@@ -43,9 +43,9 @@ export default function Jornal() {
   // Para você: a seleção pessoal (ou geral, sem login); a manchete abre quando não há seleção.
   const picks = e.forYou.length ? e.forYou : [e.headline, ...e.secondary].filter((x): x is NonNullable<typeof x> => !!x);
   const [forYouLead, ...rest] = picks;
-  const forYouRest = rest.slice(0, 4);
+  const forYouRest = rest.slice(0, 9); // a coluna inteira até "Em alta" é Para você
   const shown = new Set([forYouLead, ...forYouRest].map((a) => a?.id));
-  const more = [e.headline, ...e.secondary].filter((x): x is NonNullable<typeof x> => !!x && !shown.has(x.id)).slice(0, 8);
+  const more = all.filter((x) => !shown.has(x.id)).slice(0, 8);
 
   return (
     <>
