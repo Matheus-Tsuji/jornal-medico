@@ -42,9 +42,9 @@ test('leitor: login, onboarding, edição, detalhe, salvar e persistência', asy
   await page.goto('/artigos/demo-001');
   await expect(page.getByRole('heading', { name: 'Leitura rápida' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Nesta análise' })).toHaveCount(0); // índice removido a pedido (2026-11-19)
-  const mainResult = page.getByRole('region', { name: 'Resultado principal' });
+  const mainResult = page.getByRole('region', { name: 'Resultado geral' });
   await expect(mainResult.getByText('Desfecho', { exact: true })).toBeVisible();
-  const metrics = mainResult.getByRole('table', { name: 'Dados do resultado principal' });
+  const metrics = mainResult.getByRole('table', { name: 'Dados do resultado geral' });
   await expect(metrics.getByRole('columnheader')).toHaveText(['HR', 'IC 95%', 'p-valor']);
   await expect(metrics).toContainText('0,64 a 0,95');
   const pico = page.getByRole('table', { name: /Pergunta do estudo no formato/ });

@@ -65,7 +65,7 @@ export function StatusChips({ a }: { a: Pick<ArticleCard, 'isDemo' | 'reviewStat
   );
 }
 
-/** Uma linha com o resultado principal: "HR 0,78 (IC 95% 0,64 a 0,95; p = 0,01)". */
+/** Uma linha com o resultado geral: "HR 0,78 (IC 95% 0,64 a 0,95; p = 0,01)". */
 export function ResultLine({ k }: { k: KeyResult }) {
   const parts = [k.ci ? `IC ${fmtNum(k.ci.level)}% ${fmtCi(k.ci)}` : null, fmtP(k.p, k.pRaw)].filter(Boolean);
   if (k.estimate == null && !k.estimateRaw && parts.length === 0) return null; // nada reportado: sem linha vazia com "—"
@@ -127,23 +127,23 @@ export function WhyGrade({ evidence }: { evidence: ArticleCard['evidence'] }) {
   );
 }
 
-/** Resultado principal: frase clara, tabela com medida, IC e p, e o "Por que A1?". Só números reportados; ausências aparecem como ausências. */
+/** Resultado geral: frase clara, tabela com medida, IC e p, e o "Por que A1?". Só números reportados; ausências aparecem como ausências. */
 // PICO (estudos experimentais: Intervenção) ou PECO (observacionais: Exposição).
 const EXPERIMENTAL = new Set(['rct', 'cluster_rct']);
 const OBSERVATIONAL = new Set(['cohort', 'case_control', 'cross_sectional']);
 
 const picoKind = (design?: string) => (design && EXPERIMENTAL.has(design) ? { l: 'I', t: 'Intervenção', name: 'PICO' } : design && OBSERVATIONAL.has(design) ? { l: 'E', t: 'Exposição', name: 'PECO' } : { l: 'I/E', t: 'Intervenção ou exposição', name: 'PICO/PECO' });
 
-/** Resultado principal: frase clara, desfecho e tabela de medida, IC e p-valor. Só números reportados; ausências aparecem como ausências. */
+/** Resultado geral: frase clara, desfecho e tabela de medida, IC e p-valor. Só números reportados; ausências aparecem como ausências. */
 export function KeyResultPanel({ k, evidence, compact = false }: { k: KeyResult; evidence?: ArticleCard['evidence']; design?: string; compact?: boolean }) {
   const na = <span className="font-normal text-muted">não reportado</span>;
   return (
-    <section aria-label="Resultado principal" className="tnum grid gap-2 border-t border-line pt-2 text-sm">
-      <p className="kicker m-0 text-muted">Resultado principal</p>
+    <section aria-label="Resultado geral" className="tnum grid gap-2 border-t border-line pt-2 text-sm">
+      <p className="kicker m-0 text-muted">Resultado geral</p>
       {k.plain && <p className={`m-0 font-serif font-semibold leading-snug ${compact ? 'text-base' : 'text-lg'}`}>{k.plain}</p>}
       <p className="key-result-outcome m-0"><span className="kicker mr-1.5 text-muted">Desfecho</span>{k.outcome}</p>
       <table className="key-result-table">
-        <caption className="sr-only">Dados do resultado principal</caption>
+        <caption className="sr-only">Dados do resultado geral</caption>
         <thead>
           <tr>
             <th scope="col">{k.measure ?? 'Medida'}</th>
