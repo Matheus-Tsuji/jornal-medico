@@ -7,6 +7,7 @@ mkdirSync(SHOTS, { recursive: true });
 /** Login pelo fluxo real da UI; o código vem da caixa postal local de desenvolvimento. */
 async function login(page: Page, email: string) {
   await page.goto('/entrar');
+  await page.getByRole('button', { name: 'Entrar com código por e-mail' }).click();
   await page.getByLabel('E-mail').fill(email);
   await page.getByRole('button', { name: 'Receber código' }).click();
   await expect(page.getByLabel('Código')).toBeVisible();
@@ -113,10 +114,30 @@ test('editor: aprova análise pendente com justificativa e trilha de auditoria',
   await expect(page.getByText('Nenhum documento disponível com estes filtros', { exact: true })).toBeVisible();
 });
 
+test('conta com senha: cria, sai e entra de novo', async ({ page }) => {
+  const email = `senha-${Date.now()}@example.com`;
+  await page.goto('/entrar');
+  await page.getByRole('tab', { name: 'Criar conta' }).click();
+  await page.getByLabel('E-mail').fill(email);
+  await page.getByLabel('Senha', { exact: true }).fill('senha-forte-1');
+  await page.getByLabel('Repita a senha').fill('senha-forte-1');
+  await page.getByRole('button', { name: 'Criar conta', exact: true }).click();
+  await expect(page).toHaveURL(/boas-vindas/);
+  await page.context().clearCookies();
+  await page.goto('/entrar');
+  await page.getByLabel('E-mail').fill(email);
+  await page.getByLabel('Senha', { exact: true }).fill('senha-errada');
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('E-mail ou senha incorretos.');
+  await page.getByLabel('Senha', { exact: true }).fill('senha-forte-1');
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+  await expect(page).toHaveURL(/boas-vindas|jornal/);
+});
+
 test('visitante: entra sem e-mail e a barra de seções indica que há mais itens', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto('/entrar');
-  await page.getByRole('button', { name: 'Continuar sem e-mail' }).click();
+  await page.getByRole('button', { name: 'Continuar sem conta' }).click();
   await expect(page).toHaveURL(/boas-vindas/);
   await page.getByRole('button', { name: 'Concluir depois' }).click();
   await expect(page).toHaveURL(/\/jornal$/);

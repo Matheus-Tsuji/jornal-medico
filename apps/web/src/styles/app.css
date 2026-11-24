@@ -266,3 +266,8 @@ section[id] { scroll-margin-top: 4.5rem; }
 .profile-row:hover { border-color: var(--color-primary); transform: translateY(-1px); }
 .profile-row-icon { width: 2.25rem; height: 2.25rem; border-radius: 0.5rem; display: grid; place-items: center; background: var(--color-primary-soft); color: var(--color-primary); flex: none; }
 @media (max-width: 639px) { .profile-stats { margin-left: 0; width: 100%; justify-content: space-between; } }
+
+/* Abas Entrar / Criar conta */
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; padding: 0.25rem; border: 1px solid var(--color-line); border-radius: 0.625rem; background: var(--color-surface); }
+.auth-tabs button { min-height: 44px; border-radius: 0.4rem; font-weight: 600; color: var(--color-muted); transition: background-color .2s var(--ease-ios), color .2s var(--ease-ios); }
+.auth-tabs button[aria-selected="true"] { background: var(--color-primary); color: var(--color-on-primary); }

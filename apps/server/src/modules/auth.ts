@@ -3,6 +3,7 @@
 //   força bruta offline sem o segredo.
 // - Uso único, 10 min de validade, 5 tentativas por desafio, limite de envios por e-mail e por IP.
 // - Respostas idênticas existindo ou não a conta (sem enumeração).
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
 import { AppError, hmac, id, nowIso, randomToken, sha256, sixDigitCode, addDays, safeEqual } from '../lib/util.ts';
@@ -67,12 +68,18 @@ export function verifyCode(db: Db, cfg: Config, email: string, code: string, gue
     // Marca como usado de forma atômica: se outra requisição usou antes, falha.
     const used = db.run('UPDATE auth_challenges SET used_at = ? WHERE id = ? AND used_at IS NULL', nowIso(), ch.id);
     if (Number(used.changes) !== 1) throw invalid;
+    return signIn(db, cfg, email, guestUserId, { verified: true });
+  });
+}
+
+/** Cria (ou reaproveita) a conta do e-mail, absorve o visitante e abre uma sessão. Chamar dentro de db.tx. */
+function signIn(db: Db, cfg: Config, email: string, guestUserId: string | undefined, opts: { verified: boolean; passwordHash?: string }): { token: string; userId: string } {
     let user = db.get<{ id: string; role: string; status: string }>('SELECT id, role, status FROM users WHERE email = ?', email);
     const guest = guestUserId ? db.get<{ id: string }>('SELECT id FROM users WHERE id = ? AND is_guest = 1', guestUserId) : undefined;
     if (guest && !user) {
       // Visitante informa e-mail novo: a própria conta vira conta identificada.
-      const role = cfg.adminEmails.has(email) ? 'admin' : 'reader';
-      db.run('UPDATE users SET email = ?, is_guest = 0, role = ?, verified_at = ? WHERE id = ?', email, role, nowIso(), guest.id);
+      const role = opts.verified && cfg.adminEmails.has(email) ? 'admin' : 'reader';
+      db.run('UPDATE users SET email = ?, is_guest = 0, role = ?, verified_at = ?, password_hash = COALESCE(?, password_hash) WHERE id = ?', email, role, opts.verified ? nowIso() : null, opts.passwordHash ?? null, guest.id);
       user = { id: guest.id, role, status: 'active' };
       audit(db, guest.id, 'user.guest_upgraded', 'user', guest.id);
     } else if (guest && user) {
@@ -85,11 +92,11 @@ export function verifyCode(db: Db, cfg: Config, email: string, code: string, gue
     }
     if (!user) {
       const uid = id();
-      const role = cfg.adminEmails.has(email) ? 'admin' : 'reader';
-      db.run('INSERT INTO users (id, email, role, verified_at, created_at) VALUES (?,?,?,?,?)', uid, email, role, nowIso(), nowIso());
+      const role = opts.verified && cfg.adminEmails.has(email) ? 'admin' : 'reader';
+      db.run('INSERT INTO users (id, email, role, verified_at, password_hash, created_at) VALUES (?,?,?,?,?,?)', uid, email, role, opts.verified ? nowIso() : null, opts.passwordHash ?? null, nowIso());
       user = { id: uid, role, status: 'active' };
       audit(db, uid, 'user.created', 'user', uid, { role });
-    } else if (cfg.adminEmails.has(email) && user.role !== 'admin') {
+    } else if (opts.verified && cfg.adminEmails.has(email) && user.role !== 'admin') {
       db.run("UPDATE users SET role = 'admin' WHERE id = ?", user.id);
     }
     if (user.status !== 'active') throw new AppError(403, 'account_disabled', 'Conta desativada. Fale com o suporte.');
@@ -99,7 +106,6 @@ export function verifyCode(db: Db, cfg: Config, email: string, code: string, gue
       id(), user.id, sha256(token), nowIso(), addDays(nowIso(), cfg.SESSION_DAYS), nowIso(),
     );
     return { token, userId: user.id };
-  });
 }
 
 export interface SessionUser { id: string; email: string; role: 'reader' | 'editor' | 'admin'; sessionId: string; isGuest: boolean }
@@ -154,4 +160,36 @@ export async function sendMail(db: Db, cfg: Config, to: string, subject: string,
     body: JSON.stringify({ from: cfg.AUTH_EMAIL_FROM, to, subject, text: body }),
   });
   if (!res.ok) throw new AppError(502, 'email_failed', 'Não foi possível enviar o e-mail agora. Tente novamente.');
+}
+
+// ---------- E-mail e senha ----------
+// scrypt (N=16384, r=8, p=1) com sal aleatório de 16 bytes; formato "scrypt$<sal hex>$<hash hex>".
+// Cadastro com senha não verifica o e-mail, por isso nunca concede papel de admin (só o login por código concede).
+const hashPassword = (pw: string) => {
+  const salt = randomBytes(16);
+  return `scrypt$${salt.toString('hex')}$${scryptSync(pw, salt, 64).toString('hex')}`;
+};
+const checkPassword = (pw: string, stored: string | null) => {
+  const [kind, salt, hash] = (stored ?? 'scrypt$00$00').split('$');
+  const got = scryptSync(pw, Buffer.from(salt ?? '', 'hex'), 64); // calcula sempre, para não revelar pelo tempo se a conta existe
+  const want = Buffer.from(hash ?? '', 'hex');
+  return kind === 'scrypt' && want.length === got.length && timingSafeEqual(got, want) && !!stored;
+};
+
+export function registerWithPassword(db: Db, cfg: Config, email: string, password: string, guestUserId?: string) {
+  if (db.get('SELECT 1 FROM users WHERE email = ? AND is_guest = 0', email)) {
+    throw new AppError(409, 'email_taken', 'Já existe uma conta com este e-mail. Use "Entrar".');
+  }
+  const passwordHash = hashPassword(password);
+  return db.tx(() => {
+    const r = signIn(db, cfg, email, guestUserId, { verified: false, passwordHash });
+    audit(db, r.userId, 'user.password_registered', 'user', r.userId);
+    return r;
+  });
+}
+
+export function loginWithPassword(db: Db, cfg: Config, email: string, password: string, guestUserId?: string) {
+  const u = db.get<{ password_hash: string | null }>('SELECT password_hash FROM users WHERE email = ? AND is_guest = 0', email);
+  if (!checkPassword(password, u?.password_hash ?? null)) throw new AppError(401, 'invalid_credentials', 'E-mail ou senha incorretos.');
+  return db.tx(() => signIn(db, cfg, email, guestUserId, { verified: false }));
 }

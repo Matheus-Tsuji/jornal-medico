@@ -6,6 +6,8 @@ import { z } from 'zod';
 export const emailSchema = z.string().trim().toLowerCase().pipe(z.email().max(254));
 
 export const requestCodeInput = z.strictObject({ email: emailSchema });
+/** Cadastro/entrada com senha (8 a 128 caracteres). */
+export const passwordAuthInput = z.strictObject({ email: emailSchema, password: z.string().min(8, 'A senha precisa ter pelo menos 8 caracteres.').max(128) });
 export const verifyCodeInput = z.strictObject({
   email: emailSchema,
   code: z.string().regex(/^\d{6}$/, 'O código tem 6 dígitos.'),
