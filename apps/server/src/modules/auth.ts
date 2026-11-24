@@ -129,27 +129,36 @@ function signIn(db: Db, cfg: Config, email: string, guestUserId: string | undefi
 export interface SessionUser { id: string; email: string; role: 'reader' | 'editor' | 'admin'; sessionId: string; isGuest: boolean }
 
 /** Acesso sem e-mail: conta de visitante com sessão própria. O "e-mail" é um marcador .invalid (domínio reservado, nunca recebe envio). */
-// Vitrine (banco efêmero por instância): o token do visitante leva a própria prova, "g1.<uid>.<sid>.<hmac>",
+// Vitrine (banco efêmero por instância): o token do visitante leva a própria prova, "g1.<uid>.<sid>.<exp>.<hmac>",
 // e qualquer instância que o receba recria o visitante e a sessão localmente. Visitante não tem dado pessoal.
-const guestSig = (cfg: Config, uid: string, sid: string) => hmac(secretOf(cfg), `guest:${uid}.${sid}`);
-function insertGuest(db: Db, cfg: Config, uid: string, sid: string, token: string) {
+const guestSig = (cfg: Config, uid: string, sid: string, exp: number) => hmac(secretOf(cfg), `guest:${uid}.${sid}.${exp}`);
+function insertGuest(db: Db, uid: string, sid: string, token: string, expiresAt: string) {
   db.run("INSERT OR IGNORE INTO users (id, email, role, is_guest, created_at) VALUES (?, ?, 'reader', 1, ?)", uid, `visitante-${uid}@visitante.invalid`, nowIso());
-  db.run('INSERT OR IGNORE INTO sessions (id, user_id, token_hash, created_at, expires_at, last_seen_at) VALUES (?,?,?,?,?,?)', sid, uid, sha256(token), nowIso(), addDays(nowIso(), cfg.SESSION_DAYS), nowIso());
+  db.run('INSERT OR IGNORE INTO sessions (id, user_id, token_hash, created_at, expires_at, last_seen_at) VALUES (?,?,?,?,?,?)', sid, uid, sha256(token), nowIso(), expiresAt, nowIso());
 }
 
 export function createGuest(db: Db, cfg: Config): { token: string; userId: string } {
   const uid = id();
   const sid = id();
-  const token = cfg.ephemeral ? `g1.${uid}.${sid}.${guestSig(cfg, uid, sid)}` : randomToken();
-  db.tx(() => insertGuest(db, cfg, uid, sid, token));
+  const expiresAt = addDays(nowIso(), cfg.SESSION_DAYS);
+  const exp = Date.parse(expiresAt);
+  const token = cfg.ephemeral ? `g1.${uid}.${sid}.${exp}.${guestSig(cfg, uid, sid, exp)}` : randomToken();
+  db.tx(() => insertGuest(db, uid, sid, token, expiresAt));
   return { token, userId: uid };
 }
 
 export function userFromToken(db: Db, token: string | undefined, cfg?: Config): SessionUser | null {
   if (!token) return null;
   if (cfg?.ephemeral && token.startsWith('g1.')) {
-    const [, uid, sid, sig] = token.split('.');
-    if (uid && sid && sig && safeEqual(sig, guestSig(cfg, uid, sid))) insertGuest(db, cfg, uid, sid, token);
+    const parts = token.split('.');
+    // Tokens antigos ainda valem onde a sessão original existe, sem recriação em outra instância.
+    if (parts.length !== 4) {
+      const [, uid, sid, expiry, sig] = parts;
+      const exp = Number(expiry);
+      if (parts.length !== 5 || !uid || !sid || !sig || !Number.isSafeInteger(exp) || exp > 8.64e15 ||
+          exp <= Date.now() || !safeEqual(sig, guestSig(cfg, uid, sid, exp))) return null;
+      db.tx(() => insertGuest(db, uid, sid, token, new Date(exp).toISOString()));
+    }
   }
   const row = db.get<{ id: string; email: string; role: SessionUser['role']; sid: string; last_seen_at: string | null; is_guest: number; verified_at: string | null }>(
     `SELECT u.id, u.email, u.role, u.is_guest, u.verified_at, s.id AS sid, s.last_seen_at FROM sessions s JOIN users u ON u.id = s.user_id
@@ -179,6 +188,7 @@ export function purgeAuthData(db: Db, now = Date.now()) {
   db.run('DELETE FROM auth_challenges WHERE created_at < ?', monthAgo);
   db.run('DELETE FROM sessions WHERE expires_at < ? OR revoked_at IS NOT NULL', nowS);
   db.run('DELETE FROM login_failures WHERE created_at < ?', new Date(now - 86_400_000).toISOString());
+  db.run('DELETE FROM rate_limits WHERE expires_at <= ?', now);
 }
 
 /** E-mail transacional. 'console' = caixa postal local de desenvolvimento (bloqueado em produção). */

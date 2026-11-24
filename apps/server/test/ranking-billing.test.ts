@@ -46,6 +46,23 @@ describe('ranking explicável', () => {
     expect((await recommend(db, cfg, null, 10, bogus)).engine).toBe('baseline-ts-v1');
   });
 
+  it('carrega temas e leituras dos candidatos em lote', async () => {
+    const { app, db } = await setup();
+    const session = await login(app, db, 'ranking@example.com');
+    const user = db.get<{ id: string }>('SELECT id FROM users WHERE email = ?', 'ranking@example.com')!;
+    expect(session).toBeTruthy();
+    const candidates = loadCandidates(db, null);
+    expect(candidates.length).toBeGreaterThan(2);
+    const first = candidates[0]!;
+    db.run("INSERT INTO read_events (id, user_id, article_id, kind, day, created_at) VALUES ('ranking-read', ?, ?, 'open', '2026-11-24', '2026-11-24')", user.id, first.articleId);
+    const all = vi.spyOn(db, 'all');
+    const result = loadCandidates(db, user.id);
+    expect(result.find((item) => item.articleId === first.articleId)).toMatchObject({
+      topics: first.topics, primaryTopic: first.primaryTopic, read: true,
+    });
+    expect(all.mock.calls.filter(([sql]) => sql.includes('article_topics'))).toHaveLength(1);
+  });
+
   it('omite da resposta uma recomendação retratada durante o ranqueamento', async () => {
     const { app, db } = await setup({ RECOMMENDER_URL: 'http://127.0.0.1:9' });
     const selected = loadCandidates(db, null)[0]!;

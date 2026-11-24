@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { H, login, setup } from './helpers.ts';
 
 async function guest(app: Awaited<ReturnType<typeof setup>>['app']) {
@@ -32,10 +32,20 @@ describe('vitrine (uma cópia do banco por instância)', () => {
     b.cfg.ephemeral = true;
     const r = await a.app.inject({ method: 'POST', url: '/api/v1/auth/guest', headers: H });
     const token = r.cookies.find((c) => c.name === 'jm_session')!.value;
-    expect(token.startsWith('g1.')).toBe(true);
+    expect(token).toMatch(/^g1\.[^.]+\.[^.]+\.\d+\.[a-f0-9]{64}$/);
     const me = await b.app.inject({ url: '/api/v1/me', cookies: { jm_session: token } });
     expect(me.statusCode).toBe(200);
     expect(me.json().isGuest).toBe(true);
+    const expires = Number(token.split('.')[3]);
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(expires);
+    try {
+      expect((await b.app.inject({ url: '/api/v1/me', cookies: { jm_session: token } })).statusCode).toBe(401);
+      const fresh = await setup(prod);
+      fresh.cfg.ephemeral = true;
+      expect((await fresh.app.inject({ url: '/api/v1/me', cookies: { jm_session: token } })).statusCode).toBe(401);
+    } finally {
+      clock.mockRestore();
+    }
     const forjado = token.replace(/\.[0-9a-f]+$/, '.' + '0'.repeat(64));
     expect((await b.app.inject({ url: '/api/v1/me', cookies: { jm_session: forjado } })).statusCode).toBe(401);
   });

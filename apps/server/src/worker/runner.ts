@@ -3,6 +3,7 @@ import { purgeAuthData } from '../modules/auth.ts';
 import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
 import { TransientError, type FetchLike } from '../lib/net.ts';
+import { sourceFetch } from '../lib/rate-limits.ts';
 import { localDate, localTime, nowIso, sleep } from '../lib/util.ts';
 import { analyzeArticle, BlockedError, DeferError } from '../ai/analysis.ts';
 import { openAiProvider, type AiProvider } from '../ai/provider.ts';
@@ -17,9 +18,9 @@ import { discover, upsertRecord } from './ingestion.ts';
 /** adapter = PubMed (busca e recheck de retratações); extraAdapters = outras fontes científicas, só busca. */
 export interface Deps { adapter: ScientificSourceAdapter; extraAdapters?: ScientificSourceAdapter[]; provider: AiProvider | null; monitorFetch?: FetchLike; recheckBatch?: number }
 
-export const defaultDeps = (cfg: Config): Deps => ({
-  adapter: pubmedAdapter(cfg),
-  extraAdapters: [europePmcAdapter(), scieloAdapter()],
+export const defaultDeps = (db: Db, cfg: Config): Deps => ({
+  adapter: pubmedAdapter(cfg, sourceFetch(db, 'pubmed', cfg.NCBI_API_KEY ? 120 : 500)),
+  extraAdapters: [europePmcAdapter(sourceFetch(db, 'europepmc', 200)), scieloAdapter(sourceFetch(db, 'scielo', 1_000))],
   provider: cfg.OPENAI_API_KEY ? openAiProvider(cfg.OPENAI_API_KEY) : null,
 });
 

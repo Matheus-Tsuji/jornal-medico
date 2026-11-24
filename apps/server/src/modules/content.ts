@@ -172,8 +172,13 @@ export function editionDto(db: Db, edition: Row, userId?: string | null): Editio
     const key = it.section_topic_id ?? 'geral';
     sectionMap.set(key, [...(sectionMap.get(key) ?? []), c]);
   }
+  const topicIds = [...sectionMap.keys()];
+  const topics = topicIds.length ? db.all<{ id: string; slug: string; label_pt: string; color: string | null }>(
+    `SELECT id, slug, label_pt, color FROM topics WHERE id IN (${ph(topicIds.length)})`, ...topicIds,
+  ) : [];
+  const byTopic = new Map(topics.map((t) => [t.id, t]));
   const sections = [...sectionMap.entries()].map(([topicId, list]) => {
-    const t = db.get<{ slug: string; label_pt: string; color: string | null }>('SELECT slug, label_pt, color FROM topics WHERE id = ?', topicId);
+    const t = byTopic.get(topicId);
     return { topic: { slug: t?.slug ?? 'geral', label: t?.label_pt ?? 'Geral', color: t?.color ?? null }, items: list };
   });
   const headline = headlineItem ? byAnalysis.get(headlineItem.analysis_id) ?? null : null;

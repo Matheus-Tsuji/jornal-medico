@@ -96,23 +96,38 @@ export function loadProfile(db: Db, userId: string | null): Profile {
 
 export function loadCandidates(db: Db, userId: string | null, days = 30): Candidate[] {
   const v = visibility(db);
+  const one = oneVisiblePerArticle(db);
   const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
-  const rows = db.all<{ aid: string; article_id: string; pub_date: string | null; priority: number; source: string }>(
-    `SELECT a.id AS aid, a.article_id, ar.pub_date, a.editorial_priority AS priority, s.slug AS source
+  const rows = db.all<{ aid: string; article_id: string; pub_date: string | null; priority: number; source: string; has_read: number }>(
+    `SELECT a.id AS aid, a.article_id, ar.pub_date, a.editorial_priority AS priority, s.slug AS source,
+            EXISTS (SELECT 1 FROM read_events r WHERE r.user_id = ? AND r.article_id = a.article_id) AS has_read
        FROM analyses a JOIN articles ar ON ar.id = a.article_id JOIN sources s ON s.id = ar.source_id
       WHERE ${v.sql} AND ar.retraction_status <> 'retracted' AND COALESCE(ar.pub_date, '9999') >= ?
-        AND ${oneVisiblePerArticle(db).sql}`,
-    ...v.params, since, ...oneVisiblePerArticle(db).params,
+        AND ${one.sql}
+      ORDER BY ar.pub_date DESC NULLS LAST, a.editorial_priority DESC, a.id LIMIT 500`,
+    userId, ...v.params, since, ...one.params,
   );
-  const read = new Set(userId ? db.all<{ article_id: string }>('SELECT DISTINCT article_id FROM read_events WHERE user_id = ?', userId).map((r) => r.article_id) : []);
+  if (!rows.length) return [];
+  const ids = rows.map((r) => r.article_id);
+  type Topic = { article_id: string; slug: string; level: string; label_pt: string };
+  const topicsByArticle = new Map<string, Topic[]>();
+  const topics = db.all<Topic>(
+    `WITH RECURSIVE up(article_id, id, slug, parent_id, level, label_pt) AS (
+       SELECT at.article_id, t.id, t.slug, t.parent_id, t.level, t.label_pt
+       FROM article_topics at JOIN topics t ON t.id = at.topic_id
+       WHERE at.article_id IN (${ids.map(() => '?').join(',')})
+       UNION SELECT up.article_id, p.id, p.slug, p.parent_id, p.level, p.label_pt
+       FROM topics p JOIN up ON p.id = up.parent_id)
+     SELECT DISTINCT article_id, slug, level, label_pt FROM up`,
+    ...ids,
+  );
+  for (const topic of topics) {
+    const chain = topicsByArticle.get(topic.article_id);
+    if (chain) chain.push(topic);
+    else topicsByArticle.set(topic.article_id, [topic]);
+  }
   return rows.map((r) => {
-    // tema + subárea + área (para casar com preferências de qualquer nível)
-    const chain = db.all<{ slug: string; level: string; label_pt: string }>(
-      `WITH RECURSIVE up(id, slug, parent_id, level, label_pt) AS (
-         SELECT t.id, t.slug, t.parent_id, t.level, t.label_pt FROM article_topics at JOIN topics t ON t.id = at.topic_id WHERE at.article_id = ?
-         UNION SELECT p.id, p.slug, p.parent_id, p.level, p.label_pt FROM topics p JOIN up ON p.id = up.parent_id)
-       SELECT DISTINCT slug, level, label_pt FROM up`, r.article_id,
-    );
+    const chain = topicsByArticle.get(r.article_id) ?? [];
     return {
       id: r.aid,
       articleId: r.article_id,
@@ -121,7 +136,7 @@ export function loadCandidates(db: Db, userId: string | null, days = 30): Candid
       source: r.source,
       ageDays: r.pub_date ? (Date.now() - Date.parse(r.pub_date)) / 86_400_000 : 30,
       priority: r.priority,
-      read: read.has(r.article_id),
+      read: r.has_read === 1,
       labels: Object.fromEntries(chain.map((c) => [c.slug, c.label_pt])),
     };
   });

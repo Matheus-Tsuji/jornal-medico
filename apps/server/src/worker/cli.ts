@@ -18,7 +18,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 const [cmd, arg] = process.argv.slice(2);
 const cfg = loadConfig();
 const db = openDb(cfg.dbPath, cfg.DATABASE_AUTH_TOKEN);
-const deps = defaultDeps(cfg);
+const deps = defaultDeps(db, cfg);
 const out = (x: unknown) => console.log(JSON.stringify(x, null, 2));
 
 switch (cmd) {

@@ -79,9 +79,11 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   app.post('/admin/jobs/process', async (req) => {
     const u = editor(req);
     const { max } = z.strictObject({ max: z.number().int().min(1).max(20).default(5) }).parse(req.body ?? {});
-    const deps = defaultDeps(cfg);
+    const deps = defaultDeps(db, cfg);
     let n = 0;
-    while (n < max && (await workOnce(db, cfg, deps, `api:${u.id}`))) n++;
+    // Evita iniciar mais trabalho quando a resposta já consumiu seu orçamento.
+    const deadline = Date.now() + 25_000;
+    while (n < Math.min(max, 3) && Date.now() < deadline && (await workOnce(db, cfg, deps, `api:${u.id}`))) n++;
     return { processed: n };
   });
   app.get('/admin/jobs', async (req) => {

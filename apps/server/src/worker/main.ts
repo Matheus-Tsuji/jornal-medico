@@ -7,7 +7,7 @@ import { defaultDeps, log, runCycle } from './runner.ts';
 
 const cfg = loadConfig();
 const db = openDb(cfg.dbPath, cfg.DATABASE_AUTH_TOKEN);
-const deps = defaultDeps(cfg);
+const deps = defaultDeps(db, cfg);
 const workerId = `${hostname()}:${process.pid}`;
 let running = true;
 process.on('SIGINT', () => (running = false));

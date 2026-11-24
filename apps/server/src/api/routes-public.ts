@@ -3,7 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { articleListQuery, passwordAuthInput, passwordRegisterInput, requestCodeInput, verifyCodeInput, type ArticleCard, type PublicConfig, type Source, type Topic } from '@jm/contracts';
 import type { Params } from '../db/index.ts';
-import { AppError, localDate } from '../lib/util.ts';
+import { AppError, localDate, sha256 } from '../lib/util.ts';
+import { takeSlot } from '../lib/rate-limits.ts';
 import { allFlags, flag } from '../modules/audit.ts';
 import { createGuest, loginWithPassword, registerWithPassword, requestCode, revokeAllSessions, revokeSession, verifyCode } from '../modules/auth.ts';
 import { listMonitor } from '../modules/monitor.ts';
@@ -50,8 +51,16 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   );
 
   // ---------- Autenticação ----------
-  const authLimit = { config: { rateLimit: { max: cfg.NODE_ENV === 'test' ? 1000 : 10, timeWindow: '1 minute' } } };
-  app.post('/auth/request-code', authLimit, async (req) => {
+  const authLimit = (windowMs: number) => ({
+    preHandler: async (req: import('fastify').FastifyRequest) => {
+      const key = `auth:${req.routeOptions.url}:${sha256(req.ip)}`;
+      if (!takeSlot(db, key, cfg.NODE_ENV === 'test' ? 1000 : 10, windowMs)) {
+        throw new AppError(429, 'rate_limit', 'Muitas tentativas. Tente mais tarde.');
+      }
+    },
+  });
+  const authMinute = authLimit(60_000);
+  app.post('/auth/request-code', authMinute, async (req) => {
     // Produção sem provedor de e-mail: não gera código (ele não teria como chegar e não pode aparecer na tela).
     if (!cfg.emailLogin) throw new AppError(503, 'email_unavailable', 'O acesso por e-mail ainda não está disponível. Use "Continuar sem e-mail".');
     const { email } = requestCodeInput.parse(req.body);
@@ -59,7 +68,7 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     // Mesma resposta para e-mail novo ou existente.
     return { ok: true, message: 'Se o endereço for válido, você receberá um código em instantes.' };
   });
-  app.post('/auth/verify-code', authLimit, async (req, reply) => {
+  app.post('/auth/verify-code', authMinute, async (req, reply) => {
     const { email, code } = verifyCodeInput.parse(req.body);
     const { token } = verifyCode(db, cfg, email, code, req.user?.isGuest ? req.user.id : undefined);
     if (req.user) revokeSession(db, req.user.sessionId); // rotação de sessão ao autenticar
@@ -79,10 +88,10 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     const u = db.get<{ onboarded_at: string | null }>('SELECT onboarded_at FROM users WHERE email = ?', email.trim().toLowerCase())!;
     return { ok: true, onboarded: !!u.onboarded_at };
   };
-  app.post('/auth/register', authLimit, passwordAuth(true));
-  app.post('/auth/login', authLimit, passwordAuth(false));
+  app.post('/auth/register', authMinute, passwordAuth(true));
+  app.post('/auth/login', authMinute, passwordAuth(false));
   // Entrar sem e-mail (visitante). Limite por IP para não encher o banco de contas vazias.
-  app.post('/auth/guest', { config: { rateLimit: { max: cfg.NODE_ENV === 'test' ? 1000 : 10, timeWindow: '1 hour' } } }, async (req, reply) => {
+  app.post('/auth/guest', authLimit(3_600_000), async (req, reply) => {
     if (req.user) return { ok: true, onboarded: !!db.get('SELECT 1 FROM users WHERE id = ? AND onboarded_at IS NOT NULL', req.user.id) };
     const { token } = createGuest(db, cfg);
     setSessionCookie(reply, cfg, token);

@@ -50,7 +50,7 @@ async function cron(req: IncomingMessage, res: ServerResponse) {
     return;
   }
   try {
-    const result = await runCycle(db, cfg, defaultDeps(cfg), { workerId: `vercel:${process.pid}`, budgetMs: CRON_BUDGET_MS, concurrency: cfg.CYCLE_CONCURRENCY });
+    const result = await runCycle(db, cfg, defaultDeps(db, cfg), { workerId: `vercel:${process.pid}`, budgetMs: CRON_BUDGET_MS, concurrency: cfg.CYCLE_CONCURRENCY });
     res.end(JSON.stringify({ ok: true, ...result }));
   } catch (e) {
     console.error(JSON.stringify({ level: 'error', msg: 'cron_failed', error: (e instanceof Error ? e.message : String(e)).slice(0, 300) }));
