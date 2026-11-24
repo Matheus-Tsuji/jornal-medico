@@ -27,7 +27,8 @@ test('leitor: login, onboarding, edição, detalhe, salvar e persistência', asy
   await page.getByRole('button', { name: 'Escolher meus interesses' }).click();
   await page.getByLabel('Diabetes', { exact: true }).check();
   await page.getByRole('button', { name: 'Revisar' }).click();
-  await expect(page.getByText('Você vai acompanhar: Diabetes')).toBeVisible();
+  await expect(page.getByText('Sua capa vai priorizar estes temas:')).toBeVisible();
+  await expect(page.locator('.topic-card').getByText('Diabetes', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Abrir a edição de hoje' }).click();
 
   await expect(page).toHaveURL(/\/jornal$/);
@@ -71,11 +72,11 @@ test('leitor: login, onboarding, edição, detalhe, salvar e persistência', asy
 
   // Preferências editáveis
   await page.goto('/configuracoes');
-  await page.getByLabel('Insuficiência cardíaca').check();
+  await page.getByRole('checkbox', { name: 'Insuficiência cardíaca' }).check();
   await page.getByRole('button', { name: 'Salvar interesses' }).click();
   await expect(page.getByText('Interesses salvos.')).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel('Insuficiência cardíaca')).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Insuficiência cardíaca' })).toBeChecked();
 
   // Leitor não acessa o painel
   await page.goto('/admin');
