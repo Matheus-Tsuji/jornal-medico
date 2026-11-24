@@ -47,7 +47,12 @@ export default function Entrar() {
       return api<{ onboarded: boolean }>(mode === 'register' ? '/auth/register' : '/auth/login', { method: 'POST', body: parsed.data });
     },
     onSuccess: done,
-    onError: (e) => failMsg(e, 'Não foi possível continuar. Tente de novo.'),
+    onError: (e) => {
+      // Sem banco permanente (vitrine), contas criadas antes de uma atualização do site deixam de existir.
+      if (e instanceof ApiError && e.code === 'invalid_credentials' && cfg.data?.ephemeral) {
+        setErr('E-mail ou senha incorretos. Nesta versão de testes, contas criadas antes de uma atualização do site são apagadas: se for o seu caso, crie a conta de novo.');
+      } else failMsg(e, 'Não foi possível continuar. Tente de novo.');
+    },
   });
 
   // Código por e-mail: só aparece quando há provedor de e-mail configurado.
