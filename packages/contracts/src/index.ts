@@ -8,6 +8,8 @@ export const emailSchema = z.string().trim().toLowerCase().pipe(z.email().max(25
 export const requestCodeInput = z.strictObject({ email: emailSchema });
 /** Cadastro/entrada com senha (8 a 128 caracteres). */
 export const passwordAuthInput = z.strictObject({ email: emailSchema, password: z.string().min(8, 'A senha precisa ter pelo menos 8 caracteres.').max(128) });
+/** Cadastro: também o nome de exibição (espaços, acentos e maiúsculas permitidos). */
+export const passwordRegisterInput = passwordAuthInput.extend({ displayName: z.string().trim().min(2, 'Informe seu nome (pelo menos 2 letras).').max(80, 'Nome muito longo.') });
 export const verifyCodeInput = z.strictObject({
   email: emailSchema,
   code: z.string().regex(/^\d{6}$/, 'O código tem 6 dígitos.'),
@@ -167,6 +169,8 @@ export interface Me {
   isGuest: boolean;
   role: Role;
   profile: string | null;
+  /** Nome de exibição escolhido no cadastro; null para contas antigas e visitantes. */
+  displayName: string | null;
   personalizationEnabled: boolean;
   onboarded: boolean;
   entitled: boolean;

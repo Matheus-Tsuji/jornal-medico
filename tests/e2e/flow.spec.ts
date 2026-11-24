@@ -119,6 +119,7 @@ test('conta com senha: cria, sai e entra de novo', async ({ page }) => {
   const email = `senha-${Date.now()}@example.com`;
   await page.goto('/entrar');
   await page.getByRole('tab', { name: 'Criar conta' }).click();
+  await page.getByLabel('Nome de exibição').fill('Dra. Teste da Silva');
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill('senha-forte-1');
   await page.getByLabel('Repita a senha').fill('senha-forte-1');

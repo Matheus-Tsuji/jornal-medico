@@ -18,6 +18,7 @@ export async function userRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
       isGuest: u.is_guest === 1,
       role: u.role as Me['role'],
       profile: (u.profile as string) ?? null,
+      displayName: (u.display_name as string) ?? null,
       personalizationEnabled: u.personalization_enabled === 1,
       onboarded: !!u.onboarded_at,
       entitled: entitled(db, cfg, { id: userId, role: u.role as string }),

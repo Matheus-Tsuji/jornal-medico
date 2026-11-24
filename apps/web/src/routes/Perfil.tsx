@@ -33,7 +33,7 @@ export default function Perfil() {
   // Sem sessão: mostra o perfil de visitante (tudo vazio), em vez de mandar para o login.
   const u = me.data ?? { id: 'visitante', email: '', isGuest: true, role: 'reader' as const, entitled: false, preferences: { topics: [] as string[], sources: [] as string[] } };
   const hasSession = !!me.data;
-  const name = u.isGuest ? 'Visitante' : u.email.split('@')[0]!;
+  const name = u.isGuest ? 'Visitante' : ('displayName' in u && u.displayName) || u.email.split('@')[0]!;
   const role = u.role === 'admin' ? 'Administrador' : u.role === 'editor' ? 'Editor' : u.isGuest ? 'Visitante' : 'Leitor';
   const interests = (topics.data ?? []).filter((t) => u.preferences.topics.includes(t.slug));
   const logout = async () => { await api('/auth/logout', { method: 'POST' }); qc.clear(); nav('/'); };

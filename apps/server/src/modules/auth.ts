@@ -73,13 +73,13 @@ export function verifyCode(db: Db, cfg: Config, email: string, code: string, gue
 }
 
 /** Cria (ou reaproveita) a conta do e-mail, absorve o visitante e abre uma sessão. Chamar dentro de db.tx. */
-function signIn(db: Db, cfg: Config, email: string, guestUserId: string | undefined, opts: { verified: boolean; passwordHash?: string }): { token: string; userId: string } {
+function signIn(db: Db, cfg: Config, email: string, guestUserId: string | undefined, opts: { verified: boolean; passwordHash?: string; displayName?: string }): { token: string; userId: string } {
     let user = db.get<{ id: string; role: string; status: string }>('SELECT id, role, status FROM users WHERE email = ?', email);
     const guest = guestUserId ? db.get<{ id: string }>('SELECT id FROM users WHERE id = ? AND is_guest = 1', guestUserId) : undefined;
     if (guest && !user) {
       // Visitante informa e-mail novo: a própria conta vira conta identificada.
       const role = opts.verified && cfg.adminEmails.has(email) ? 'admin' : 'reader';
-      db.run('UPDATE users SET email = ?, is_guest = 0, role = ?, verified_at = ?, password_hash = COALESCE(?, password_hash) WHERE id = ?', email, role, opts.verified ? nowIso() : null, opts.passwordHash ?? null, guest.id);
+      db.run('UPDATE users SET email = ?, is_guest = 0, role = ?, verified_at = ?, password_hash = COALESCE(?, password_hash), display_name = COALESCE(?, display_name) WHERE id = ?', email, role, opts.verified ? nowIso() : null, opts.passwordHash ?? null, opts.displayName ?? null, guest.id);
       user = { id: guest.id, role, status: 'active' };
       audit(db, guest.id, 'user.guest_upgraded', 'user', guest.id);
     } else if (guest && user) {
@@ -93,7 +93,7 @@ function signIn(db: Db, cfg: Config, email: string, guestUserId: string | undefi
     if (!user) {
       const uid = id();
       const role = opts.verified && cfg.adminEmails.has(email) ? 'admin' : 'reader';
-      db.run('INSERT INTO users (id, email, role, verified_at, password_hash, created_at) VALUES (?,?,?,?,?,?)', uid, email, role, opts.verified ? nowIso() : null, opts.passwordHash ?? null, nowIso());
+      db.run('INSERT INTO users (id, email, role, verified_at, password_hash, display_name, created_at) VALUES (?,?,?,?,?,?,?)', uid, email, role, opts.verified ? nowIso() : null, opts.passwordHash ?? null, opts.displayName ?? null, nowIso());
       user = { id: uid, role, status: 'active' };
       audit(db, uid, 'user.created', 'user', uid, { role });
     } else if (opts.verified && cfg.adminEmails.has(email) && user.role !== 'admin') {
@@ -176,13 +176,13 @@ const checkPassword = (pw: string, stored: string | null) => {
   return kind === 'scrypt' && want.length === got.length && timingSafeEqual(got, want) && !!stored;
 };
 
-export function registerWithPassword(db: Db, cfg: Config, email: string, password: string, guestUserId?: string) {
+export function registerWithPassword(db: Db, cfg: Config, email: string, password: string, guestUserId?: string, displayName?: string) {
   if (db.get('SELECT 1 FROM users WHERE email = ? AND is_guest = 0', email)) {
     throw new AppError(409, 'email_taken', 'Já existe uma conta com este e-mail. Use "Entrar".');
   }
   const passwordHash = hashPassword(password);
   return db.tx(() => {
-    const r = signIn(db, cfg, email, guestUserId, { verified: false, passwordHash });
+    const r = signIn(db, cfg, email, guestUserId, { verified: false, passwordHash, displayName });
     audit(db, r.userId, 'user.password_registered', 'user', r.userId);
     return r;
   });

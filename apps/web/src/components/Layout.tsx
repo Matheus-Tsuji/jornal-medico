@@ -15,7 +15,7 @@ function ReaderCard() {
   if (me.isLoading) return <span className="h-14 w-72" aria-hidden />;
   const u = me.data;
   const guest = !u || u.isGuest;
-  const name = !u ? 'Visitante' : u.isGuest ? 'Visitante' : u.email.split('@')[0]!;
+  const name = !u || u.isGuest ? 'Visitante' : u.displayName ?? u.email.split('@')[0]!;
   return (
     <div className="reader-card">
       <span className="reader-avatar" aria-hidden>{name[0]!.toUpperCase()}</span>

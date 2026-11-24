@@ -1,7 +1,7 @@
 // Rotas públicas (sessão opcional): config, catálogo, edições, acervo, rankings, autenticação.
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { articleListQuery, passwordAuthInput, requestCodeInput, verifyCodeInput, type ArticleCard, type PublicConfig, type Source, type Topic } from '@jm/contracts';
+import { articleListQuery, passwordAuthInput, passwordRegisterInput, requestCodeInput, verifyCodeInput, type ArticleCard, type PublicConfig, type Source, type Topic } from '@jm/contracts';
 import type { Params } from '../db/index.ts';
 import { AppError, localDate } from '../lib/util.ts';
 import { allFlags, flag } from '../modules/audit.ts';
@@ -66,16 +66,19 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     return { ok: true, onboarded: !!u.onboarded_at };
   });
   // E-mail e senha: cadastro e entrada (funciona sem provedor de e-mail).
-  const passwordAuth = (fn: typeof registerWithPassword) => async (req: import('fastify').FastifyRequest, reply: import('fastify').FastifyReply) => {
-    const { email, password } = passwordAuthInput.parse(req.body);
-    const { token } = fn(db, cfg, email.trim().toLowerCase(), password, req.user?.isGuest ? req.user.id : undefined);
+  const passwordAuth = (register: boolean) => async (req: import('fastify').FastifyRequest, reply: import('fastify').FastifyReply) => {
+    const { email, password, displayName } = register ? passwordRegisterInput.parse(req.body) : { ...passwordAuthInput.parse(req.body), displayName: undefined };
+    const guestId = req.user?.isGuest ? req.user.id : undefined;
+    const { token } = register
+      ? registerWithPassword(db, cfg, email.trim().toLowerCase(), password, guestId, displayName)
+      : loginWithPassword(db, cfg, email.trim().toLowerCase(), password, guestId);
     if (req.user) revokeSession(db, req.user.sessionId);
     setSessionCookie(reply, cfg, token);
     const u = db.get<{ onboarded_at: string | null }>('SELECT onboarded_at FROM users WHERE email = ?', email.trim().toLowerCase())!;
     return { ok: true, onboarded: !!u.onboarded_at };
   };
-  app.post('/auth/register', authLimit, passwordAuth(registerWithPassword));
-  app.post('/auth/login', authLimit, passwordAuth(loginWithPassword));
+  app.post('/auth/register', authLimit, passwordAuth(true));
+  app.post('/auth/login', authLimit, passwordAuth(false));
   // Entrar sem e-mail (visitante). Limite por IP para não encher o banco de contas vazias.
   app.post('/auth/guest', { config: { rateLimit: { max: cfg.NODE_ENV === 'test' ? 1000 : 10, timeWindow: '1 hour' } } }, async (req, reply) => {
     if (req.user) return { ok: true, onboarded: !!db.get('SELECT 1 FROM users WHERE id = ? AND onboarded_at IS NOT NULL', req.user.id) };

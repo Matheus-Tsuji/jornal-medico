@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { passwordAuthInput, requestCodeInput, verifyCodeInput } from '@jm/contracts';
+import { passwordAuthInput, passwordRegisterInput, requestCodeInput, verifyCodeInput } from '@jm/contracts';
 import { Eye, EyeOff } from 'lucide-react';
 import { api, ApiError, useConfig, useMe } from '../lib/api';
 
@@ -10,6 +10,7 @@ type Mode = 'login' | 'register' | 'code';
 export default function Entrar() {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -41,7 +42,7 @@ export default function Entrar() {
 
   const pw = useMutation({
     mutationFn: () => {
-      const parsed = passwordAuthInput.safeParse({ email, password });
+      const parsed = mode === 'register' ? passwordRegisterInput.safeParse({ email, password, displayName }) : passwordAuthInput.safeParse({ email, password });
       if (!parsed.success) throw new ApiError(400, 'validation_error', parsed.error.issues[0]?.message ?? 'Confira o e-mail e a senha.');
       if (mode === 'register' && password !== password2) throw new ApiError(400, 'validation_error', 'As senhas não conferem.');
       return api<{ onboarded: boolean }>(mode === 'register' ? '/auth/register' : '/auth/login', { method: 'POST', body: parsed.data });
@@ -103,6 +104,12 @@ export default function Entrar() {
 
       {mode !== 'code' ? (
         <form onSubmit={(e) => { e.preventDefault(); setErr(''); pw.mutate(); }} className="grid gap-3" noValidate>
+          {register && (
+            <>
+              <label htmlFor="display-name" className="text-sm font-semibold">Nome de exibição</label>
+              <input id="display-name" type="text" autoComplete="name" className="input" placeholder="Ex.: Dra. Ana Souza" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required maxLength={80} />
+            </>
+          )}
           <label htmlFor="email" className="text-sm font-semibold">E-mail</label>
           <input id="email" type="email" inputMode="email" autoComplete="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} required aria-invalid={!!err} aria-describedby={err ? 'err' : undefined} />
           <label htmlFor="password" className="text-sm font-semibold">Senha</label>
@@ -120,7 +127,7 @@ export default function Entrar() {
             </>
           )}
           {err && <p id="err" role="alert" className="m-0 text-sm text-danger">{err}</p>}
-          <button className="btn btn-primary" disabled={pw.isPending || !email || !password}>
+          <button className="btn btn-primary" disabled={pw.isPending || !email || !password || (register && !displayName.trim())}>
             {pw.isPending ? (register ? 'Criando conta…' : 'Entrando…') : register ? 'Criar conta' : 'Entrar'}
           </button>
           <p className="m-0 text-sm text-muted">
