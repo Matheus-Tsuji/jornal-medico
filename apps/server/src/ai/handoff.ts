@@ -5,23 +5,25 @@
 //                   ('in_review' ou 'blocked'). Nunca publica: publicar exige editorial_reviews 'approve'.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { aiAnalysisSchema, type AiAnalysis } from '@jm/contracts';
+import { aiAnalysisSchema } from '@jm/contracts';
 import { z } from 'zod';
 import type { Db } from '../db/index.ts';
 import { REPO_ROOT, json } from '../db/index.ts';
 import { sha256 } from '../lib/util.ts';
 import { analyzePriority } from '../modules/jobs.ts';
-import { insertAnalysis } from '../modules/analyses.ts';
+import { alreadyAnalyzed, finalizeAnalysis } from '../modules/analyses.ts';
 import { PROMPT_VERSION, buildDocument, editorialSchema } from './analysis.ts';
-import { validateAnalysis, validateEditorial } from './validator.ts';
 
 export const HANDOFF_MODEL = 'claude-rotina-diaria';
 const PROMPTS = join(REPO_ROOT, 'apps/server/src/ai/prompts');
 
-export interface HandoffItem { articleId: string; document: string; pubTypes: string[]; pubDate: string | null; topics: string[] }
+/** inputHash e promptVersion vão e voltam: a importação recusa resposta feita sobre um documento ou prompt que mudou. */
+export interface HandoffItem { articleId: string; inputHash: string; promptVersion: string; document: string; pubTypes: string[]; pubDate: string | null; topics: string[] }
 
 export const importItemSchema = z.strictObject({
   articleId: z.string().min(1),
+  inputHash: z.string().min(1),
+  promptVersion: z.string().min(1),
   extraction: aiAnalysisSchema,
   editorial: editorialSchema,
 });
@@ -55,10 +57,10 @@ export function exportPending(db: Db, limit: number): { promptVersion: string; i
   for (const articleId of ids) {
     const l = load(db, articleId);
     if (l.error !== undefined) continue;
-    if (db.get('SELECT 1 FROM analyses WHERE article_id = ? AND input_hash = ?', articleId, l.inputHash)) continue;
+    if (alreadyAnalyzed(db, articleId, l.inputHash)) continue;
     const pubTypes = json<string[]>(l.art.publication_types, []);
     const topics = db.all<{ label_pt: string }>("SELECT t.label_pt FROM article_topics at JOIN topics t ON t.id = at.topic_id WHERE at.article_id = ? AND at.method = 'source_query'", articleId).map((t) => t.label_pt);
-    pending.push({ articleId, document: l.document, pubTypes, pubDate: l.art.pub_date, topics, priority: analyzePriority(pubTypes) });
+    pending.push({ articleId, inputHash: l.inputHash, promptVersion: PROMPT_VERSION, document: l.document, pubTypes, pubDate: l.art.pub_date, topics, priority: analyzePriority(pubTypes) });
   }
   pending.sort((a, b) => b.priority - a.priority || (b.pubDate ?? '').localeCompare(a.pubDate ?? ''));
   return {
@@ -85,22 +87,11 @@ export function importAnalyses(db: Db, raw: unknown): ImportResult[] {
     const { extraction, editorial } = parsed.data;
     const l = load(db, parsed.data.articleId);
     if (l.error !== undefined) return { articleId: id, status: 'rejected', detail: [l.error] };
-    if (db.get('SELECT 1 FROM analyses WHERE article_id = ? AND input_hash = ?', id, l.inputHash)) return { articleId: id, status: 'skipped_existing', detail: [] };
-
-    // A extração entra sem texto editorial (como no pipeline); a redação é validada à parte.
-    const base: AiAnalysis = { ...extraction, editorialHeadline: null, summary: null, inShort: null, plainResult: null };
-    const report = validateAnalysis(base, l.document, 'abstract_only');
-    const meta = { model: HANDOFF_MODEL, promptVersion: PROMPT_VERSION, inputHash: l.inputHash, isDemo: false };
-    if (report.errors.length) {
-      insertAnalysis(db, id, { ...base, reviewFlags: [...new Set([...report.flags, 'validation_failed' as const])] }, { ...meta, status: 'blocked', validation: [...report.errors, ...report.warnings] });
-      return { articleId: id, status: 'blocked', detail: report.errors };
+    if (parsed.data.promptVersion !== PROMPT_VERSION || parsed.data.inputHash !== l.inputHash) {
+      return { articleId: id, status: 'rejected', detail: ['Resposta obsoleta: o documento ou o prompt mudou desde o claude-export. Exporte de novo.'] };
     }
-    const extractionJson = JSON.stringify(base);
-    const edReport = validateEditorial(editorial, extractionJson, l.document);
-    const final: AiAnalysis = { ...base, ...(edReport.errors.length ? {} : editorial), reviewFlags: report.flags };
-    if (edReport.errors.length) final.reviewFlags = [...new Set([...final.reviewFlags, 'validation_failed' as const])];
-    const problems = [...report.warnings, ...edReport.errors.map((e) => `Redação: ${e}`)];
-    insertAnalysis(db, id, final, { ...meta, status: edReport.errors.length ? 'blocked' : 'in_review', validation: problems });
-    return { articleId: id, status: edReport.errors.length ? 'blocked' : 'in_review', detail: problems };
+    if (alreadyAnalyzed(db, id, l.inputHash)) return { articleId: id, status: 'skipped_existing', detail: [] };
+    const r = finalizeAnalysis(db, id, extraction, editorial, l.document, { model: HANDOFF_MODEL, promptVersion: PROMPT_VERSION, inputHash: l.inputHash });
+    return { articleId: id, status: r.status, detail: r.detail };
   });
 }

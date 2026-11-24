@@ -16,6 +16,19 @@ export function visibility(db: Db): { sql: string; params: Params } {
     : { sql: "a.status = 'published' AND a.is_demo = 0", params: [] };
 }
 
+/**
+ * Uma análise por artigo, sempre a mesma: entre as visíveis, publicada vence rascunho e a maior versão desempata.
+ * Use junto com `visibility` (alias `a`).
+ */
+export function oneVisiblePerArticle(db: Db): { sql: string; params: Params } {
+  const v = visibility(db);
+  return {
+    sql: `a.id = (SELECT x.id FROM analyses x WHERE x.article_id = a.article_id AND ${v.sql.replace(/\ba\./g, 'x.')}
+                  ORDER BY CASE x.status WHEN 'published' THEN 0 ELSE 1 END, x.version DESC LIMIT 1)`,
+    params: v.params,
+  };
+}
+
 const ph = (n: number) => Array(n).fill('?').join(',');
 /** "Novo" na capa: analisado pelo ciclo diário nas últimas 36 h (folga para um ciclo atrasado). */
 export const FRESH_HOURS = 36;
@@ -129,10 +142,10 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null): 
 export function visibleAnalysisIdsForArticles(db: Db, articleIds: string[]): Map<string, string> {
   if (!articleIds.length) return new Map();
   const v = visibility(db);
+  const one = oneVisiblePerArticle(db);
   const rows = db.all<{ article_id: string; id: string }>(
-    `SELECT a.article_id, a.id FROM analyses a WHERE ${v.sql} AND a.article_id IN (${ph(articleIds.length)})
-       AND a.version = (SELECT MAX(version) FROM analyses x WHERE x.article_id = a.article_id AND x.status = a.status)`,
-    ...v.params, ...articleIds,
+    `SELECT a.article_id, a.id FROM analyses a WHERE ${v.sql} AND a.article_id IN (${ph(articleIds.length)}) AND ${one.sql}`,
+    ...v.params, ...articleIds, ...one.params,
   );
   return new Map(rows.map((r) => [r.article_id, r.id]));
 }
@@ -244,9 +257,9 @@ export function previewEdition(db: Db, userId: string | null, today: string): Ed
               WHERE at.article_id = a.article_id ORDER BY at.confidence DESC LIMIT 1) AS section
        FROM analyses a JOIN articles ar ON ar.id = a.article_id
       WHERE ${v.sql} AND ar.retraction_status <> 'retracted' AND a.created_at >= ?
-        AND a.version = (SELECT MAX(version) FROM analyses x WHERE x.article_id = a.article_id AND x.status IN ('published','in_review'))
+        AND ${oneVisiblePerArticle(db).sql}
       ORDER BY a.created_at DESC LIMIT 300`,
-    ...v.params, since,
+    ...v.params, since, ...oneVisiblePerArticle(db).params,
   );
   if (!rows.length) return null;
   // Capa do dia: primeiro o que o ciclo diário trouxe nas últimas 36 h, depois o restante dos 14 dias.

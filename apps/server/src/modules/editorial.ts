@@ -5,6 +5,9 @@ import { json } from '../db/index.ts';
 import { AppError, id, nowIso } from '../lib/util.ts';
 import { audit } from './audit.ts';
 import { rankBest } from './grade.ts';
+import { resultRow } from './content.ts';
+import { buildDocument } from '../ai/analysis.ts';
+import { validateEditorial } from '../ai/validator.ts';
 
 export function reviewQueue(db: Db, status?: string) {
   const statuses = status ? [status] : ['in_review', 'blocked'];
@@ -41,7 +44,7 @@ export function decide(
   db: Db,
   reviewer: { id: string; role: string },
   analysisId: string,
-  input: { decision: 'approve' | 'reject' | 'request_changes'; justification: string; edits?: { editorialHeadline?: string; summary?: string; inShort?: string } },
+  input: { decision: 'approve' | 'reject' | 'request_changes'; justification: string; overrideBlocked?: boolean; edits?: { editorialHeadline?: string; summary?: string; inShort?: string } },
 ) {
   if (reviewer.role !== 'editor' && reviewer.role !== 'admin') throw new AppError(403, 'forbidden', 'Apenas editores podem revisar.');
   return db.tx(() => {
@@ -51,8 +54,27 @@ export function decide(
     if (input.decision === 'approve' && a.retraction_status === 'retracted') throw new AppError(409, 'retracted', 'Artigo retratado não pode ser publicado.');
     const now = nowIso();
     if (input.decision === 'approve') {
-      let payload = json<AiAnalysis>(a.payload, {} as AiAnalysis);
+      let payload: AiAnalysis;
+      try {
+        payload = JSON.parse(a.payload as string) as AiAnalysis;
+      } catch {
+        payload = null as unknown as AiAnalysis;
+      }
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new AppError(409, 'corrupt_payload', 'Conteúdo da análise corrompido: reprocesse o artigo antes de aprovar.');
+      if (a.status === 'blocked' && !(input.overrideBlocked && input.justification.trim().length >= 30)) {
+        throw new AppError(409, 'blocked_needs_override', 'Análise bloqueada pelo validador: confirme a liberação (overrideBlocked) com justificativa de 30+ caracteres.');
+      }
       if (input.edits) payload = { ...payload, ...input.edits };
+      if (a.is_demo !== 1) {
+        // A redação final (com as edições) passa pelo mesmo validador da IA: nenhum número fora da extração/fonte.
+        const art = db.get<{ original_title: string; journal: string | null; publication_types: string; pub_date: string | null }>(
+          'SELECT ar.original_title, j.title AS journal, ar.publication_types, ar.pub_date FROM articles ar LEFT JOIN journals j ON j.id = ar.journal_id WHERE ar.id = ?', a.article_id as string)!;
+        const abs = db.get<{ abstract_text: string | null }>('SELECT abstract_text FROM article_sources WHERE article_id = ? ORDER BY retrieved_at DESC LIMIT 1', a.article_id as string)?.abstract_text ?? '';
+        const results = db.all('SELECT * FROM evidence_results WHERE analysis_id = ? ORDER BY ord', analysisId).map(resultRow);
+        const extractionJson = JSON.stringify({ ...payload, editorialHeadline: null, summary: null, inShort: null, plainResult: null, results });
+        const ed = validateEditorial(payload, extractionJson, buildDocument(art, abs));
+        if (ed.errors.length) throw new AppError(409, 'editorial_invalid', `Redação reprovada pelo validador: ${ed.errors.join('; ').slice(0, 400)}`);
+      }
       // Versões anteriores publicadas viram 'superseded' (correção versionada e visível).
       const prev = db.get<{ n: number }>("SELECT COUNT(*) AS n FROM analyses WHERE article_id = ? AND status = 'published'", a.article_id as string)!;
       db.run("UPDATE analyses SET status = 'superseded' WHERE article_id = ? AND status = 'published'", a.article_id as string);
@@ -73,6 +95,10 @@ export function decide(
   });
 }
 
+// ponytail: fuso editorial fixo de São Paulo (UTC-3, sem horário de verão desde 2019); trocar por Intl se mudar.
+/** Fim do dia editorial (São Paulo) em UTC: análises publicadas depois disso não entram numa edição dessa data. */
+export const endOfEditionDay = (date: string) => new Date(`${date}T23:59:59.999-03:00`).toISOString();
+
 /** Compõe rascunho de edição com análises reais publicadas ainda não usadas. Não inventa itens. */
 export function composeEdition(db: Db, date: string, opts: { maxItems?: number; windowDays?: number } = {}) {
   const max = opts.maxItems ?? 12;
@@ -82,11 +108,11 @@ export function composeEdition(db: Db, date: string, opts: { maxItems?: number; 
       `SELECT a.id AS aid, a.article_id, a.editorial_priority AS priority,
               (SELECT t.parent_id FROM article_topics at JOIN topics t ON t.id = at.topic_id WHERE at.article_id = a.article_id ORDER BY at.confidence DESC LIMIT 1) AS topic_parent
          FROM analyses a JOIN articles ar ON ar.id = a.article_id
-        WHERE a.status = 'published' AND a.is_demo = 0 AND ar.retraction_status <> 'retracted' AND a.published_at >= ?
+        WHERE a.status = 'published' AND a.is_demo = 0 AND ar.retraction_status <> 'retracted' AND a.published_at >= ? AND a.published_at <= ?
           AND NOT EXISTS (SELECT 1 FROM edition_items i JOIN editions e ON e.id = i.edition_id
                            WHERE i.article_id = a.article_id AND e.status = 'published' AND e.is_demo = 0 AND e.edition_date <> ?)
         ORDER BY a.published_at DESC LIMIT 300`,
-      since, date,
+      since, endOfEditionDay(date), date,
     );
     // Manchete = estudo mais bem avaliado; depois os seguintes na mesma ordem (ver modules/grade.ts).
     const order = new Map(rankBest(db, all.map((r) => r.aid)).map((a, i) => [a, i]));
@@ -118,6 +144,11 @@ export function publishEdition(db: Db, user: { id: string; role: string }, date:
       "SELECT COUNT(*) AS n FROM edition_items i JOIN analyses a ON a.id = i.analysis_id WHERE i.edition_id = ? AND a.status <> 'published'", draft.id as string,
     )!.n;
     if (unapproved > 0) throw new AppError(409, 'unapproved_items', 'A edição contém análises sem aprovação editorial.');
+    // Retratação pode chegar depois da composição: revalida na hora de publicar.
+    const retracted = db.get<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM edition_items i JOIN articles ar ON ar.id = i.article_id WHERE i.edition_id = ? AND ar.retraction_status = 'retracted'", draft.id as string,
+    )!.n;
+    if (retracted > 0) throw new AppError(409, 'retracted_items', 'A edição contém artigo retratado. Recomponha a edição antes de publicar.');
     db.run("UPDATE editions SET status = 'superseded' WHERE edition_date = ? AND status = 'published' AND is_demo = 0", date);
     db.run("UPDATE editions SET status = 'published', published_at = ?, published_by = ? WHERE id = ?", nowIso(), user.id, draft.id as string);
     audit(db, user.id, 'edition.published', 'edition', draft.id as string, { date, items: n });

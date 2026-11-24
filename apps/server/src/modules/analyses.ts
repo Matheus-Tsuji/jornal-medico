@@ -3,6 +3,7 @@
 import type { AiAnalysis } from '@jm/contracts';
 import type { Db } from '../db/index.ts';
 import { id, nowIso } from '../lib/util.ts';
+import { VALIDATOR_VERSION, validateAnalysis, validateEditorial } from '../ai/validator.ts';
 
 export interface AnalysisMeta {
   model: string;
@@ -22,11 +23,11 @@ export function insertAnalysis(db: Db, articleId: string, a: AiAnalysis, meta: A
     }
     const v = db.get<{ v: number }>('SELECT COALESCE(MAX(version),0)+1 AS v FROM analyses WHERE article_id = ?', articleId)!.v;
     db.run(
-      `INSERT INTO analyses (id, article_id, version, model, prompt_version, language, input_scope, input_hash, status, payload, validation, editorial_priority, is_demo, created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO analyses (id, article_id, version, model, prompt_version, language, input_scope, input_hash, status, payload, validation, editorial_priority, is_demo, created_at, validator_version)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       analysisId, articleId, v, meta.model, meta.promptVersion, a.language, a.inputScope, meta.inputHash, meta.status,
       JSON.stringify({ ...a, results: undefined, claims: undefined }), JSON.stringify(meta.validation),
-      Math.max(0, Math.min(1, a.editorialPriority.score)), meta.isDemo ? 1 : 0, nowIso(),
+      Math.max(0, Math.min(1, a.editorialPriority.score)), meta.isDemo ? 1 : 0, nowIso(), VALIDATOR_VERSION,
     );
     a.results.forEach((r, i) => {
       db.run(
@@ -47,4 +48,43 @@ export function insertAnalysis(db: Db, articleId: string, a: AiAnalysis, meta: A
     });
   });
   return analysisId;
+}
+
+/**
+ * Já existe análise para este insumo? Rascunhos bloqueados/rejeitados feitos com um validador mais antigo não contam
+ * (o validador mudou: vale tentar de novo). `retry` ignora bloqueados/rejeitados de qualquer versão (nova tentativa
+ * explícita; cria nova versão, o histórico fica).
+ */
+export function alreadyAnalyzed(db: Db, articleId: string, inputHash: string, retry = false): string | null {
+  return db.get<{ id: string }>(
+    `SELECT id FROM analyses WHERE article_id = ? AND input_hash = ?
+       AND (status NOT IN ('blocked','rejected') OR (? = 0 AND validator_version = ?)) LIMIT 1`,
+    articleId, inputHash, retry ? 1 : 0, VALIDATOR_VERSION,
+  )?.id ?? null;
+}
+
+export interface EditorialText { editorialHeadline: string | null; summary: string | null; inShort: string | null; plainResult: string | null }
+
+/**
+ * Validação final e gravação, comum ao pipeline da API e ao claude-import: mesmos validadores, mesmas regras de
+ * bloqueio. Grava sempre como rascunho ('in_review' ou 'blocked'); publicar exige decisão editorial humana.
+ */
+export function finalizeAnalysis(
+  db: Db, articleId: string, extraction: AiAnalysis, editorial: EditorialText | { error: string }, doc: string,
+  meta: { model: string; promptVersion: string; inputHash: string },
+): { analysisId: string; status: 'in_review' | 'blocked'; detail: string[] } {
+  const m = { ...meta, isDemo: false };
+  const base: AiAnalysis = { ...extraction, editorialHeadline: null, summary: null, inShort: null, plainResult: null };
+  const report = validateAnalysis(base, doc, 'abstract_only');
+  if (report.errors.length) {
+    const analysisId = insertAnalysis(db, articleId, { ...base, reviewFlags: [...new Set([...report.flags, 'validation_failed' as const])] }, { ...m, status: 'blocked', validation: [...report.errors, ...report.warnings] });
+    return { analysisId, status: 'blocked', detail: report.errors };
+  }
+  const extractionJson = JSON.stringify(base);
+  const edErrors = 'error' in editorial ? [`Redação inválida: ${editorial.error}`] : validateEditorial(editorial, extractionJson, doc).errors;
+  const final: AiAnalysis = { ...base, ...(edErrors.length || 'error' in editorial ? {} : editorial), reviewFlags: report.flags };
+  if (edErrors.length) final.reviewFlags = [...new Set([...final.reviewFlags, 'validation_failed' as const])];
+  const problems = [...report.warnings, ...edErrors.map((e) => `Redação: ${e}`)];
+  const status = edErrors.length ? 'blocked' : 'in_review';
+  return { analysisId: insertAnalysis(db, articleId, final, { ...m, status, validation: problems }), status, detail: problems };
 }

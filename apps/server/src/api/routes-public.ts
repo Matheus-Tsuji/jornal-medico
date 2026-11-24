@@ -8,7 +8,7 @@ import { allFlags, flag } from '../modules/audit.ts';
 import { createGuest, loginWithPassword, registerWithPassword, requestCode, revokeAllSessions, revokeSession, verifyCode } from '../modules/auth.ts';
 import { listMonitor } from '../modules/monitor.ts';
 import { entitled } from '../modules/billing.ts';
-import { articleDetail, cardMap, cards, editionDto, editionList, previewEdition, publishedEdition, visibility } from '../modules/content.ts';
+import { articleDetail, cardMap, cards, editionDto, editionList, oneVisiblePerArticle, previewEdition, publishedEdition, visibility } from '../modules/content.ts';
 import { loadProfile, recommend } from '../modules/ranking.ts';
 import { requireUser, setSessionCookie, type Ctx } from './app.ts';
 
@@ -136,8 +136,9 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   app.get('/articles', async (req) => {
     const q = articleListQuery.parse(req.query);
     const v = visibility(db);
-    const where: string[] = [v.sql, `a.version = (SELECT MAX(version) FROM analyses x WHERE x.article_id = a.article_id AND x.status = a.status)`];
-    const params: Params = [...v.params];
+    const one = oneVisiblePerArticle(db);
+    const where: string[] = [v.sql, one.sql];
+    const params: Params = [...v.params, ...one.params];
     if (q.topic) {
       where.push(`ar.id IN (SELECT at.article_id FROM article_topics at WHERE at.topic_id IN (
         WITH RECURSIVE sub(id) AS (SELECT id FROM topics WHERE slug = ?
@@ -197,7 +198,7 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     );
     const v = visibility(db);
     const ids = rows.flatMap((r) => {
-      const a = db.get<{ id: string }>(`SELECT a.id FROM analyses a WHERE ${v.sql} AND a.article_id = ? ORDER BY a.version DESC LIMIT 1`, ...v.params, r.article_id);
+      const a = db.get<{ id: string }>(`SELECT a.id FROM analyses a WHERE ${v.sql} AND a.article_id = ? ORDER BY CASE a.status WHEN 'published' THEN 0 ELSE 1 END, a.version DESC LIMIT 1`, ...v.params, r.article_id);
       return a ? [{ aid: a.id, readers: r.readers }] : [];
     });
     const m = cardMap(db, ids.map((x) => x.aid), req.user?.id);

@@ -58,6 +58,8 @@ export const errorReportInput = z.strictObject({
 export const reviewDecisionInput = z.strictObject({
   decision: z.enum(['approve', 'reject', 'request_changes']),
   justification: z.string().trim().min(5, 'Justifique a decisão.').max(2000),
+  /** Aprovar análise bloqueada pelo validador exige confirmação explícita e justificativa substantiva (30+ caracteres). */
+  overrideBlocked: z.boolean().optional(),
   edits: z
     .strictObject({
       editorialHeadline: z.string().trim().min(5).max(200).optional(),

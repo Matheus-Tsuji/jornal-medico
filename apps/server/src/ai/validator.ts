@@ -2,6 +2,9 @@
 // Divergência gera sinalização para revisão humana; nunca correção automática.
 import type { AiAnalysis } from '@jm/contracts';
 
+/** Sobe quando o validador fica mais rígido: rascunhos bloqueados/rejeitados com versão anterior podem ser refeitos. */
+export const VALIDATOR_VERSION = 2;
+
 export type ReviewFlag = AiAnalysis['reviewFlags'][number];
 export interface ValidationReport { errors: string[]; warnings: string[]; flags: ReviewFlag[] }
 
@@ -74,25 +77,34 @@ export function validateAnalysis(a: AiAnalysis, source: string, expectedScope: A
       if (!rawHasIneq && p.operator !== '=') warnings.push(`${at}: operador do p-valor não aparece no texto bruto.`);
     }
     if (r.sampleSize !== null && r.sampleSize <= 0) errors.push(`${at}: tamanho amostral não positivo.`);
-    // Fidelidade numérica: todo número reportado precisa existir na fonte.
+    // Fidelidade numérica: todo número reportado precisa existir na fonte (erro: bloqueia a análise).
     const reported = [r.estimateRaw, r.confidenceInterval?.raw, r.pValue?.raw].filter((x): x is string => !!x);
     for (const raw of reported) {
       for (const tok of numberTokens(raw)) {
         if (!covered(tok, srcNums)) {
-          warnings.push(`${at}: número ${tok[0]} não encontrado no material de origem.`);
+          errors.push(`${at}: número ${tok[0]} não encontrado no material de origem.`);
           flags.add('numeric_uncertainty');
         }
       }
     }
+    // Os campos numéricos precisam bater com o texto bruto de onde saíram (sinal ignorado: o tokenizador não o lê).
+    const inRaw = (v: number, raw: string) => numberTokens(raw).flat().includes(String(Math.abs(v)));
+    if (r.estimate !== null && r.estimateRaw && !inRaw(r.estimate, r.estimateRaw)) {
+      errors.push(`${at}: estimativa ${r.estimate} não aparece em estimateRaw ("${r.estimateRaw}").`);
+    }
+    if (ci?.raw && (!inRaw(ci.lower, ci.raw) || !inRaw(ci.upper, ci.raw))) {
+      errors.push(`${at}: limites do IC (${ci.lower}; ${ci.upper}) não batem com o texto bruto ("${ci.raw}").`);
+    }
     if (r.evidenceRef.quote && !srcNorm.includes(norm(r.evidenceRef.quote))) {
-      warnings.push(`${at}: trecho de evidência não encontrado literalmente na fonte.`);
+      errors.push(`${at}: trecho de evidência não encontrado literalmente na fonte.`);
       flags.add('numeric_uncertainty');
     }
   });
 
   a.claims.forEach((c, i) => {
     if (c.origin !== 'editorial' && (!c.quote || !srcNorm.includes(norm(c.quote)))) {
-      warnings.push(`claims[${i}]: afirmação sem trecho literal verificável na fonte.`);
+      errors.push(`claims[${i}]: afirmação sem trecho literal verificável na fonte.`);
+      flags.add('numeric_uncertainty');
     }
   });
 

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { reviewDecisionInput } from '@jm/contracts';
 import { AppError, localDate, nowIso } from '../lib/util.ts';
 import { loadPricing } from '../ai/analysis.ts';
-import { audit } from '../modules/audit.ts';
+import { audit, IMPLEMENTED_FLAGS } from '../modules/audit.ts';
 import { listPlans } from '../modules/billing.ts';
 import { editionDto } from '../modules/content.ts';
 import { composeEdition, decide, publishEdition, reviewDetail, reviewQueue } from '../modules/editorial.ts';
@@ -171,8 +171,7 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     const u = admin(req);
     const { key } = z.object({ key: z.string().max(40) }).parse(req.params);
     const { enabled } = z.strictObject({ enabled: z.boolean() }).parse(req.body);
-    const implemented = ['real_content', 'ai_preview'];
-    if (enabled && !implemented.includes(key)) throw new AppError(409, 'not_implemented', 'Esta integração ainda não foi implementada; a flag não pode ser ligada.');
+    if (enabled && !IMPLEMENTED_FLAGS.includes(key)) throw new AppError(409, 'not_implemented', 'Esta integração ainda não foi implementada; a flag não pode ser ligada.');
     if (Number(db.run('UPDATE feature_flags SET enabled = ?, updated_at = ? WHERE key = ?', enabled ? 1 : 0, nowIso(), key).changes) !== 1) throw new AppError(404, 'not_found', 'Flag inexistente.');
     audit(db, u.id, 'flag.changed', 'flag', key, { enabled });
     return { ok: true };

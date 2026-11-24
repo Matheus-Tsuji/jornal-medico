@@ -34,7 +34,8 @@ switch (cmd) {
     break;
   }
   case 'analyze':
-    out(await analyzeArticle(db, cfg, deps.provider, arg ?? ''));
+    // analyze ID [--retry]: --retry refaz análise bloqueada/rejeitada como nova versão (o histórico fica).
+    out(await analyzeArticle(db, cfg, deps.provider, arg ?? '', null, { retry: process.argv.includes('--retry') }));
     break;
   case 'claude-export': {
     // claude-export ARQUIVO [N]: documentos pendentes + prompts, para o Claude da rotina escrever as análises (sem chave de API).

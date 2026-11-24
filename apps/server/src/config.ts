@@ -14,7 +14,6 @@ const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().default(8787),
   HOST: z.string().default('127.0.0.1'),
-  PUBLIC_ORIGIN: z.string().url().default('http://localhost:5173'),
   DATABASE_URL: z.string().default('file:./data/journal.db'),
   /** Token do Turso quando DATABASE_URL é remoto (libsql://…). */
   DATABASE_AUTH_TOKEN: optStr,
@@ -55,12 +54,6 @@ const schema = z.object({
   BILLING_GRACE_DAYS: z.coerce.number().int().min(0).default(3),
   RECOMMENDER_URL: optStr,
   RANKING_MIN_READERS: z.coerce.number().int().min(1).default(3),
-  FEATURE_REAL_CONTENT: bool,
-  FEATURE_NOTION: bool,
-  FEATURE_CLICKUP: bool,
-  FEATURE_AUDIO: bool,
-  FEATURE_VIDEO: bool,
-  FEATURE_PWA: bool,
   WEB_DIST: optStr,
   /** Liga GET /api/v1/dev/outbox (códigos de login na tela). Só vale com NODE_ENV development/test. */
   DEV_OUTBOX: bool,

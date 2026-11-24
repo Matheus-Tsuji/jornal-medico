@@ -2,7 +2,7 @@
 // nunca gera texto novo por leitor. O serviço Python é opcional e tem fallback.
 import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
-import { visibility } from './content.ts';
+import { oneVisiblePerArticle, visibility } from './content.ts';
 
 export interface Candidate {
   id: string; // analysis id
@@ -93,8 +93,8 @@ export function loadCandidates(db: Db, userId: string | null, days = 30): Candid
     `SELECT a.id AS aid, a.article_id, ar.pub_date, a.editorial_priority AS priority, s.slug AS source
        FROM analyses a JOIN articles ar ON ar.id = a.article_id JOIN sources s ON s.id = ar.source_id
       WHERE ${v.sql} AND ar.retraction_status <> 'retracted' AND COALESCE(ar.pub_date, '9999') >= ?
-        AND a.version = (SELECT MAX(version) FROM analyses x WHERE x.article_id = a.article_id AND x.status = a.status)`,
-    ...v.params, since,
+        AND ${oneVisiblePerArticle(db).sql}`,
+    ...v.params, since, ...oneVisiblePerArticle(db).params,
   );
   const read = new Set(userId ? db.all<{ article_id: string }>('SELECT DISTINCT article_id FROM read_events WHERE user_id = ?', userId).map((r) => r.article_id) : []);
   return rows.map((r) => {

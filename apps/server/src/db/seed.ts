@@ -1,4 +1,5 @@
 // Semente idempotente: taxonomia, fontes, planos, flags e edição de DEMONSTRAÇÃO.
+import { IMPLEMENTED_FLAGS } from '../modules/audit.ts';
 import type { AiAnalysis } from '@jm/contracts';
 import type { Config } from '../config.ts';
 import type { Db } from './index.ts';
@@ -56,7 +57,7 @@ export function seed(db: Db, cfg: Config): { demoArticles: number } {
       db.run('INSERT OR IGNORE INTO plans (id, slug, name, description, price_cents, active) VALUES (?,?,?,?,?,?)', id(), p.slug, p.name, p.description, p.price, p.active);
     }
     for (const f of flags) {
-      const envOn = ['true', '1'].includes(String(process.env[f.env] ?? ''));
+      const envOn = IMPLEMENTED_FLAGS.includes(f.key) && ['true', '1'].includes(String(process.env[f.env] ?? ''));
       db.run('INSERT OR IGNORE INTO feature_flags (key, enabled, description, updated_at) VALUES (?,?,?,?)', f.key, envOn ? 1 : 0, f.description, now);
     }
   });

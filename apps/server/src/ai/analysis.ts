@@ -7,9 +7,9 @@ import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
 import { REPO_ROOT, json } from '../db/index.ts';
 import { id, nowIso, sha256 } from '../lib/util.ts';
-import { insertAnalysis } from '../modules/analyses.ts';
+import { alreadyAnalyzed, finalizeAnalysis } from '../modules/analyses.ts';
 import type { AiProvider, Usage } from './provider.ts';
-import { validateAnalysis, validateEditorial } from './validator.ts';
+import { validateAnalysis } from './validator.ts';
 
 const PROMPTS = join(REPO_ROOT, 'apps/server/src/ai/prompts');
 export const PROMPT_VERSION = 'triage.v1+extraction.v2+editorial.v3';
@@ -95,7 +95,7 @@ export function buildDocument(article: { original_title: string; journal: string
   ].join('\n');
 }
 
-export async function analyzeArticle(db: Db, cfg: Config, provider: AiProvider | null, articleId: string, jobId: string | null = null) {
+export async function analyzeArticle(db: Db, cfg: Config, provider: AiProvider | null, articleId: string, jobId: string | null = null, opts: { retry?: boolean } = {}) {
   if (!provider || !cfg.OPENAI_ANALYSIS_MODEL || !cfg.OPENAI_EDITORIAL_MODEL) {
     // Adiado, não bloqueado: quando a chave for configurada, a fila acumulada é analisada sozinha.
     throw new DeferError('OPENAI_API_KEY e modelos não configurados: análise real aguardando configuração.', SIX_HOURS);
@@ -110,8 +110,8 @@ export async function analyzeArticle(db: Db, cfg: Config, provider: AiProvider |
 
   const doc = buildDocument(art, src.abstract_text);
   const inputHash = sha256(`${PROMPT_VERSION}\n${doc}`);
-  const existing = db.get<{ id: string }>('SELECT id FROM analyses WHERE article_id = ? AND input_hash = ?', articleId, inputHash);
-  if (existing) return { analysisId: existing.id, status: 'skipped_existing' as const };
+  const existing = alreadyAnalyzed(db, articleId, inputHash, opts.retry);
+  if (existing) return { analysisId: existing, status: 'skipped_existing' as const };
   if (art.triage_status === 'excluded') return { analysisId: null, status: 'excluded' as const };
   checkBudget(db, cfg, [cfg.OPENAI_ANALYSIS_MODEL, cfg.OPENAI_EDITORIAL_MODEL, ...(cfg.OPENAI_TRIAGE_MODEL ? [cfg.OPENAI_TRIAGE_MODEL] : [])], jobId);
 
@@ -135,41 +135,36 @@ export async function analyzeArticle(db: Db, cfg: Config, provider: AiProvider |
     }
   }
 
-  // 1) Extração + avaliação crítica (modelo de maior capacidade)
-  let extraction: AiAnalysis | null = null;
-  let report = { errors: ['não executado'], warnings: [] as string[], flags: [] as AiAnalysis['reviewFlags'] };
+  // 1) Extração + avaliação crítica (modelo de maior capacidade). Guarda a extração junto com o próprio relatório:
+  // se a 2ª tentativa vier com schema inválido, vale a 1ª (e os erros dela), não uma mistura das duas.
+  let best: { extraction: AiAnalysis; errors: string[] } | null = null;
+  let schemaError = '';
   let note = '';
-  for (let attempt = 1; attempt <= 2 && report.errors.length; attempt++) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
     const r = await provider.structured({
       model: cfg.OPENAI_ANALYSIS_MODEL, system: EXTRACTION, user: doc + note, name: 'article_analysis', schema: aiAnalysisSchema, maxOutputTokens: cfg.AI_MAX_OUTPUT_TOKENS,
     });
     recordUsage(db, 'extraction', cfg.OPENAI_ANALYSIS_MODEL, r.usage, r.parsed ? 'ok' : 'invalid', jobId, articleId);
     if (r.refusal) throw new BlockedError(`Modelo recusou: ${r.refusal.slice(0, 200)}`);
-    if (!r.parsed) {
-      report = { errors: [`Schema inválido: ${r.parseError}`], warnings: [], flags: [] };
-    } else {
-      extraction = r.parsed;
-      report = validateAnalysis(r.parsed, doc, 'abstract_only');
-    }
-    note = `\n\n[Sistema] A tentativa anterior falhou na validação: ${report.errors.join(' | ').slice(0, 800)}. Corrija sem inventar dados.`;
+    const errors = r.parsed ? validateAnalysis(r.parsed, doc, 'abstract_only').errors : [`Schema inválido: ${r.parseError}`];
+    if (r.parsed) best = { extraction: r.parsed, errors };
+    else schemaError = errors[0]!;
+    if (r.parsed && !errors.length) break;
+    note = `\n\n[Sistema] A tentativa anterior falhou na validação: ${errors.join(' | ').slice(0, 800)}. Corrija sem inventar dados.`;
   }
-  const meta = { model: cfg.OPENAI_ANALYSIS_MODEL, promptVersion: PROMPT_VERSION, inputHash, isDemo: false };
-  if (!extraction || report.errors.length) {
-    if (!extraction) throw new BlockedError(`Extração inválida após 2 tentativas: ${report.errors.join('; ').slice(0, 400)}`);
-    const aid = insertAnalysis(db, articleId, { ...extraction, reviewFlags: [...new Set([...report.flags, 'validation_failed' as const])] }, { ...meta, status: 'blocked', validation: [...report.errors, ...report.warnings] });
-    return { analysisId: aid, status: 'blocked' as const };
+  if (!best) throw new BlockedError(`Extração inválida após 2 tentativas: ${schemaError.slice(0, 400)}`);
+  const meta = { model: cfg.OPENAI_ANALYSIS_MODEL, promptVersion: PROMPT_VERSION, inputHash };
+  if (best.errors.length) {
+    const r = finalizeAnalysis(db, articleId, best.extraction, { error: 'não executada (extração bloqueada)' }, doc, meta);
+    return { analysisId: r.analysisId, status: r.status };
   }
 
   // 2) Redação editorial baseada só na extração validada
-  const extractionJson = JSON.stringify({ ...extraction, editorialHeadline: null, summary: null, inShort: null, plainResult: null });
+  const extractionJson = JSON.stringify({ ...best.extraction, editorialHeadline: null, summary: null, inShort: null, plainResult: null });
   const ed = await provider.structured({
     model: cfg.OPENAI_EDITORIAL_MODEL, system: EDITORIAL, user: `<extracao>\n${extractionJson}\n</extracao>`, name: 'editorial_text', schema: editorialSchema, maxOutputTokens: 1500,
   });
   recordUsage(db, 'editorial', cfg.OPENAI_EDITORIAL_MODEL, ed.usage, ed.parsed ? 'ok' : 'invalid', jobId, articleId);
-  const edReport = ed.parsed ? validateEditorial(ed.parsed, extractionJson, doc) : { errors: [`Redação inválida: ${ed.parseError}`], warnings: [], flags: [] };
-  const final: AiAnalysis = { ...extraction, ...(ed.parsed && !edReport.errors.length ? ed.parsed : {}), reviewFlags: report.flags };
-  const problems = [...report.warnings, ...edReport.errors.map((e) => `Redação: ${e}`)];
-  if (edReport.errors.length) final.reviewFlags = [...new Set([...final.reviewFlags, 'validation_failed' as const])];
-  const aid = insertAnalysis(db, articleId, final, { ...meta, status: edReport.errors.length ? 'blocked' : 'in_review', validation: problems });
-  return { analysisId: aid, status: edReport.errors.length ? ('blocked' as const) : ('in_review' as const) };
+  const r = finalizeAnalysis(db, articleId, best.extraction, ed.parsed ?? { error: ed.parseError ?? 'sem resposta' }, doc, meta);
+  return { analysisId: r.analysisId, status: r.status };
 }
