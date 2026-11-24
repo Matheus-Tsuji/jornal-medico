@@ -104,9 +104,9 @@ export default function Landing() {
         <section id="como" className="border-y border-line bg-surface">
           <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 md:grid-cols-3">
             {[
-              ['Poupa tempo', 'Em vez de abrir dezenas de bases e revistas, você lê uma edição organizada por área, com começo e fim.'],
-              ['Mostra os números', 'Medida de efeito, intervalo de confiança e p-valor exatamente como foram reportados — e o que não foi reportado aparece como ausente.'],
-              ['Separa achado de conduta', 'Associação não vira causa, resultado negativo também é notícia e nenhuma análise vira recomendação para pacientes.'],
+              ['Organiza a sua leitura', 'Reunimos publicações recentes de bases científicas em uma edição por área, com começo e fim. A leitura da fonte original continua indispensável.'],
+              ['Números como publicados', 'Medida de efeito, intervalo de confiança e p-valor aparecem como os autores reportaram. O que não foi reportado fica indicado como ausente; não recalculamos resultados.'],
+              ['Informa, não orienta', 'Conteúdo científico e educacional. Não é orientação diagnóstica ou terapêutica e não substitui o julgamento clínico do profissional de saúde.'],
             ].map(([t, d]) => (
               <div key={t} className="border-t-2 border-ink pt-3">
                 <h2 className="m-0 font-serif text-2xl font-bold">{t}</h2>
