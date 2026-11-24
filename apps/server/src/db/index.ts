@@ -85,6 +85,14 @@ export class Db {
   }
 }
 
+// Bancos antigos registraram 015_worker.sql com o nome 014_worker.sql; só reconcilia se o esquema já estiver íntegro.
+function hasLegacyWorkerSchema(db: Db): boolean {
+  const hasRetractionCol = !!db.get("SELECT 1 FROM pragma_table_info('articles') WHERE name = 'retraction_checked_at'");
+  const hasTitleIndex = !!db.get("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_articles_title_lower'");
+  const hasReservationsTable = !!db.get("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ai_budget_reservations'");
+  return hasRetractionCol && hasTitleIndex && hasReservationsTable;
+}
+
 export function migrate(db: Db): string[] {
   db.raw.exec('CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
   const done = new Set(db.all<{ name: string }>('SELECT name FROM schema_migrations').map((r) => r.name));
@@ -94,7 +102,11 @@ export function migrate(db: Db): string[] {
     const sql = readFileSync(join(MIGRATIONS_DIR, name), 'utf8');
     const installed = db.tx(() => {
       if (db.get('SELECT 1 FROM schema_migrations WHERE name = ?', name)) return false;
-      db.raw.exec(sql);
+      const alreadyAppliedLegacy =
+        name === '015_worker.sql'
+        && !!db.get("SELECT 1 FROM schema_migrations WHERE name = '014_worker.sql'")
+        && hasLegacyWorkerSchema(db);
+      if (!alreadyAppliedLegacy) db.raw.exec(sql);
       db.run('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)', name, new Date().toISOString());
       return true;
     });

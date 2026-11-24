@@ -121,7 +121,7 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     const u = editor(req);
     const { date } = dateParam.parse(req.params);
     const e = db.get("SELECT * FROM editions WHERE edition_date = ? AND is_demo = 0 ORDER BY version DESC LIMIT 1", date);
-    if (!e) throw new AppError(404, 'not_found', 'Sem edição para esta data.');
+    if (!e) return { status: null, editionId: null, edition: null };
     return { status: e.status, editionId: e.id as string, edition: editionDto(db, e, u.id) };
   });
   app.post('/admin/editions/:date/publish', async (req) => {

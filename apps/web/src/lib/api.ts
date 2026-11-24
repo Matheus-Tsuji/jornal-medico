@@ -36,14 +36,7 @@ export const useConfig = () => useQuery({ queryKey: ['config'], queryFn: () => a
 export const useMe = () =>
   useQuery({
     queryKey: ['me'],
-    queryFn: async () => {
-      try {
-        return await api<Me>('/me');
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 401) return null;
-        throw e;
-      }
-    },
+    queryFn: async () => (await api<{ user: Me | null }>('/session')).user,
     staleTime: 60_000,
   });
 

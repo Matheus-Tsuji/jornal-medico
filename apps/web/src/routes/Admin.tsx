@@ -161,9 +161,9 @@ function Editions() {
   const qc = useQueryClient();
   const [date, setDate] = useState(today());
   const list = useAdmin<{ items: Row[] }>('/admin/editions');
-  const preview = useQuery({ queryKey: ['admin', 'preview', date], queryFn: () => api<{ status: string; editionId: string; edition: { headline: { headline: string } | null; secondary: unknown[]; sections: unknown[] } }>(`/admin/editions/${date}/preview`), retry: false });
+  const preview = useQuery({ queryKey: ['admin', 'preview', date], queryFn: () => api<{ status: string | null; editionId: string | null; edition: { headline: { headline: string } | null; secondary: unknown[]; sections: unknown[] } | null }>(`/admin/editions/${date}/preview`), retry: false });
   const act = useMutation({
-    mutationFn: (a: 'compose' | 'publish') => api(`/admin/editions/${date}/${a}`, a === 'publish' ? { method: 'POST', body: { editionId: preview.data?.editionId } } : { method: 'POST' }),
+    mutationFn: (a: 'compose' | 'publish') => api(`/admin/editions/${date}/${a}`, a === 'publish' ? { method: 'POST', body: preview.data?.editionId ? { editionId: preview.data.editionId } : {} } : { method: 'POST' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin'] }),
   });
   return (
@@ -176,7 +176,7 @@ function Editions() {
       {act.error && <p role="alert" className="m-0 text-danger">{(act.error as ApiError).message}</p>}
       <div className="border border-line bg-surface p-3 text-sm">
         <p className="kicker m-0 text-muted">Prévia ({preview.data?.status ?? 'sem edição'})</p>
-        {preview.data ? <p className="m-0">Manchete: <strong>{preview.data.edition.headline?.headline ?? '—'}</strong> · {preview.data.edition.secondary.length} secundárias · {preview.data.edition.sections.length} seções</p> : <p className="m-0 text-muted">Sem rascunho para esta data.</p>}
+        {preview.data?.edition ? <p className="m-0">Manchete: <strong>{preview.data.edition.headline?.headline ?? '—'}</strong> · {preview.data.edition.secondary.length} secundárias · {preview.data.edition.sections.length} seções</p> : <p className="m-0 text-muted">Sem rascunho para esta data.</p>}
       </div>
       {list.data && <Table rows={list.data.items} cols={[['edition_date', 'Data'], ['version', 'Versão'], ['status', 'Situação'], ['is_demo', 'Demo', (r) => (r.is_demo ? 'sim' : 'não')], ['items', 'Itens'], ['published_at', 'Publicada', (r) => (r.published_at ? fmtDateTime(r.published_at as string) : '—')]]} />}
     </div>

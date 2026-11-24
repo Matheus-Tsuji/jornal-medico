@@ -67,4 +67,48 @@ describe('A2: publicação presa ao rascunho da prévia', () => {
     expect((await publish({ editionId: newId })).json().code).toBe('empty_edition');
     expect((await publish()).json().code).toBe('empty_edition');
   });
+
+  it('prévia sem edição retorna 200 nulo e preserva 401/403 para não autenticado e leitor', async () => {
+    const { app, db } = await setup();
+    const admin = await login(app, db, 'admin@example.com');
+    const reader = await login(app, db, 'leitor-previa@example.com');
+    const date = '2026-11-22';
+
+    expect((await app.inject({ url: `/api/v1/admin/editions/${date}/preview` })).statusCode).toBe(401);
+    expect((await app.inject({ url: `/api/v1/admin/editions/${date}/preview`, cookies: reader })).statusCode).toBe(403);
+
+    const empty = await app.inject({ url: `/api/v1/admin/editions/${date}/preview`, cookies: admin });
+    expect(empty.statusCode).toBe(200);
+    expect(empty.json()).toEqual({ status: null, editionId: null, edition: null });
+
+    await app.inject({ method: 'POST', url: `/api/v1/admin/editions/${date}/compose`, headers: H, cookies: admin });
+    const present = await app.inject({ url: `/api/v1/admin/editions/${date}/preview`, cookies: admin });
+    expect(present.statusCode).toBe(200);
+    expect(present.json().status).toBe('draft');
+    expect(present.json().editionId).toBeTruthy();
+    expect(present.json().edition).toBeTruthy();
+  });
+});
+
+describe('Sessão opcional (/api/v1/session)', () => {
+  it('retorna 200 { user: null } sem sessão e mantém /me em 401', async () => {
+    const { app, db } = await setup();
+    const anon = await app.inject({ url: '/api/v1/session' });
+    expect(anon.statusCode).toBe(200);
+    expect(anon.headers['cache-control']).toBe('private, no-store');
+    expect(anon.json()).toEqual({ user: null });
+    expect((await app.inject({ url: '/api/v1/me' })).statusCode).toBe(401);
+
+    const reader = await login(app, db, 'sessao@example.com');
+    const auth = await app.inject({ url: '/api/v1/session', cookies: reader });
+    expect(auth.statusCode).toBe(200);
+    expect(auth.headers['cache-control']).toBe('private, no-store');
+    expect(auth.json().user?.email).toBe('sessao@example.com');
+
+    await app.inject({ method: 'POST', url: '/api/v1/auth/logout', headers: H, cookies: reader });
+    const afterLogout = await app.inject({ url: '/api/v1/session', cookies: reader });
+    expect(afterLogout.statusCode).toBe(200);
+    expect(afterLogout.json()).toEqual({ user: null });
+    expect((await app.inject({ url: '/api/v1/me', cookies: reader })).statusCode).toBe(401);
+  });
 });

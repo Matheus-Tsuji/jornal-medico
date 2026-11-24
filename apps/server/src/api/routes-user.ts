@@ -33,6 +33,12 @@ export async function userRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
 
   app.get('/me', async (req) => me(requireUser(req).id));
 
+  // Consulta opcional de sessão para páginas públicas: evita 401 esperado no console mantendo /me restrito.
+  app.get('/session', async (req, reply) => {
+    reply.header('cache-control', 'private, no-store');
+    return { user: req.user ? me(req.user.id) : null };
+  });
+
   app.patch('/me', async (req) => {
     const u = requireUser(req);
     const body = updateMeInput.parse(req.body);
