@@ -6,6 +6,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { vercelConfig } from './vercel-config.mjs';
 
 const OUT = '.vercel/output';
 const FUNC = join(OUT, 'functions/api.func');
@@ -78,15 +79,6 @@ writeFileSync(join(FUNC, '.vc-config.json'), JSON.stringify({
 
 // 3) Rotas e cron
 mkdirSync(OUT, { recursive: true });
-writeFileSync(join(OUT, 'config.json'), JSON.stringify({
-  version: 3,
-  routes: [
-    { src: '^/assets/(.*)$', headers: { 'cache-control': 'public, max-age=31536000, immutable' }, continue: true },
-    { src: '^/(api/.*|health)$', dest: '/api' },
-    { handle: 'filesystem' },
-    { src: '^/(.*)$', dest: '/index.html' },
-  ],
-  crons: [{ path: '/api/v1/cron/tick', schedule: CRON_SCHEDULE }],
-}, null, 2));
+writeFileSync(join(OUT, 'config.json'), JSON.stringify(vercelConfig(CRON_SCHEDULE), null, 2));
 
 console.log(`Vercel: ${OUT} pronto (função api + estático; pacotes nativos: ${[...copied].join(', ')}; cron "${CRON_SCHEDULE}").`);

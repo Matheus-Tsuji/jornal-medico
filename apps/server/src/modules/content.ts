@@ -3,7 +3,7 @@
 import type { AiAnalysis, ArticleCard, ArticleDetail, EditionDto, EditionSummary, EvidenceResultDto, KeyResult } from '@jm/contracts';
 import type { Db, Params, Row } from '../db/index.ts';
 import { json } from '../db/index.ts';
-import { AppError, localDate } from '../lib/util.ts';
+import { AppError, httpsUrl, localDate } from '../lib/util.ts';
 import { flag } from './audit.ts';
 import { rankBest, scoreAnalyses } from './grade.ts';
 
@@ -218,7 +218,7 @@ export function articleDetail(db: Db, slug: string, opts: { userId?: string | nu
     doi: (art.doi as string) ?? null,
     pmid: (art.pmid as string) ?? null,
     pmcid: (art.pmcid as string) ?? null,
-    canonicalUrl: (art.canonical_url as string) ?? null,
+    canonicalUrl: httpsUrl(art.canonical_url as string | null),
     processedAt: an.created_at as string,
     reviewedAt: review?.created_at ?? (an.is_demo === 1 ? null : (an.published_at as string) ?? null),
     reviewerLabel: review ? 'Editor responsável (identidade registrada internamente)' : null,

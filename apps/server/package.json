@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=../../.env src/api/main.ts",
-    "start": "tsx --env-file-if-exists=../../.env src/api/main.ts",
+    "start": "tsx --env-file-if-exists=../../.env src/api/start.ts",
     "worker": "tsx --env-file-if-exists=../../.env src/worker/main.ts",
     "pipeline": "tsx --env-file-if-exists=../../.env src/worker/cli.ts",
     "db:migrate": "tsx --env-file-if-exists=../../.env src/db/cli.ts migrate",

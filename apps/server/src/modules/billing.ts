@@ -1,6 +1,6 @@
 // Assinatura provider-agnostic. Só o provedor 'sandbox' existe no MVP: nenhuma cobrança real.
 // O estado da assinatura muda SOMENTE via webhook assinado (nunca pelo retorno do checkout).
-import type { Plan, SubscriptionDto } from '@jm/contracts';
+import { billingEventSchema, type BillingEvent, type Plan, type SubscriptionDto } from '@jm/contracts';
 import type { Config } from '../config.ts';
 import type { Db, Row } from '../db/index.ts';
 import { AppError, addDays, hmac, id, nowIso, safeEqual } from '../lib/util.ts';
@@ -49,9 +49,22 @@ export function subscriptionDto(db: Db, cfg: Config, userId: string): Subscripti
   };
 }
 
-export function checkout(db: Db, userId: string, planId: string): { url: string; externalId: string } {
+/** Assinaturas cujo período (ou carência) já acabou passam a 'canceled': liberam nova contratação. */
+export function expireSubscriptions(db: Db, cfg: Config, userId: string, now = Date.now()) {
+  const nowS = new Date(now).toISOString();
+  const graceS = new Date(now - cfg.BILLING_GRACE_DAYS * 86_400_000).toISOString();
+  db.run(
+    `UPDATE subscriptions SET status = 'canceled', updated_at = ? WHERE user_id = ? AND (
+       (status IN ('active','trialing') AND (current_period_end IS NULL OR current_period_end <= ?)) OR
+       (status = 'past_due' AND (current_period_end IS NULL OR current_period_end <= ?)))`,
+    nowS, userId, nowS, graceS,
+  );
+}
+
+export function checkout(db: Db, cfg: Config, userId: string, planId: string): { url: string; externalId: string } {
   const plan = db.get('SELECT * FROM plans WHERE id = ? AND active = 1', planId);
   if (!plan) throw new AppError(404, 'plan_not_found', 'Plano indisponível.');
+  expireSubscriptions(db, cfg, userId);
   const existing = db.get("SELECT id FROM subscriptions WHERE user_id = ? AND status IN ('active','trialing','past_due')", userId);
   if (existing) throw new AppError(409, 'already_subscribed', 'Você já tem uma assinatura ativa.');
   const externalId = `sbx_sub_${id()}`;
@@ -66,11 +79,6 @@ export function checkout(db: Db, userId: string, planId: string): { url: string;
   return { url: `/assinatura/sandbox?sub=${encodeURIComponent(externalId)}`, externalId };
 }
 
-export interface BillingEvent {
-  id: string;
-  type: 'subscription.activated' | 'subscription.renewed' | 'payment.failed' | 'subscription.canceled';
-  data: { subscriptionId: string; currentPeriodEnd?: string };
-}
 
 export const signPayload = (secret: string, raw: string) => `sha256=${hmac(secret, raw)}`;
 
@@ -80,13 +88,16 @@ export function handleWebhook(db: Db, cfg: Config, provider: string, raw: string
   if (!signature || !safeEqual(signature, signPayload(cfg.PAYMENT_WEBHOOK_SECRET, raw))) {
     throw new AppError(401, 'invalid_signature', 'Assinatura do webhook inválida.');
   }
-  let ev: BillingEvent;
+  let json: unknown;
   try {
-    ev = JSON.parse(raw) as BillingEvent;
+    json = JSON.parse(raw);
   } catch {
     throw new AppError(400, 'invalid_payload', 'Payload inválido.');
   }
-  if (!ev?.id || !ev.type || !ev.data?.subscriptionId) throw new AppError(400, 'invalid_payload', 'Payload inválido.');
+  // Schema estrito: tipo fora da lista (inclusive "constructor") e data não ISO viram 400, nunca 500.
+  const parsed = billingEventSchema.safeParse(json);
+  if (!parsed.success) throw new AppError(400, 'invalid_payload', 'Payload inválido.');
+  const ev = parsed.data;
   return db.tx(() => {
     const ins = db.run(
       'INSERT OR IGNORE INTO billing_events (id, provider, external_event_id, type, payload, received_at) VALUES (?,?,?,?,?,?)',
@@ -102,8 +113,10 @@ export function handleWebhook(db: Db, cfg: Config, provider: string, raw: string
       'payment.failed': ['past_due', (sub.current_period_end as string) ?? nowIso()],
       'subscription.canceled': ['canceled', (sub.current_period_end as string) ?? null],
     };
-    const [status, periodEnd] = next[ev.type] ?? [];
-    if (!status) throw new AppError(400, 'unknown_event', 'Tipo de evento não suportado.');
+    const [status, periodEnd] = next[ev.type];
+    if (status === 'active' && db.get("SELECT 1 FROM subscriptions WHERE user_id = ? AND id <> ? AND status IN ('active','trialing','past_due')", sub.user_id as string, sub.id as string)) {
+      throw new AppError(409, 'already_subscribed', 'O usuário já tem outra assinatura ativa.');
+    }
     db.run('UPDATE subscriptions SET status = ?, current_period_end = ?, updated_at = ? WHERE id = ?', status, periodEnd, nowIso(), sub.id as string);
     db.run('UPDATE billing_events SET processed_at = ? WHERE provider = ? AND external_event_id = ?', nowIso(), provider, ev.id);
     audit(db, null, `billing.${ev.type}`, 'subscription', sub.id as string, { status });
@@ -113,9 +126,11 @@ export function handleWebhook(db: Db, cfg: Config, provider: string, raw: string
 
 /** Simula o provedor sandbox: gera um evento assinado e passa pelo mesmo caminho do webhook. */
 export function sandboxComplete(db: Db, cfg: Config, userId: string, externalId: string, outcome: 'approved' | 'failed') {
-  if (cfg.PAYMENT_PROVIDER !== 'sandbox') throw new AppError(404, 'not_found', 'Indisponível.');
+  // Sandbox ativa assinatura sem pagamento: nunca em produção.
+  if (cfg.PAYMENT_PROVIDER !== 'sandbox' || cfg.NODE_ENV === 'production') throw new AppError(404, 'not_found', 'Indisponível.');
   const sub = db.get('SELECT * FROM subscriptions WHERE external_id = ? AND user_id = ?', externalId, userId);
   if (!sub) throw new AppError(404, 'not_found', 'Assinatura não encontrada.'); // inclui acesso cruzado
+  if (sub.status !== 'incomplete') throw new AppError(409, 'checkout_closed', 'Este checkout não está mais aberto. Comece um novo.');
   const ev: BillingEvent = {
     id: `sbx_evt_${id()}`,
     type: outcome === 'approved' ? 'subscription.activated' : 'payment.failed',

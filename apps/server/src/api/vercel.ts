@@ -1,7 +1,6 @@
 // Entrada da Vercel: a mesma API Fastify como função Node, mais o cron que substitui o processo worker.
 // O empacotamento (scripts/build-vercel.mjs) transforma este arquivo em .vercel/output/functions/api.func/index.mjs.
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { copyFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,14 +9,19 @@ import { ensureSecrets, loadConfig } from '../config.ts';
 import { REPO_ROOT, isRemote, openDb } from '../db/index.ts';
 import { defaultDeps, runCycle } from '../worker/runner.ts';
 import { buildApp } from './app.ts';
+import { safeEqual } from '../lib/util.ts';
 
+// Na Vercel, fora de produção haveria segredos fixos de desenvolvimento e caixa postal com códigos: recusa subir.
+if (process.env.VERCEL && process.env.NODE_ENV !== 'production') throw new Error('Na Vercel, NODE_ENV precisa ser "production".');
 const cfg = loadConfig();
+for (const w of cfg.warnings) console.warn(JSON.stringify({ level: 'warn', msg: w }));
 // Sem Turso configurado, roda numa "vitrine": cópia do banco embutida no deploy (sem dados pessoais), copiada
 // para /tmp, o único lugar gravável. Funciona, mas o que os leitores salvam se perde quando a instância recicla.
 function vitrine(): string {
   const tmp = join(tmpdir(), 'jornal-vitrine.db');
   if (!existsSync(tmp)) copyFileSync(join(REPO_ROOT, 'apps/server/data/vitrine.db'), tmp);
   cfg.ephemeral = true;
+  console.warn(JSON.stringify({ level: 'warn', msg: 'Modo vitrine efêmera (/tmp): sem Turso, dados de leitores se perdem e o ciclo diário fica desligado.' }));
   return tmp;
 }
 const db = isRemote(cfg.dbPath) ? openDb(cfg.dbPath, cfg.DATABASE_AUTH_TOKEN) : openDb(vitrine());
@@ -29,12 +33,7 @@ let app: Promise<FastifyInstance> | null = null;
 // e o próximo ciclo retoma o job.
 const CRON_BUDGET_MS = 180_000;
 
-function cronAuthorized(header: string | undefined): boolean {
-  if (!cfg.CRON_SECRET || !header) return false;
-  const a = Buffer.from(header);
-  const b = Buffer.from(`Bearer ${cfg.CRON_SECRET}`);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
+const cronAuthorized = (header: string | undefined) => !!cfg.CRON_SECRET && !!header && safeEqual(header, `Bearer ${cfg.CRON_SECRET}`);
 
 async function cron(req: IncomingMessage, res: ServerResponse) {
   res.setHeader('content-type', 'application/json');

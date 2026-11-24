@@ -2,7 +2,7 @@
 // bloqueia acesso automatizado, então não é usado. Data de referência: criação do DOI (from-created-date), para não
 // trazer artigos antigos reindexados. Docs: https://api.crossref.org/swagger-ui/index.html
 import { safeFetch, type FetchLike } from '../lib/net.ts';
-import { normalizeDoi, sleep } from '../lib/util.ts';
+import { httpsUrl, normalizeDoi, sleep } from '../lib/util.ts';
 import { topicTerms, typesFromTitle } from './europepmc.ts';
 import type { NormalizedRecord, ScientificSourceAdapter } from './pubmed.ts';
 
@@ -88,7 +88,7 @@ export function scieloAdapter(f: FetchLike = fetch): ScientificSourceAdapter {
           mesh: [],
           retracted: false,
           corrected: false,
-          url: it.URL ?? `https://doi.org/${it.DOI}`,
+          url: httpsUrl(it.URL) ?? `https://doi.org/${it.DOI}`,
         }];
       });
     },

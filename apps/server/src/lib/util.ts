@@ -42,6 +42,15 @@ export class AppError extends Error {
   }
 }
 
+/** Só URLs https válidas (bloqueia javascript:, data:, http: etc. vindos de fontes externas). */
+export function httpsUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  try {
+    return new URL(raw).protocol === 'https:' ? raw : null;
+  } catch {
+    return null;
+  }
+}
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Normaliza DOI (minúsculas, sem prefixo de URL). Retorna null se o formato for inválido. */

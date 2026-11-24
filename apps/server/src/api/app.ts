@@ -41,7 +41,7 @@ export function setSessionCookie(reply: FastifyReply, cfg: Config, token: string
     return;
   }
   reply.setCookie(SESSION_COOKIE, token, {
-    httpOnly: true, secure: cfg.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: cfg.SESSION_DAYS * 86_400,
+    httpOnly: true, secure: cfg.NODE_ENV === 'production' || reply.request.protocol === 'https', sameSite: 'lax', path: '/', maxAge: cfg.SESSION_DAYS * 86_400,
   });
 }
 

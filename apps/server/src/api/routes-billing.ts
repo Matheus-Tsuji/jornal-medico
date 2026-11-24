@@ -13,7 +13,7 @@ export async function billingRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     const u = requireUser(req);
     if (u.isGuest) throw new AppError(403, 'guest_needs_email', 'Para assinar, informe seu e-mail (precisamos dele para recibos e para recuperar a conta).');
     const { planId } = checkoutInput.parse(req.body);
-    return checkout(db, u.id, planId);
+    return checkout(db, cfg, u.id, planId);
   });
   app.post('/billing/portal', async (req) => {
     requireUser(req);
@@ -25,6 +25,7 @@ export async function billingRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     return subscriptionDto(db, cfg, requireUser(req).id);
   });
   app.post('/billing/sandbox/complete', async (req) => {
+    if (cfg.NODE_ENV === 'production') throw new AppError(404, 'not_found', 'Rota não encontrada.');
     const u = requireUser(req);
     const body = z.strictObject({ subscription: z.string().max(100), outcome: z.enum(['approved', 'failed']) }).parse(req.body);
     sandboxComplete(db, cfg, u.id, body.subscription, body.outcome);

@@ -9,6 +9,8 @@ import { entitled } from '../modules/billing.ts';
 import { cardMap, visibleAnalysisIdsForArticles } from '../modules/content.ts';
 import { requireUser, setSessionCookie, type Ctx } from './app.ts';
 
+const MAX_REPORTS_PER_DAY = 10;
+
 export async function userRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   const me = (userId: string): Me => {
     const u = db.get('SELECT * FROM users WHERE id = ?', userId)!;
@@ -125,6 +127,7 @@ export async function userRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   app.post('/feedback', async (req) => {
     const u = requireUser(req);
     const { articleId, value } = feedbackInput.parse(req.body);
+    if (!db.get('SELECT 1 FROM articles WHERE id = ?', articleId)) throw new AppError(404, 'not_found', 'Artigo não encontrado.');
     db.run(
       'INSERT INTO feedback (id, user_id, article_id, value, created_at) VALUES (?,?,?,?,?) ON CONFLICT (user_id, article_id) DO UPDATE SET value = excluded.value, created_at = excluded.created_at',
       id(), u.id, articleId, value, nowIso(),
@@ -133,7 +136,10 @@ export async function userRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   });
   app.post('/reports', async (req) => {
     const u = requireUser(req);
+    if (u.isGuest) throw new AppError(403, 'guest_needs_email', 'Para relatar um erro, entre com sua conta.');
     const { articleId, message } = errorReportInput.parse(req.body);
+    const today = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM error_reports WHERE user_id = ? AND created_at > ?', u.id, new Date(Date.now() - 86_400_000).toISOString())!.n;
+    if (today >= MAX_REPORTS_PER_DAY) throw new AppError(429, 'rate_limited', 'Limite diário de relatos atingido. Tente amanhã.');
     if (!db.get('SELECT 1 FROM articles WHERE id = ?', articleId)) throw new AppError(404, 'not_found', 'Artigo não encontrado.');
     const rid = id();
     db.run('INSERT INTO error_reports (id, user_id, article_id, message, created_at) VALUES (?,?,?,?,?)', rid, u.id, articleId, message, nowIso());
@@ -147,7 +153,7 @@ export async function userRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     reply.header('content-disposition', 'attachment; filename="meus-dados-jornal-medico.json"');
     return {
       exportedAt: nowIso(),
-      user: db.get('SELECT CASE WHEN is_guest = 1 THEN NULL ELSE email END AS email, is_guest, role, profile, personalization_enabled, onboarded_at, created_at FROM users WHERE id = ?', u.id),
+      user: db.get('SELECT CASE WHEN is_guest = 1 THEN NULL ELSE email END AS email, display_name, verified_at, is_guest, role, profile, personalization_enabled, onboarded_at, created_at FROM users WHERE id = ?', u.id),
       preferences: me(u.id).preferences,
       bookmarks: db.all('SELECT article_id, created_at FROM bookmarks WHERE user_id = ?', u.id),
       readEvents: db.all('SELECT article_id, kind, day FROM read_events WHERE user_id = ?', u.id),

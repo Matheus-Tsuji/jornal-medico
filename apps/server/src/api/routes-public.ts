@@ -13,6 +13,8 @@ import { loadProfile, recommend } from '../modules/ranking.ts';
 import { requireUser, setSessionCookie, type Ctx } from './app.ts';
 
 export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
+  // Caixa postal de dev: exige ambiente de desenvolvimento/teste E a flag explícita DEV_OUTBOX.
+  const devOutbox = () => (cfg.NODE_ENV === 'development' || cfg.NODE_ENV === 'test') && cfg.DEV_OUTBOX && cfg.AUTH_EMAIL_PROVIDER === 'console';
   app.get('/config', async (): Promise<PublicConfig> => {
     const flags = allFlags(db);
     return {
@@ -20,7 +22,7 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
       realContent: !!flags.real_content,
       paywall: cfg.PAYWALL_ENABLED,
       paymentProvider: cfg.PAYMENT_PROVIDER,
-      devOutbox: cfg.NODE_ENV !== 'production' && cfg.AUTH_EMAIL_PROVIDER === 'console',
+      devOutbox: devOutbox(),
       emailLogin: cfg.emailLogin,
       ephemeral: !!cfg.ephemeral,
       features: flags,
@@ -70,8 +72,8 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     const { email, password, displayName } = register ? passwordRegisterInput.parse(req.body) : { ...passwordAuthInput.parse(req.body), displayName: undefined };
     const guestId = req.user?.isGuest ? req.user.id : undefined;
     const { token } = register
-      ? registerWithPassword(db, cfg, email.trim().toLowerCase(), password, guestId, displayName)
-      : loginWithPassword(db, cfg, email.trim().toLowerCase(), password, guestId);
+      ? await registerWithPassword(db, cfg, email.trim().toLowerCase(), password, guestId, displayName)
+      : await loginWithPassword(db, cfg, email.trim().toLowerCase(), password, guestId);
     if (req.user) revokeSession(db, req.user.sessionId);
     setSessionCookie(reply, cfg, token);
     const u = db.get<{ onboarded_at: string | null }>('SELECT onboarded_at FROM users WHERE email = ?', email.trim().toLowerCase())!;
@@ -208,7 +210,7 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
 
   // Caixa postal local de desenvolvimento (bloqueada em produção e com provedor real).
   app.get('/dev/outbox', async (req) => {
-    if (cfg.NODE_ENV === 'production' || cfg.AUTH_EMAIL_PROVIDER !== 'console') throw new AppError(404, 'not_found', 'Rota não encontrada.');
+    if (!devOutbox()) throw new AppError(404, 'not_found', 'Rota não encontrada.');
     const { email } = z.object({ email: z.string().max(254).optional() }).parse(req.query);
     return {
       notice: 'Caixa postal de DESENVOLVIMENTO. Em produção os e-mails saem pelo provedor transacional.',

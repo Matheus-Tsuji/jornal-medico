@@ -3,7 +3,17 @@
 import { z } from 'zod';
 
 // ---------- Entradas da API ----------
-export const emailSchema = z.string().trim().toLowerCase().pipe(z.email().max(254));
+export const emailSchema = z.string().trim().toLowerCase().pipe(z.email().max(254))
+  // Domínio reservado das contas de visitante: nunca é um e-mail de verdade.
+  .refine((e) => !e.endsWith('@visitante.invalid'), 'E-mail inválido.');
+
+/** Evento de webhook de assinatura (provedor-agnóstico). */
+export const billingEventSchema = z.object({
+  id: z.string().min(1).max(200),
+  type: z.enum(['subscription.activated', 'subscription.renewed', 'payment.failed', 'subscription.canceled']),
+  data: z.object({ subscriptionId: z.string().min(1).max(200), currentPeriodEnd: z.iso.datetime().optional() }),
+});
+export type BillingEvent = z.infer<typeof billingEventSchema>;
 
 export const requestCodeInput = z.strictObject({ email: emailSchema });
 /** Cadastro/entrada com senha (8 a 128 caracteres). */

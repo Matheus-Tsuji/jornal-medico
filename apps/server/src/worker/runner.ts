@@ -1,4 +1,5 @@
 // Execução de jobs: despacho por tipo e classificação de falhas.
+import { purgeAuthData } from '../modules/auth.ts';
 import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
 import { TransientError, type FetchLike } from '../lib/net.ts';
@@ -83,6 +84,7 @@ export interface CycleResult { processed: number; byType: Record<string, number>
  */
 export async function runCycle(db: Db, cfg: Config, deps: Deps, opts: { workerId: string; budgetMs: number; concurrency?: number; now?: Date }): Promise<CycleResult> {
   const started = Date.now();
+  purgeAuthData(db);
   schedule(db, cfg, opts.now);
   const byType: Record<string, number> = {};
   let processed = 0;
