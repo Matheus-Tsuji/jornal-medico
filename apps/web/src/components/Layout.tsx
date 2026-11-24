@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { Monitor, Moon, Search, Sun, UserRound } from 'lucide-react';
-import { IndiLogo, IndiMark } from './Brand';
+import { DISCLAIMER, IndiLogo, IndiMark } from './Brand';
 import { useConfig, useMe, useTopics } from '../lib/api';
 import ScrollRow from './ScrollRow';
 import { useReadingPrefs } from '../lib/prefs';
@@ -100,7 +100,7 @@ function Footer() {
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 text-sm text-muted sm:grid-cols-3">
         <div>
           <IndiLogo height={56} />
-          <p className="mt-2">Conteúdo informativo para profissionais de saúde. Edições publicadas passam por revisão editorial. Prévias automáticas são identificadas e ainda aguardam revisão. Não substitui a leitura da fonte original nem orienta conduta para pacientes.</p>
+          <p className="mt-2">{DISCLAIMER}</p>
         </div>
         <nav aria-label="Rodapé" className="grid content-start gap-1.5">
           <Link to="/metodologia" className="link">Metodologia e fontes</Link>

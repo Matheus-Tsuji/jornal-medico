@@ -22,7 +22,7 @@ const schema = z.object({
   CRON_SECRET: optStr,
   APP_TIMEZONE: z.string().default('America/Sao_Paulo'),
   EDITION_HOUR: z.string().regex(/^\d{2}:\d{2}$/).default('06:00'),
-  BRAND_NAME: z.string().default('Jornal Médico'),
+  BRAND_NAME: z.string().default('Index Discovery'),
   SESSION_SECRET: optStr,
   SESSION_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   ADMIN_EMAILS: z.string().default(''),

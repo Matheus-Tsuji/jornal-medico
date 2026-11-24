@@ -79,3 +79,6 @@ export function IndiLogo({ height = 76 }: { height?: number }) {
     </span>
   );
 }
+
+/** Aviso legal do Index Discovery (texto do Matheus, 2026-11-24): rodapé, landing e páginas institucionais. */
+export const DISCLAIMER = 'O Index Discovery possui caráter exclusivamente informativo, científico e educacional. Seu conteúdo não substitui a consulta às fontes originais nem constitui orientação diagnóstica, terapêutica ou recomendação de alteração de conduta clínica. As decisões clínicas permanecem sob responsabilidade dos profissionais de saúde.';

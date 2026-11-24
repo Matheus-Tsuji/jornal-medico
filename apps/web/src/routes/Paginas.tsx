@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api, fmtDateTime } from '../lib/api';
 import { ErrorState, Loading, PageTitle } from '../components/ui';
+import { DISCLAIMER } from '../components/Brand';
 
 const Wrap = ({ children }: { children: React.ReactNode }) => <div className="prose-jm mx-auto max-w-3xl px-4 pb-10">{children}</div>;
 
@@ -40,7 +41,7 @@ export function Privacidade() {
       <h2 className="font-serif text-2xl font-bold">Seus direitos</h2>
       <p>Em <Link to="/configuracoes" className="link">Preferências</Link> você exporta seus dados, apaga histórico e sinais, encerra sessões e exclui a conta.</p>
       <h2 className="font-serif text-2xl font-bold">Natureza do conteúdo</h2>
-      <p>Conteúdo informativo para profissionais de saúde, produzido com apoio de IA e revisão editorial. Não constitui orientação diagnóstica ou terapêutica individual.</p>
+      <p>{DISCLAIMER}</p>
     </Wrap>
   );
 }

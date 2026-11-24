@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { designLabels, type EditionDto, type Plan, type Source } from '@jm/contracts';
 import { api, fmtBRL, fmtLongDate, useConfig, useMe } from '../lib/api';
 import { ErrorState, KeyResultPanel, Loading, StatusChips } from '../components/ui';
-import { Seal, SealMini, Wordmark } from '../components/Brand';
+import { DISCLAIMER, IndiLogo, IndiMark } from '../components/Brand';
 import { useReadingPrefs } from '../lib/prefs';
 import { Monitor, Moon, Sun } from 'lucide-react';
 
@@ -23,7 +23,7 @@ export default function Landing() {
   const ed = useQuery({ queryKey: ['edition', 'latest', 'landing'], queryFn: () => api<{ edition: EditionDto | null }>('/editions/latest') });
   const plans = useQuery({ queryKey: ['plans'], queryFn: () => api<{ items: Plan[] }>('/billing/plans') });
   const sources = useQuery({ queryKey: ['sources'], queryFn: () => api<Source[]>('/sources') });
-  const brand = cfg.data?.brandName ?? 'Jornal Médico';
+  const brand = cfg.data?.brandName ?? 'Index Discovery';
   const prefs = useReadingPrefs();
   useEffect(() => { document.title = `${brand} — atualização científica diária`; }, [brand]);
   const e = ed.data?.edition;
@@ -33,7 +33,7 @@ export default function Landing() {
     <div className="min-h-screen">
       <header className="border-b border-line">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link to="/" className="flex items-center gap-2.5 no-underline" aria-label={brand}><SealMini size={34} /><Wordmark name={brand} size="sm" tagline={false} /></Link>
+          <Link to="/" className="no-underline" aria-label={brand}><IndiLogo height={44} /></Link>
           <nav className="flex items-center gap-2" aria-label="Principal">
             <button type="button" onClick={prefs.cycleTheme} className="btn btn-ghost !min-h-9 !px-2.5" aria-label={`Tema: ${{ system: 'automático', light: 'claro', dark: 'escuro' }[prefs.theme]}. Clique para trocar`}>
               {prefs.theme === 'light' ? <Sun size={16} aria-hidden /> : prefs.theme === 'dark' ? <Moon size={16} aria-hidden /> : <Monitor size={16} aria-hidden />}
@@ -48,7 +48,7 @@ export default function Landing() {
       <main>
         <section className="mx-auto grid max-w-6xl gap-10 px-4 py-12 lg:grid-cols-[1.1fr_1fr] lg:py-20">
           <div className="grid content-start gap-5">
-            <div className="flex items-center gap-4"><Seal size={72} /><Wordmark name={brand} size="sm" /></div>
+            
             <p className="kicker m-0 text-primary">Jornal diário · baseado em evidências</p>
             <h1 className="m-0 font-serif text-[2.6rem] leading-[1.05] font-extrabold tracking-tight text-balance sm:text-6xl">
               Os estudos que importam, lidos para você antes do plantão.
@@ -61,11 +61,12 @@ export default function Landing() {
               <Link to="/jornal" className="btn btn-ghost">Ler sem criar conta</Link>
             </div>
             <p className="m-0 text-sm text-muted">Para médicos, residentes e estudantes. Sem anúncios, sem feed infinito, sem rede social.</p>
+            <p className="m-0 max-w-[60ch] border-l-2 border-line pl-3 text-xs leading-relaxed text-muted">{DISCLAIMER}</p>
           </div>
 
           <aside aria-labelledby="previa" className="border border-line bg-surface p-5">
             <div className="flex items-center justify-between border-b-2 border-primary pb-2">
-              <h2 id="previa" className="m-0 flex items-center gap-2 font-serif text-lg font-semibold text-primary"><SealMini size={22} />{brand}</h2>
+              <h2 id="previa" className="m-0 flex items-center gap-2 font-serif text-lg font-semibold text-primary"><IndiMark height={22} />{brand}</h2>
               <span className="text-xs text-muted first-letter:uppercase">{e ? fmtLongDate(e.date) : ''}</span>
             </div>
             {e?.isDemo && <p className="chip chip-demo mt-3">Prévia com estudos fictícios de demonstração</p>}
@@ -153,7 +154,7 @@ export default function Landing() {
 
       <footer className="border-t-2 border-ink">
         <p className="mx-auto max-w-6xl px-4 py-6 text-sm text-muted">
-          {brand} é um conteúdo informativo para profissionais de saúde e não orienta conduta para pacientes. <Link to="/privacidade" className="link">Privacidade e termos</Link>
+          {DISCLAIMER} <Link to="/privacidade" className="link">Privacidade e termos</Link>
         </p>
       </footer>
     </div>
