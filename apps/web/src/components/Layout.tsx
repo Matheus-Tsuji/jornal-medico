@@ -55,9 +55,12 @@ function MobileMenu({ prefs }: { prefs: LayoutCtx }) {
   const sections: [string, string][] = [['/jornal', 'Hoje'], ['/congressos', 'Congressos'], ...areas.map((a) => [`/areas/${a.slug}`, a.label] as [string, string]), ['/regulacao', 'Saúde pública e regulação'], ['/publicacoes', 'Publicações científicas']];
   return (
     <>
-      <button type="button" className="btn btn-ghost !min-h-11 !px-3 md:hidden" aria-label="Abrir menu" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
-        <Menu size={22} aria-hidden />
-      </button>
+      {/* O .btn define display; o wrapper é que some no computador (md:hidden no próprio botão perdia para o .btn). */}
+      <div className="md:hidden">
+        <button type="button" className="btn btn-ghost !min-h-11 !px-3" aria-label="Abrir menu" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
+          <Menu size={22} aria-hidden />
+        </button>
+      </div>
       <dialog ref={ref} className="mobile-menu" aria-label="Menu" onClose={() => setOpen(false)} onClick={(e) => { if (e.target === ref.current) setOpen(false); }}>
         <div className="mobile-menu-panel">
           <div className="flex items-center justify-between">
