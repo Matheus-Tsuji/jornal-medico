@@ -122,6 +122,7 @@ export async function discover(db: Db, cfg: Config, adapter: ScientificSourceAda
     runId, source.id, topic.id, jobId, topic.source_query, topic.query_version, from, today, nowIso(),
   );
   try {
+    adapter = adapter.newRun?.() ?? adapter;
     // Janela maior que o limite por busca: divide o intervalo de datas ao meio até cada pedaço caber. Um único dia
     // que ainda não cabe deixa a janela incompleta, e aí o cursor NÃO avança (nada fica para trás em silêncio).
     const ids = new Set<string>();

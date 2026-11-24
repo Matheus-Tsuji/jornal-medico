@@ -5,7 +5,9 @@ import type { Db, Params, Row } from '../db/index.ts';
 import { id, nowIso } from '../lib/util.ts';
 
 export type JobType = 'discover' | 'analyze' | 'compose' | 'recheck' | 'monitor';
-export interface Job { id: string; type: JobType; payload: Record<string, unknown>; attempts: number; max_attempts: number; idempotency_key: string; token: string; invalid?: string }
+type Lease = { id: string; attempts: number; max_attempts: number; idempotency_key: string; token: string };
+export type ValidJob = Lease & z.infer<typeof jobSchema> & { invalid?: undefined };
+export type Job = ValidJob | (Lease & { type: JobType; payload: Record<string, never>; invalid: string });
 
 /** Ordem da fila (maior primeiro). Coleta antes de análise; entre análises, o que tende a ser evidência forte. */
 export const PRIORITY = { collect: 50, metaAnalysis: 30, trial: 20, other: 10 } as const;
@@ -30,13 +32,13 @@ export function enqueue(db: Db, type: JobType, key: string, payload: Record<stri
 export const LEASE_MS = 5 * 60_000;
 
 /** Payload esperado por tipo de job. Payload que não confere vira falha do job, não queda do ciclo. */
-const payloadSchemas: Record<JobType, z.ZodType<Record<string, unknown>>> = {
-  discover: z.object({ topic: z.string().min(1), source: z.string().optional() }),
-  analyze: z.object({ articleId: z.string().min(1) }),
-  compose: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
-  recheck: z.object({}),
-  monitor: z.object({ source: z.string().min(1) }),
-};
+const jobSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('discover'), payload: z.object({ topic: z.string().min(1), source: z.string().optional() }) }),
+  z.object({ type: z.literal('analyze'), payload: z.object({ articleId: z.string().min(1) }) }),
+  z.object({ type: z.literal('compose'), payload: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }) }),
+  z.object({ type: z.literal('recheck'), payload: z.object({}) }),
+  z.object({ type: z.literal('monitor'), payload: z.object({ source: z.string().min(1) }) }),
+]);
 
 /**
  * Pega o próximo job. `token` identifica esta posse: todas as transições exigem o mesmo token, então um worker cujo
@@ -67,9 +69,9 @@ export function claim(db: Db, workerId: string, leaseMs = LEASE_MS): Job | null 
   } catch {
     return { ...base, payload: {}, invalid: 'Payload do job não é JSON válido.' };
   }
-  const parsed = payloadSchemas[base.type]?.safeParse(raw);
-  if (!parsed?.success) return { ...base, payload: {}, invalid: `Payload inválido para job '${base.type}'.` };
-  return { ...base, payload: parsed.data };
+  const parsed = jobSchema.safeParse({ type: base.type, payload: raw });
+  if (!parsed.success) return { ...base, payload: {}, invalid: `Payload inválido para job '${base.type}'.` };
+  return { ...base, ...parsed.data };
 }
 
 /** Transição de estado condicionada à posse (id + token). Devolve false se o job já não é deste worker. */
@@ -108,7 +110,7 @@ export function expireStaleAnalyses(db: Db, maxAgeDays: number): number {
 /** Adiado: condição passageira que se resolve sozinha (orçamento do dia esgotado, IA ainda não configurada).
  *  Volta para a fila sem gastar tentativa, para o ciclo diário retomar sem ninguém intervir. */
 export function defer(db: Db, job: Job, reason: string, delayMs: number) {
-  return own(db, job, "status = 'retry', attempts = MAX(attempts - 1, 0), lease_until = NULL, last_error = ?, next_run_at = ?, updated_at = ?", sanitize(reason), new Date(Date.now() + delayMs).toISOString(), nowIso());
+  return own(db, job, "status = 'retry', attempts = MAX(attempts - 1, 0), locked_by = NULL, lease_until = NULL, last_error = ?, next_run_at = ?, updated_at = ?", sanitize(reason), new Date(Date.now() + delayMs).toISOString(), nowIso());
 }
 
 /** Bloqueado: precisa de ação humana/configuração (licença, artigo sem abstract, tabela de preços incompleta). */

@@ -1,7 +1,7 @@
 // Rotas públicas (sessão opcional): config, catálogo, edições, acervo, rankings, autenticação.
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { articleListQuery, passwordAuthInput, passwordRegisterInput, requestCodeInput, verifyCodeInput, type ArticleCard, type PublicConfig, type Source, type Topic } from '@jm/contracts';
+import { articleListQuery, slugParam, passwordAuthInput, passwordRegisterInput, requestCodeInput, verifyCodeInput, type ArticleCard, type PublicConfig, type Source, type Topic } from '@jm/contracts';
 import type { Params } from '../db/index.ts';
 import { AppError, localDate, sha256 } from '../lib/util.ts';
 import { takeSlot } from '../lib/rate-limits.ts';
@@ -188,7 +188,7 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   });
 
   app.get('/articles/:slug', async (req) => {
-    const { slug } = z.object({ slug: z.string().max(200) }).parse(req.params);
+    const { slug } = slugParam.parse(req.params);
     const u = req.user;
     return articleDetail(db, slug, { userId: u?.id, entitled: entitled(db, cfg, u), staff: !!u && u.role !== 'reader' });
   });

@@ -45,7 +45,7 @@ export class Db {
   }
   /** Transação síncrona; desfaz tudo se a função lançar. */
   private depth = 0;
-  tx<T>(fn: () => T): T {
+  tx<T>(fn: () => T extends PromiseLike<unknown> ? never : T): T {
     if (this.depth > 0) return fn(); // transação externa já protege
     this.depth++;
     try {

@@ -16,7 +16,7 @@ export const looksLikeInjection = (text: string) => INJECTION.test(text);
  * Cada número de um texto com suas leituras possíveis. "32,683" (inglês) e "32.683" (pt-BR) podem ser
  * milhar ou decimal: as duas leituras são mantidas e basta uma bater com a fonte.
  */
-export function numberTokens(text: string): string[][] {
+function numberTokens(text: string): string[][] {
   // espaço fino/inseparável entre grupos de 3 dígitos é separador de milhar ("12 821")
   const t = text.replace(/[−–—]/g, '-').replace(/(\d)[\u2009\u202f\u00a0](?=\d{3}\b)/g, '$1');
   const out: string[][] = [];
@@ -39,7 +39,7 @@ export function numberTokens(text: string): string[][] {
 }
 
 /** Todas as leituras numéricas de um texto (conjunto usado como "o que a fonte contém"). */
-export function numbersIn(text: string): Set<string> {
+function numbersIn(text: string): Set<string> {
   return new Set(numberTokens(text).flat());
 }
 

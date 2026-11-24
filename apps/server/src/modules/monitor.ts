@@ -13,7 +13,7 @@ const journals = [
   { id: 'bmj', name: 'The BMJ', issn: '1756-1833' },
 ];
 type Source = Omit<MonitorSource, 'lastSuccessAt' | 'error'>;
-export const monitorSources: Source[] = [
+const monitorSources: Source[] = [
   { id: 'camara', name: 'Câmara dos Deputados', kind: 'regulation', url: 'https://dadosabertos.camara.leg.br/', mode: 'automatic', scope: '100 proposições mais recentes classificadas no tema Saúde (56). Situação atual deve ser conferida na ficha oficial.' },
   { id: 'ms', name: 'Ministério da Saúde / Saúde Legis', kind: 'regulation', url: 'https://www.gov.br/saude/pt-br/acesso-a-informacao/institucional/legislacao/legislacao', mode: 'reference', scope: 'Atos normativos federais do SUS. Consulta oficial e cadastro editorial; coleta automática ainda não disponível.' },
   { id: 'digital', name: 'Ministério da Saúde — Saúde Digital', kind: 'regulation', url: 'https://www.gov.br/saude/pt-br/composicao/seidigi/legislacao', mode: 'reference', scope: 'Legislação sobre informação e saúde digital. Consulta oficial e cadastro editorial.' },
@@ -65,7 +65,7 @@ export async function fetchMonitor(source: string, f: FetchLike = fetch): Promis
   });
 }
 
-export function storeDocuments(db: Db, items: MonitoredDocument[]) {
+function storeDocuments(db: Db, items: MonitoredDocument[]) {
   db.tx(() => {
     for (const item of items) db.run(
       'INSERT INTO monitored_documents(id,source,kind,payload,retrieved_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,retrieved_at=excluded.retrieved_at',

@@ -1,6 +1,6 @@
 // Saída de rede restrita: só hosts da allowlist, sem redirecionamentos, com timeout.
 // Nenhuma rotina generativa recebe esta função; URLs vindas de documentos nunca são buscadas.
-import { AppError } from './util.ts';
+import { AppError, sleep } from './util.ts';
 
 const ALLOWED_HOSTS = new Set(['eutils.ncbi.nlm.nih.gov', 'api.openai.com', 'api.resend.com', 'dadosabertos.camara.leg.br', 'api.crossref.org', 'www.ebi.ac.uk']);
 
@@ -33,4 +33,19 @@ export async function safeFetch(url: string, init: RequestInit & { timeoutMs?: n
     throw new TransientError(`HTTP ${res.status} em ${u.hostname}`, Number.isFinite(ra) && ra > 0 ? ra * 1000 : undefined);
   }
   return res;
+}
+
+/** Espaça o início das chamadas e deixa a fila seguir após falhas. */
+export function throttle(minGapMs: number) {
+  let last = -Infinity;
+  let gate = Promise.resolve();
+  return () => {
+    const turn = gate.then(async () => {
+      const wait = last + minGapMs - Date.now();
+      if (wait > 0) await sleep(wait);
+      last = Date.now();
+    });
+    gate = turn.catch(() => {});
+    return turn;
+  };
 }

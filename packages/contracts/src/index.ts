@@ -71,6 +71,19 @@ export const reviewDecisionInput = z.strictObject({
 
 export const checkoutInput = z.strictObject({ planId: z.string().max(64) });
 
+export const idParam = z.object({ id: z.string().max(64) });
+export const slugParam = z.object({ slug: z.string().max(200) });
+export const topicSlugParam = z.object({ slug: z.string().max(80) });
+export const authResponseSchema = z.object({ ok: z.literal(true), onboarded: z.boolean() });
+export const adminProcessJobsResponse = z.object({ processed: z.number().int().nonnegative() });
+export const adminIngestionInput = z.strictObject({ topic: z.string().max(80).optional() });
+export const adminProcessJobsInput = z.strictObject({ max: z.number().int().min(1).max(20).default(5) });
+export const adminPublishEditionInput = z.strictObject({ editionId: z.string().max(64).optional() });
+export const adminReportInput = z.strictObject({ status: z.enum(['open', 'investigating', 'resolved', 'dismissed']) });
+export const adminFlagInput = z.strictObject({ enabled: z.boolean() });
+export const adminPlanInput = z.strictObject({ name: z.string().min(2).max(60).optional(), priceCents: z.number().int().min(0).max(1_000_000).optional(), active: z.boolean().optional() });
+export const adminUserInput = z.strictObject({ role: z.enum(['reader', 'editor', 'admin']).optional(), status: z.enum(['active', 'disabled']).optional() });
+
 export const articleListQuery = z.object({
   topic: z.string().max(80).optional(),
   design: z.string().max(40).optional(),
@@ -224,31 +237,29 @@ export interface KeyResult {
   comparator?: string | null;
 }
 
-export interface ArticleCard {
-  id: string;
-  slug: string;
-  headline: string;
-  originalTitle: string;
-  inShort: string | null;
-  studyDesign: StudyDesign;
-  publicationType: string;
-  journal: string | null;
-  sourceName: string;
-  pubDate: string | null;
-  topics: { slug: string; label: string; color: string | null }[];
-  isDemo: boolean;
-  retractionStatus: 'none' | 'corrected' | 'retracted';
-  accessStatus: string;
-  keyResult: KeyResult | null;
-  evidence: { grade: EvidenceGrade; reasons: string[] };
-  /** Qualis CAPES da revista (estrato oficial), quando encontrado. */
-  journalQualis: { stratum: string; cycle: string } | null;
-  readingMinutes: number;
-  reviewStatus: 'reviewed' | 'demo' | 'corrected' | 'retracted' | 'ai_unreviewed';
-  bookmarked?: boolean;
-  read?: boolean;
-  reasons?: string[];
-}
+const cardKeyResult = z.object({
+  plain: z.string().nullable().optional(), outcome: z.string(),
+  measure: z.string().nullable(), estimate: z.number().nullable(), estimateRaw: z.string().nullable(),
+  unit: z.string().nullable(), ci: z.object({ level: z.number(), lower: z.number(), upper: z.number(), raw: z.string() }).nullable(),
+  pRaw: z.string().nullable(),
+  p: z.object({ operator: z.enum(['=', '<', '<=', '>', '>=']), value: z.number() }).nullable(),
+  population: z.string().nullable().optional(), intervention: z.string().nullable().optional(), comparator: z.string().nullable().optional(),
+});
+
+const articleCardSchema = z.object({
+  id: z.string(), slug: z.string(), headline: z.string(), originalTitle: z.string(), inShort: z.string().nullable(),
+  studyDesign: z.enum(studyDesigns), publicationType: z.string(), journal: z.string().nullable(), sourceName: z.string(),
+  pubDate: z.string().nullable(), topics: z.array(z.object({ slug: z.string(), label: z.string(), color: z.string().nullable() })),
+  isDemo: z.boolean(), retractionStatus: z.enum(['none', 'corrected', 'retracted']), accessStatus: z.string(),
+  keyResult: cardKeyResult.nullable(), evidence: z.object({ grade: z.enum(evidenceGrades), reasons: z.array(z.string()) }),
+  journalQualis: z.object({ stratum: z.string(), cycle: z.string() }).nullable(), readingMinutes: z.number(),
+  reviewStatus: z.enum(['reviewed', 'demo', 'corrected', 'retracted', 'ai_unreviewed']),
+  bookmarked: z.boolean().optional(), read: z.boolean().optional(), reasons: z.array(z.string()).optional(),
+});
+
+export const articleListResponse = z.object({ items: z.array(articleCardSchema), nextCursor: z.string().nullable() });
+
+export type ArticleCard = z.infer<typeof articleCardSchema>;
 
 export interface EvidenceResultDto extends AiResult { id: string }
 

@@ -24,9 +24,12 @@ describe('SciELO (via Crossref)', () => {
     expect(url).toContain('prefix%3A10.1590');
     expect(url).toContain('from-created-date%3A2026-11-09');
     expect(ids).toEqual(['10.1590/X.1', '10.1590/Y.1']);
+    const split = await a.search(q, '2026-11-09', '2026-11-12', 50, 'Insuficiência cardíaca');
+    expect(split.ids).toEqual(ids);
     const [r] = await a.fetchDetails(ids);
     expect(r).toMatchObject({ pmid: null, doi: '10.1590/x.1', authors: ['Silva ML'], abstract: 'Objetivo: fictício.', pubDate: '2026-03-01', url: 'https://doi.org/10.1590/x.1' });
     expect(triage(r!).status).toBe('eligible');
+    expect(await a.fetchDetails(ids)).toEqual([]);
   });
 
   it('aceita URL oficial do SciELO/DOI e descarta URL externa, com credenciais ou porta não padrão', async () => {

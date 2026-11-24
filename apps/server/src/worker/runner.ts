@@ -8,7 +8,7 @@ import { localDate, localTime, nowIso, sleep } from '../lib/util.ts';
 import { analyzeArticle, BlockedError, DeferError } from '../ai/analysis.ts';
 import { openAiProvider, type AiProvider } from '../ai/provider.ts';
 import { composeEdition } from '../modules/editorial.ts';
-import { LEASE_MS, block, claim, complete, defer, enqueue, expireStaleAnalyses, fail, heartbeat, retryLater, type Job } from '../modules/jobs.ts';
+import { LEASE_MS, block, claim, complete, defer, enqueue, expireStaleAnalyses, fail, heartbeat, retryLater, type Job, type ValidJob } from '../modules/jobs.ts';
 import { pubmedAdapter, type ScientificSourceAdapter } from '../sources/pubmed.ts';
 import { europePmcAdapter } from '../sources/europepmc.ts';
 import { scieloAdapter } from '../sources/scielo.ts';
@@ -24,20 +24,20 @@ export const defaultDeps = (db: Db, cfg: Config): Deps => ({
   provider: cfg.OPENAI_API_KEY ? openAiProvider(cfg.OPENAI_API_KEY) : null,
 });
 
-export async function runJob(db: Db, cfg: Config, job: Job, deps: Deps): Promise<unknown> {
-  const p = job.payload as Record<string, string>;
+export async function runJob(db: Db, cfg: Config, job: ValidJob, deps: Deps): Promise<unknown> {
+
   switch (job.type) {
     case 'monitor':
-      return syncMonitor(db, p.source!, deps.monitorFetch);
+      return syncMonitor(db, job.payload.source, deps.monitorFetch);
     case 'discover': {
-      const adapter = !p.source || p.source === deps.adapter.slug ? deps.adapter : deps.extraAdapters?.find((a) => a.slug === p.source);
-      if (!adapter) return { skipped: `sem adaptador para ${p.source}` };
-      return discover(db, cfg, adapter, p.topic!, job.id);
+      const adapter = !job.payload.source || job.payload.source === deps.adapter.slug ? deps.adapter : deps.extraAdapters?.find((a) => a.slug === job.payload.source);
+      if (!adapter) return { skipped: `sem adaptador para ${job.payload.source}` };
+      return discover(db, cfg, adapter, job.payload.topic, job.id);
     }
     case 'analyze':
-      return analyzeArticle(db, cfg, deps.provider, p.articleId!, job.id);
+      return analyzeArticle(db, cfg, deps.provider, job.payload.articleId, job.id);
     case 'compose':
-      return composeEdition(db, p.date!);
+      return composeEdition(db, job.payload.date);
     case 'recheck': {
       // Revisita artigos reais recentes para captar retratações/correções. Rodízio: nunca conferidos primeiro, depois
       // os conferidos há mais tempo; o marcador é gravado a cada lote, então todos passam por aqui em ciclos sucessivos.
@@ -70,7 +70,7 @@ const toError = (e: unknown) => (e instanceof Error ? e : new Error(String(e)));
 export async function workOnce(db: Db, cfg: Config, deps: Deps, workerId: string, leaseMs = LEASE_MS): Promise<Job['type'] | false> {
   const job = claim(db, workerId, leaseMs);
   if (!job) return false;
-  if (job.invalid) {
+  if (job.invalid !== undefined) {
     fail(db, job, job.invalid);
     log('job_error', { jobId: job.id, type: job.type, error: job.invalid });
     return job.type;

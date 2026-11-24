@@ -5,6 +5,10 @@ import type { Db } from '../db/index.ts';
 import { id, nowIso } from '../lib/util.ts';
 import { VALIDATOR_VERSION, validateAnalysis, validateEditorial } from '../ai/validator.ts';
 
+export function claimsOf(db: Db, analysisId: string): AiAnalysis['claims'] {
+  return db.all<AiAnalysis['claims'][number]>('SELECT text, locator, quote, support, origin FROM claims WHERE analysis_id = ? ORDER BY ord', analysisId);
+}
+
 export interface AnalysisMeta {
   model: string;
   promptVersion: string;

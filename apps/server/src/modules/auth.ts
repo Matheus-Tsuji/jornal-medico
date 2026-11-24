@@ -5,6 +5,7 @@
 // - Respostas idênticas existindo ou não a conta (sem enumeração).
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import type { Role } from '@jm/contracts';
 import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
 import { AppError, hmac, id, nowIso, randomToken, sha256, sixDigitCode, addDays, safeEqual } from '../lib/util.ts';
@@ -126,7 +127,7 @@ function signIn(db: Db, cfg: Config, email: string, guestUserId: string | undefi
     return { token, userId: user.id };
 }
 
-export interface SessionUser { id: string; email: string; role: 'reader' | 'editor' | 'admin'; sessionId: string; isGuest: boolean }
+export interface SessionUser { id: string; email: string; role: Role; sessionId: string; isGuest: boolean }
 
 /** Acesso sem e-mail: conta de visitante com sessão própria. O "e-mail" é um marcador .invalid (domínio reservado, nunca recebe envio). */
 // Vitrine (banco efêmero por instância): o token do visitante leva a própria prova, "g1.<uid>.<sid>.<exp>.<hmac>",
@@ -192,7 +193,7 @@ export function purgeAuthData(db: Db, now = Date.now()) {
 }
 
 /** E-mail transacional. 'console' = caixa postal local de desenvolvimento (bloqueado em produção). */
-export async function sendMail(db: Db, cfg: Config, to: string, subject: string, body: string): Promise<void> {
+async function sendMail(db: Db, cfg: Config, to: string, subject: string, body: string): Promise<void> {
   if (cfg.AUTH_EMAIL_PROVIDER === 'console') {
     db.run('INSERT INTO dev_outbox (id, to_email, subject, body, created_at) VALUES (?,?,?,?,?)', id(), to, subject, body, nowIso());
     return;

@@ -5,6 +5,7 @@ import type { Db, Params, Row } from '../db/index.ts';
 import { json } from '../db/index.ts';
 import { AppError, httpsUrl, localDate } from '../lib/util.ts';
 import { flag } from './audit.ts';
+import { claimsOf } from './analyses.ts';
 import { rankBest, scoreAnalyses } from './grade.ts';
 
 /** Filtro SQL de visibilidade para a tabela `analyses` com alias `a`. */
@@ -153,10 +154,6 @@ export function visibleAnalysisIdsForArticles(db: Db, articleIds: string[]): Map
   return new Map(rows.map((r) => [r.article_id, r.id]));
 }
 
-export function editionNumberLabel(n: number) {
-  return `Edição nº ${n}`;
-}
-
 export function editionDto(db: Db, edition: Row, userId?: string | null): EditionDto {
   const items = db.all<{ analysis_id: string; slot: string; section_topic_id: string | null; position: number }>(
     'SELECT analysis_id, slot, section_topic_id, position FROM edition_items WHERE edition_id = ? ORDER BY position', edition.id as string,
@@ -228,7 +225,7 @@ export function articleDetail(db: Db, slug: string, opts: { userId?: string | nu
   const payload = json<AiAnalysis>(an.payload, {} as AiAnalysis);
   const review = db.get<{ created_at: string }>("SELECT created_at FROM editorial_reviews WHERE analysis_id = ? AND decision = 'approve' ORDER BY created_at DESC LIMIT 1", aid);
   const results = db.all('SELECT * FROM evidence_results WHERE analysis_id = ? ORDER BY ord', aid).map(resultRow);
-  const claims = db.all('SELECT text, locator, quote, support, origin FROM claims WHERE analysis_id = ? ORDER BY ord', aid) as unknown as AiAnalysis['claims'];
+  const claims = claimsOf(db, aid);
   const cls = db.get<{ system: string; stratum: string; cycle: string; source_url: string }>(
     'SELECT system, stratum, cycle, source_url FROM journal_classifications WHERE journal_id = ? ORDER BY imported_at DESC LIMIT 1', (art.jid as string) ?? '',
   );

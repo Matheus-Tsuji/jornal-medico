@@ -2,8 +2,9 @@
 // Docs: https://www.ncbi.nlm.nih.gov/books/NBK25501/ — limite de 3 req/s sem chave, 10 req/s com NCBI_API_KEY.
 import { XMLParser } from 'fast-xml-parser';
 import type { Config } from '../config.ts';
-import { safeFetch, type FetchLike } from '../lib/net.ts';
-import { normalizeDoi, sleep } from '../lib/util.ts';
+import { z } from 'zod';
+import { safeFetch, throttle, type FetchLike } from '../lib/net.ts';
+import { normalizeDoi } from '../lib/util.ts';
 
 const BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
 
@@ -29,6 +30,7 @@ export interface NormalizedRecord {
 /** Contrato comum de fontes científicas. */
 export interface ScientificSourceAdapter {
   slug: string;
+  newRun?(): ScientificSourceAdapter;
   search(query: string, from: string, to: string, max: number, topicLabel?: string): Promise<{ ids: string[]; total: number }>;
   fetchDetails(ids: string[]): Promise<NormalizedRecord[]>;
 }
@@ -125,20 +127,21 @@ export function parsePubmedXml(xml: string): NormalizedRecord[] {
   });
 }
 
+const pubmedSearch = z.object({
+  esearchresult: z.object({
+    idlist: z.array(z.string()).optional(),
+    count: z.string().regex(/^\d+$/).optional(),
+    ERROR: z.string().optional(),
+  }),
+});
+// NCBI: até 3 req/s sem chave e 10 com chave. A folga sem chave reduz HTTP 429.
+const publicPubmed = throttle(500);
+const keyedPubmed = throttle(120);
+
 export function pubmedAdapter(cfg: Config, f: FetchLike = fetch): ScientificSourceAdapter {
-  // NCBI: até 3 req/s sem chave e 10 com chave. Na prática 350 ms ainda gerou HTTP 429 (ciclo real de 2026-11-16).
-  const minGap = cfg.NCBI_API_KEY ? 120 : 500;
-  let last = 0;
-  // Fila única: com vários jobs em paralelo, as chamadas ao NCBI continuam espaçadas (limite de 3/s sem chave).
-  let gate: Promise<void> = Promise.resolve();
+  const wait = cfg.NCBI_API_KEY ? keyedPubmed : publicPubmed;
   const call = async (path: string, params: Record<string, string>) => {
-    const turn = gate.then(async () => {
-      const wait = last + minGap - Date.now();
-      if (wait > 0) await sleep(wait);
-      last = Date.now();
-    });
-    gate = turn.catch(() => {});
-    await turn;
+    await wait();
     const qs = new URLSearchParams({ ...params, tool: cfg.NCBI_TOOL });
     if (cfg.NCBI_CONTACT_EMAIL) qs.set('email', cfg.NCBI_CONTACT_EMAIL);
     if (cfg.NCBI_API_KEY) qs.set('api_key', cfg.NCBI_API_KEY);
@@ -153,9 +156,14 @@ export function pubmedAdapter(cfg: Config, f: FetchLike = fetch): ScientificSour
         db: 'pubmed', term: query, datetype: 'edat', mindate: from.replace(/-/g, '/'), maxdate: to.replace(/-/g, '/'),
         retmax: String(max), retmode: 'json', sort: 'pub_date',
       });
-      const body = (await res.json()) as { esearchresult?: { idlist?: string[]; count?: string; ERROR?: string } };
-      if (!body.esearchresult || body.esearchresult.ERROR) throw new Error(`PubMed esearch: ${body.esearchresult?.ERROR ?? 'resposta inesperada'}`);
-      return { ids: body.esearchresult.idlist ?? [], total: Number(body.esearchresult.count ?? 0) };
+      const parsed = pubmedSearch.safeParse(await res.json().catch(() => undefined));
+      if (!parsed.success) throw new Error('PubMed esearch: contrato de resposta inválido.');
+      const body = parsed.data;
+      if (body.esearchresult.ERROR) throw new Error(`PubMed esearch: ${body.esearchresult.ERROR}`);
+      if (body.esearchresult.count === undefined || body.esearchresult.idlist === undefined) {
+        throw new Error('PubMed esearch: contrato de resposta inválido.');
+      }
+      return { ids: body.esearchresult.idlist, total: Number(body.esearchresult.count) };
     },
     async fetchDetails(ids) {
       const out: NormalizedRecord[] = [];

@@ -26,7 +26,7 @@ export interface Profile { topics: string[]; sources: string[]; lessTopics: stri
 /** matchedTopics: temas seguidos que o item contém (vazio sem personalização). É o critério do "Para você". */
 export interface Ranked { id: string; score: number; reasons: string[]; matchedTopics: string[] }
 
-export const DEFAULT_WEIGHTS = { recency: 0.3, topic: 0.35, source: 0.1, priority: 0.25, halfLifeDays: 7, readPenalty: 0.3, lessPenalty: 0.5, maxPerTopic: 2 };
+const DEFAULT_WEIGHTS = { recency: 0.3, topic: 0.35, source: 0.1, priority: 0.25, halfLifeDays: 7, readPenalty: 0.3, lessPenalty: 0.5, maxPerTopic: 2 };
 
 export function rankCandidates(cands: Candidate[], profile: Profile, k: number, w = DEFAULT_WEIGHTS): Ranked[] {
   const personal = profile.personalization && (profile.topics.length > 0 || profile.sources.length > 0 || profile.lessTopics.length > 0);

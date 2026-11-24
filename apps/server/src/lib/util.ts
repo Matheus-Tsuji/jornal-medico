@@ -59,5 +59,3 @@ export function normalizeDoi(raw: string | null | undefined): string | null {
   const doi = raw.trim().replace(/^https?:\/\/(dx\.)?doi\.org\//i, '').replace(/^doi:\s*/i, '').toLowerCase();
   return /^10\.\d{4,9}\/\S+$/.test(doi) ? doi : null;
 }
-
-export const isPmid = (s: string | null | undefined) => !!s && /^\d{1,9}$/.test(s);

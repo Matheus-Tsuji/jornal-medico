@@ -34,6 +34,18 @@ describe('análise por entrega de arquivo (sem chave de API)', () => {
     expect(importAnalyses(db, [{ articleId: item.articleId, inputHash: item.inputHash, promptVersion: item.promptVersion, extraction: validExtraction(), editorial: validEditorial }])[0]!.status).toBe('skipped_existing');
   });
 
+  it('respeita o limite e volta a oferecer um artigo se o abstract mudou', async () => {
+    const db = await setupDb();
+    expect(exportPending(db, 0).items).toEqual([]);
+    expect(exportPending(db, 1).items).toHaveLength(1);
+    const item = exportPending(db, 50).items.find((i) => i.document.includes('hazard ratio, 0.80'))!;
+    importAnalyses(db, [{ articleId: item.articleId, inputHash: item.inputHash, promptVersion: item.promptVersion, extraction: validExtraction(), editorial: validEditorial }]);
+    db.run("UPDATE article_sources SET abstract_text = abstract_text || ' Contexto fictício adicional.' WHERE article_id = ?", item.articleId);
+    const updated = exportPending(db, 50).items.find((i) => i.articleId === item.articleId);
+    expect(updated?.inputHash).toBeTruthy();
+    expect(updated?.inputHash).not.toBe(item.inputHash);
+  });
+
   it('bloqueia extração incoerente e redação com número inventado; rejeita schema inválido', async () => {
     const db = await setupDb();
     const item = exportPending(db, 50).items.find((i) => i.document.includes('hazard ratio, 0.80'))!;

@@ -10,7 +10,6 @@ import { z } from 'zod';
 import type { Db } from '../db/index.ts';
 import { REPO_ROOT, json } from '../db/index.ts';
 import { sha256 } from '../lib/util.ts';
-import { analyzePriority } from '../modules/jobs.ts';
 import { alreadyAnalyzed, finalizeAnalysis } from '../modules/analyses.ts';
 import { PROMPT_VERSION, buildDocument, editorialSchema } from './analysis.ts';
 
@@ -47,29 +46,43 @@ function load(db: Db, articleId: string): { error: string } | { error?: undefine
 
 /** Artigos elegíveis ainda sem análise para o prompt atual, melhor evidência primeiro. */
 export function exportPending(db: Db, limit: number): { promptVersion: string; instructions: Record<string, string>; items: HandoffItem[] } {
-  const ids = db.all<{ id: string }>(
-    `SELECT ar.id FROM articles ar
-      WHERE ar.triage_status <> 'excluded' AND ar.retraction_status <> 'retracted'
-        AND NOT EXISTS (SELECT 1 FROM analyses a WHERE a.article_id = ar.id AND a.is_demo = 1)
-        AND EXISTS (SELECT 1 FROM article_sources s WHERE s.article_id = ar.id AND s.abstract_text IS NOT NULL AND s.abstract_text <> '')`,
-  ).map((r) => r.id);
-  const pending: (HandoffItem & { priority: number })[] = [];
-  for (const articleId of ids) {
-    const l = load(db, articleId);
-    if (l.error !== undefined) continue;
-    if (alreadyAnalyzed(db, articleId, l.inputHash)) continue;
-    const pubTypes = json<string[]>(l.art.publication_types, []);
-    const topics = db.all<{ label_pt: string }>("SELECT t.label_pt FROM article_topics at JOIN topics t ON t.id = at.topic_id WHERE at.article_id = ? AND at.method = 'source_query'", articleId).map((t) => t.label_pt);
-    pending.push({ articleId, inputHash: l.inputHash, promptVersion: PROMPT_VERSION, document: l.document, pubTypes, pubDate: l.art.pub_date, topics, priority: analyzePriority(pubTypes) });
+  const pending: HandoffItem[] = [];
+  const batchSize = 50;
+  for (let offset = 0; pending.length < limit; offset += batchSize) {
+    const rows = db.all<{ id: string; has_current_prompt: number }>(
+      `SELECT ar.id,
+              EXISTS (SELECT 1 FROM analyses a WHERE a.article_id = ar.id AND a.prompt_version = ?) AS has_current_prompt
+       FROM articles ar
+       WHERE ar.triage_status <> 'excluded' AND ar.retraction_status <> 'retracted'
+         AND NOT EXISTS (SELECT 1 FROM analyses a WHERE a.article_id = ar.id AND a.is_demo = 1)
+         AND EXISTS (SELECT 1 FROM article_sources s WHERE s.article_id = ar.id AND s.abstract_text IS NOT NULL AND s.abstract_text <> '')
+       ORDER BY CASE
+         WHEN EXISTS (SELECT 1 FROM json_each(ar.publication_types) WHERE instr(value, 'Meta-Analysis') OR instr(value, 'Systematic Review')) THEN 30
+         WHEN EXISTS (SELECT 1 FROM json_each(ar.publication_types) WHERE instr(value, 'Randomized Controlled Trial') OR instr(value, 'Guideline') OR instr(value, 'Phase III')) THEN 20
+         ELSE 10 END DESC,
+         COALESCE(ar.pub_date, '') DESC, ar.id ASC
+       LIMIT ? OFFSET ?`,
+      PROMPT_VERSION, batchSize, offset,
+    );
+    for (const { id: articleId, has_current_prompt } of rows) {
+      const l = load(db, articleId);
+      if (l.error !== undefined) continue;
+      // O mesmo prompt pode ter analisado um abstract anterior. Só o hash exato dispensa uma nova análise.
+      if (has_current_prompt && alreadyAnalyzed(db, articleId, l.inputHash)) continue;
+      const pubTypes = json<string[]>(l.art.publication_types, []);
+      const topics = db.all<{ label_pt: string }>("SELECT t.label_pt FROM article_topics at JOIN topics t ON t.id = at.topic_id WHERE at.article_id = ? AND at.method = 'source_query'", articleId).map((t) => t.label_pt);
+      pending.push({ articleId, inputHash: l.inputHash, promptVersion: PROMPT_VERSION, document: l.document, pubTypes, pubDate: l.art.pub_date, topics });
+      if (pending.length === limit) break;
+    }
+    if (rows.length < batchSize) break;
   }
-  pending.sort((a, b) => b.priority - a.priority || (b.pubDate ?? '').localeCompare(a.pubDate ?? ''));
   return {
     promptVersion: PROMPT_VERSION,
     instructions: {
       extraction: readFileSync(join(PROMPTS, 'extraction.v2.md'), 'utf8'),
       editorial: readFileSync(join(PROMPTS, 'editorial.v3.md'), 'utf8'),
     },
-    items: pending.slice(0, limit).map(({ priority: _p, ...i }) => i),
+    items: pending,
   };
 }
 

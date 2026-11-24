@@ -14,7 +14,7 @@ Lista criada em 2026-11-14, com o trabalho **pausado** a pedido do Matheus.
 - [x] Capa abre com os novos das últimas 36 h ("N novos").
 - [x] Teste de vários dias seguidos (`test/daily-cycle.test.ts`).
 - [ ] **Na Vercel o ciclo só roda com Turso + `CRON_SECRET` + OpenAI configurados** (na vitrine ele se recusa de propósito). **[PENDENTE: Matheus]**
-- [ ] No plano Hobby, 1 ciclo por dia, de ~200 s (≈10–15 análises). Se o volume diário de elegíveis passar disso, a fila cresce: plano Pro com cron por hora resolve.
+- [ ] No plano Hobby, 1 ciclo por dia, com corte de 115 s para iniciar novos jobs. Se o volume diário de elegíveis passar disso, a fila cresce: plano Pro com cron por hora resolve.
 
 ## 2. Interface
 - [x] Barra de seções centralizada (centraliza quando cabe; no celular continua rolando a partir da esquerda).
@@ -26,7 +26,7 @@ Lista criada em 2026-11-14, com o trabalho **pausado** a pedido do Matheus.
 - [ ] Revistas novas entram sem Qualis: automatizar a consulta à Sucupira (hoje é manual; a página é JSF e não tem API).
 - [ ] Médico validar os pesos da nota (amostra ≥ 500, IC/p, desenho).
 - [x] Preparado para "tudo na Vercel" (decisão do Matheus, 2026-11-14): banco via `libsql` (Turso), API como função, worker como Vercel Cron, `npm run build:vercel`. Guia: `docs/deploy-vercel.md`.
-- [ ] **Matheus:** criar conta no Turso e o banco (`npm run db:export` + `turso db create … --from-file`), importar o repo na Vercel e cadastrar as variáveis do guia. Sem Resend configurado a API não sobe em produção (proposital).
+- [ ] **Matheus:** criar conta no Turso e o banco (`npm run db:export` + `turso db create … --from-file`), importar o repo na Vercel e cadastrar as variáveis do guia. Sem Resend, o login por código fica desativado. Em produção com Turso, os segredos de sessão e pagamento são obrigatórios.
 - [x] Projeto Vercel criado e ligado ao repo (2026-11-14): https://vercel.com/budegasdobode-2590s-projects/jornal-medico. Primeiro build passou; o site está em https://jornal-medico.vercel.app.
 - [x] Produção sem Resend: a API sobe com acesso de visitante e login por código desligado (sem código na tela). Aceita `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` da integração da Vercel. `npm run db:push` sobe a cópia limpa ao Turso. Caminho rápido no topo de `docs/deploy-vercel.md`.
 - [x] Site na Vercel funcionando sem configuração (2026-11-14): vitrine embutida (sem dados pessoais) + segredos gerados no banco. Visitante entra; login por e-mail "ainda não disponível"; dados salvos podem se perder até ligar o Turso.
@@ -58,3 +58,10 @@ Lista criada em 2026-11-14, com o trabalho **pausado** a pedido do Matheus.
 - [ ] 7 avisos moderados do `npm audit` (só em ferramentas de desenvolvimento).
 - [x] `PROGRESS.md` e a nota da sessão no cofre atualizados (2026-11-14).
 - [ ] Atualizar o Chromium do Playwright (`npx playwright install chromium`) para não depender de `PW_CHROMIUM`.
+
+## Auditoria do backend (24/11/2026)
+
+- PubMed, Europe PMC e SciELO via Crossref já têm adaptadores. A ampliação do catálogo e a autorização de novos canais são uma etapa própria.
+- A vitrine efêmera limita a validade dos tokens de visitante, com revogação por instância até o vencimento.
+- Operação local: `/api/v1/dev/outbox` exige configuração explícita da caixa de desenvolvimento. `claude-export` e `claude-import` trabalham com rascunhos e verificam versão do prompt e hash da fonte.
+- Os itens de produto e infraestrutura que aguardam decisão estão no [relatório da auditoria](PROMPT-CORRECAO-BACKEND.md).

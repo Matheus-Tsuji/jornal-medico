@@ -40,7 +40,7 @@ const DESIGN_PT: Record<StudyDesign, string> = {
   other: 'Desenho não classificado', unknown: 'Desenho não identificado',
 };
 const UNCERTAIN = ['numeric_uncertainty', 'conflicting_data', 'validation_failed'];
-export const LARGE_SAMPLE = 500;
+const LARGE_SAMPLE = 500;
 
 export interface GradeInput {
   design: StudyDesign;

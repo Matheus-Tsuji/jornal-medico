@@ -1,8 +1,9 @@
 // Adaptador Europe PMC (REST oficial). Traz o que NÃO está no PubMed: artigos só do PubMed Central e livros do NCBI.
 // Os registros do PubMed (SRC:MED) e preprints (SRC:PPR) ficam de fora: os primeiros já vêm pelo adaptador PubMed e os
 // preprints não passam na triagem. Docs: https://europepmc.org/RestfulWebService
-import { safeFetch, type FetchLike } from '../lib/net.ts';
-import { normalizeDoi, sleep } from '../lib/util.ts';
+import { z } from 'zod';
+import { safeFetch, throttle, type FetchLike } from '../lib/net.ts';
+import { normalizeDoi } from '../lib/util.ts';
 import type { NormalizedRecord, ScientificSourceAdapter } from './pubmed.ts';
 
 const BASE = 'https://www.ebi.ac.uk/europepmc/webservices/rest';
@@ -42,22 +43,23 @@ const stripTags = (s: string) => s.replace(/<title>[^<]*<\/title>/g, ' ').replac
 const LANG: Record<string, string> = { eng: 'eng', por: 'por', spa: 'spa', en: 'eng', pt: 'por', es: 'spa' };
 const PMCID = /^PMC\d+$/;
 
-type Hit = {
-  id: string; source: string; pmid?: string; pmcid?: string; doi?: string; title: string; abstractText?: string; language?: string;
-  firstPublicationDate?: string; firstIndexDate?: string; pubTypeList?: { pubType: string[] };
-  journalInfo?: { journal?: { title?: string; issn?: string; essn?: string } };
-  authorList?: { author: { fullName?: string; collectiveName?: string }[] };
-  meshHeadingList?: { meshHeading: { descriptorName: string }[] };
-};
+const hitSchema = z.object({
+  id: z.string(), source: z.string(), pmid: z.string().optional(), pmcid: z.string().optional(),
+  doi: z.string().optional(), title: z.string(), abstractText: z.string().optional(), language: z.string().optional(),
+  firstPublicationDate: z.string().optional(), firstIndexDate: z.string().optional(),
+  pubTypeList: z.object({ pubType: z.array(z.string()) }).optional(),
+  journalInfo: z.object({ journal: z.object({ title: z.string().optional(), issn: z.string().optional(), essn: z.string().optional() }).optional() }).optional(),
+  authorList: z.object({ author: z.array(z.object({ fullName: z.string().optional(), collectiveName: z.string().optional() })) }).optional(),
+  meshHeadingList: z.object({ meshHeading: z.array(z.object({ descriptorName: z.string() })) }).optional(),
+});
+const searchSchema = z.object({ hitCount: z.number(), nextCursorMark: z.string().optional(), resultList: z.object({ result: z.array(hitSchema) }) });
+type Hit = z.infer<typeof hitSchema>;
+const wait = throttle(200);
 
 export function europePmcAdapter(f: FetchLike = fetch): ScientificSourceAdapter {
   const found = new Map<string, Hit>();
-  // Europe PMC pede uso moderado; uma chamada por vez com folga basta para o volume diário.
-  let gate: Promise<void> = Promise.resolve();
   const get = async (url: string) => {
-    const turn = gate.then(async () => { await sleep(200); });
-    gate = turn.catch(() => {});
-    await turn;
+    await wait();
     const res = await safeFetch(url, {}, f);
     if (!res.ok) throw new Error(`Europe PMC HTTP ${res.status}`);
     return res;
@@ -78,6 +80,7 @@ export function europePmcAdapter(f: FetchLike = fetch): ScientificSourceAdapter 
 
   return {
     slug: 'europepmc',
+    newRun: () => europePmcAdapter(f),
     async search(query, from, to, max) {
       const q = `${toEuropePmcQuery(query)} AND FIRST_IDATE:[${from} TO ${to}]`;
       const ids: string[] = [];
@@ -85,7 +88,9 @@ export function europePmcAdapter(f: FetchLike = fetch): ScientificSourceAdapter 
       let total = 0;
       while (ids.length < max) {
         const qs = new URLSearchParams({ query: q, format: 'json', resultType: 'core', pageSize: String(Math.min(100, max - ids.length)), cursorMark: cursor });
-        const j = await (await get(`${BASE}/search?${qs}`)).json() as { hitCount: number; nextCursorMark?: string; resultList: { result: Hit[] } };
+        const parsed = searchSchema.safeParse(await (await get(`${BASE}/search?${qs}`)).json().catch(() => undefined));
+        if (!parsed.success) throw new Error('Europe PMC: contrato de resposta inválido.');
+        const j = parsed.data;
         total = j.hitCount;
         for (const h of j.resultList.result) { found.set(h.id, h); ids.push(h.id); }
         if (!j.resultList.result.length || !j.nextCursorMark || j.nextCursorMark === cursor) break;
@@ -95,8 +100,9 @@ export function europePmcAdapter(f: FetchLike = fetch): ScientificSourceAdapter 
     },
     async fetchDetails(ids) {
       const out: NormalizedRecord[] = [];
-      for (const id of ids) {
-        const h = found.get(id);
+      const hits = ids.map((id) => found.get(id));
+      found.clear();
+      for (const h of hits) {
         if (!h) continue; // recheck de retratação é feito pelo PubMed
         const types = [...new Set([...typesFromTitle(h.title), ...(h.pubTypeList?.pubType ?? []).filter((t) => /^[A-Z]/.test(t))])];
         const j = h.journalInfo?.journal;

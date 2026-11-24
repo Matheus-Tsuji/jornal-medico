@@ -69,11 +69,12 @@ Para começar com o banco vazio, pule o passo 2 e crie o banco sem `--from-file`
 
 | Variável | Valor |
 |---|---|
-| `DATABASE_URL` | URL `libsql://…` do Turso |
+| NODE_ENV | production no runtime da Vercel |
+| DATABASE_URL | URL `libsql://…` do Turso |
 | `DATABASE_AUTH_TOKEN` | Token do Turso |
 | `SESSION_SECRET` | 32+ caracteres aleatórios |
 | `CRON_SECRET` | 16+ caracteres aleatórios (a Vercel envia no cron) |
-| `PAYMENT_WEBHOOK_SECRET` | Aleatório (obrigatório em produção, mesmo no sandbox) |
+| `PAYMENT_WEBHOOK_SECRET` | Aleatório (obrigatório em produção com Turso; na vitrine pode ser gerado localmente) |
 | `AUTH_EMAIL_PROVIDER` | `resend` |
 | `AUTH_EMAIL_API_KEY` | Chave do Resend |
 | `AUTH_EMAIL_FROM` | Remetente de um domínio verificado no Resend |
@@ -88,6 +89,7 @@ Sem e-mail real, a API sobe só com acesso de visitante: o pedido de código res
 
 5. Faça o deploy. Depois:
    - `https://<seu-projeto>.vercel.app/health` deve responder `{"status":"ok"}`.
+   - /ready deve responder pela API e confirmar a consulta ao banco.
    - Entre com um e-mail de `ADMIN_EMAILS` e confira as flags em `/admin/flags`.
    - Em **Settings → Cron Jobs**, o job `/api/v1/cron/tick` deve aparecer. Dá para rodar manualmente por lá.
 
@@ -95,12 +97,12 @@ Sem e-mail real, a API sobe só com acesso de visitante: o pedido de código res
 
 Cada execução do cron chama `runCycle` (`apps/server/src/worker/runner.ts`), o mesmo ciclo do worker local e de `npm run pipeline -- cycle`:
 
-1. **Agenda** (idempotente por data e janela de 6 h): busca no PubMed para cada tema, monitor de documentos oficiais, recheck de retratações dos últimos 180 dias e composição da edição.
+1. **Agenda** (idempotente por data e janela de 6 h): busca no PubMed, Europe PMC e SciELO via Crossref para os temas configurados, monitor de documentos oficiais, recheck de retratações dos últimos 180 dias e composição da edição.
 2. **Busca** pela data de entrada no PubMed (`edat`), lendo a janela inteira desde o último cursor, com 3 dias de sobreposição (`INGEST_MAX_PER_TOPIC`, padrão 200). Estudos publicados há meses e indexados agora entram. Se uma janela vier maior que o limite, isso fica registrado na busca, em vez de se perder em silêncio.
-3. **Analisa** os elegíveis em paralelo (`CYCLE_CONCURRENCY`, padrão 8; em 2026-11-16 foram 82 análises em cerca de 8 min, sem limite de taxa da OpenAI), respeitando `AI_MAX_ARTICLES_PER_DAY`. O que passa do limite do dia, ou chega enquanto a IA ainda não está configurada, é **adiado** (sem gastar tentativa) e entra sozinho no próximo ciclo. Nada fica bloqueado esperando alguém rodar comando.
+3. **Analisa** os elegíveis em paralelo (`CYCLE_CONCURRENCY`, padrão 8; em 2026-11-16 foram 82 análises em cerca de 8 min, sem limite de taxa da OpenAI), respeitando `AI_MAX_ARTICLES_PER_DAY`. O que passa do limite do dia, ou chega enquanto a IA ainda não está configurada, é **adiado** (sem gastar tentativa) e entra sozinho no próximo ciclo. Análises que passam de 14 dias na fila por padrão expiram e podem ser reenfileiradas pelo painel.
 4. **Entrega**: a capa (prévia) abre com o que o ciclo trouxe nas últimas 36 h, os mais bem avaliados primeiro, e mostra "N novos nas últimas 36 h". Publicar uma edição oficial continua exigindo editor humano.
 
-Na Vercel, o ciclo para de pegar trabalho novo aos 200 s (a função vai até 300 s). O que sobra continua na próxima execução, com lease e idempotência: nada é perdido nem duplicado. No plano Hobby o cron roda 1 vez por dia; no Pro, `VERCEL_CRON_SCHEDULE="0 * * * *"` faz de hora em hora.
+Na Vercel, o ciclo para de pegar trabalho novo aos 115 s (a função vai até 300 s). O que sobra continua na próxima execução, com lease e idempotência: nada é perdido nem duplicado. No plano Hobby o cron roda 1 vez por dia; no Pro, `VERCEL_CRON_SCHEDULE="0 * * * *"` faz de hora em hora.
 
 **Requisitos para o ciclo rodar na Vercel:** banco permanente (Turso), `CRON_SECRET` e as variáveis da OpenAI. Na vitrine o cron responde `409 needs_database`, porque o que ele buscasse se perderia.
 
@@ -108,5 +110,7 @@ Na Vercel, o ciclo para de pegar trabalho novo aos 200 s (a função vai até 30
 
 - **Não testado contra um Turso e uma Vercel reais** (precisa das contas). O pacote da função foi testado localmente com o banco em arquivo: `/health`, API, edição e recusa do cron sem segredo.
 - O backup local (`src/db/cli.ts backup`, via `VACUUM INTO`) não funciona com banco remoto. Use os backups e o point-in-time recovery do Turso.
-- O limite de requisições é contado por instância da função, não globalmente.
+- O limite HTTP geral é por instância. Autenticação e espaçamento das fontes científicas compartilham o banco quando há Turso. Cada cópia da vitrine tem seus próprios limites.
+- Sessões de visitante da vitrine têm expiração assinada. A revogação é local à cópia efêmera; outra instância pode recriar a sessão até esse horário.
+- Migrações revalidam a versão sob transação imediata e podem ser executadas separadamente com `npm run db:migrate`. A API síncrona de transação do libSQL usa o mesmo `BEGIN IMMEDIATE`; contenção, latência e semântica com múltiplas instâncias precisam ser confirmadas em um Turso de teste.
 - Os testes de Python e o recomendador continuam só no ambiente local e no CI.

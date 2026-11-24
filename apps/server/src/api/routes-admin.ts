@@ -1,7 +1,7 @@
 // Administração editorial. Papel verificado no servidor em toda rota.
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { reviewDecisionInput } from '@jm/contracts';
+import { idParam, reviewDecisionInput, adminIngestionInput, adminProcessJobsInput, adminPublishEditionInput, adminReportInput, adminFlagInput, adminPlanInput, adminUserInput } from '@jm/contracts';
 import { AppError, localDate, nowIso } from '../lib/util.ts';
 import { loadPricing } from '../ai/analysis.ts';
 import { audit, IMPLEMENTED_FLAGS } from '../modules/audit.ts';
@@ -55,18 +55,18 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   });
   app.get('/admin/reviews/:id', async (req) => {
     editor(req);
-    return reviewDetail(db, z.object({ id: z.string().max(64) }).parse(req.params).id);
+    return reviewDetail(db, idParam.parse(req.params).id);
   });
   app.post('/admin/reviews/:id/decision', async (req) => {
     const u = editor(req);
-    const { id } = z.object({ id: z.string().max(64) }).parse(req.params);
+    const { id } = idParam.parse(req.params);
     return decide(db, u, id, reviewDecisionInput.parse(req.body));
   });
 
   // ---------- Ingestão e jobs ----------
   app.post('/admin/ingestion/run', async (req) => {
     const u = editor(req);
-    const { topic } = z.strictObject({ topic: z.string().max(80).optional() }).parse(req.body ?? {});
+    const { topic } = adminIngestionInput.parse(req.body ?? {});
     const topics = db.all<{ slug: string }>(
       `SELECT slug FROM topics WHERE enabled = 1 AND source_query IS NOT NULL ${topic ? 'AND slug = ?' : ''}`, ...(topic ? [topic] : []),
     );
@@ -78,7 +78,7 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   });
   app.post('/admin/jobs/process', async (req) => {
     const u = editor(req);
-    const { max } = z.strictObject({ max: z.number().int().min(1).max(20).default(5) }).parse(req.body ?? {});
+    const { max } = adminProcessJobsInput.parse(req.body ?? {});
     const deps = defaultDeps(db, cfg);
     let n = 0;
     // Evita iniciar mais trabalho quando a resposta já consumiu seu orçamento.
@@ -99,7 +99,7 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   });
   app.post('/admin/jobs/:id/retry', async (req) => {
     const u = editor(req);
-    const { id } = z.object({ id: z.string().max(64) }).parse(req.params);
+    const { id } = idParam.parse(req.params);
     if (Number(requeue(db, id).changes) !== 1) throw new AppError(409, 'not_retryable', 'Apenas jobs falhos ou bloqueados podem ser reprocessados.');
     audit(db, u.id, 'job.requeued', 'job', id);
     return { ok: true };
@@ -128,7 +128,7 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     const u = editor(req);
     // editionId (opcional): o rascunho exibido na prévia. Sem ele, publica o rascunho mais novo da data
     // (compatibilidade com chamadas antigas por data); com ele, 409 se o rascunho mudou desde a prévia.
-    const { editionId } = z.strictObject({ editionId: z.string().max(64).optional() }).parse(req.body ?? {});
+    const { editionId } = adminPublishEditionInput.parse(req.body ?? {});
     return publishEdition(db, u, dateParam.parse(req.params).date, editionId);
   });
 
@@ -160,8 +160,8 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   });
   app.patch('/admin/reports/:id', async (req) => {
     const u = editor(req);
-    const { id } = z.object({ id: z.string().max(64) }).parse(req.params);
-    const { status } = z.strictObject({ status: z.enum(['open', 'investigating', 'resolved', 'dismissed']) }).parse(req.body);
+    const { id } = idParam.parse(req.params);
+    const { status } = adminReportInput.parse(req.body);
     db.run('UPDATE error_reports SET status = ? WHERE id = ?', status, id);
     audit(db, u.id, 'report.status', 'report', id, { status });
     return { ok: true };
@@ -175,7 +175,7 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   app.patch('/admin/flags/:key', async (req) => {
     const u = admin(req);
     const { key } = z.object({ key: z.string().max(40) }).parse(req.params);
-    const { enabled } = z.strictObject({ enabled: z.boolean() }).parse(req.body);
+    const { enabled } = adminFlagInput.parse(req.body);
     if (enabled && !IMPLEMENTED_FLAGS.includes(key)) throw new AppError(409, 'not_implemented', 'Esta integração ainda não foi implementada; a flag não pode ser ligada.');
     if (Number(db.run('UPDATE feature_flags SET enabled = ?, updated_at = ? WHERE key = ?', enabled ? 1 : 0, nowIso(), key).changes) !== 1) throw new AppError(404, 'not_found', 'Flag inexistente.');
     audit(db, u.id, 'flag.changed', 'flag', key, { enabled });
@@ -187,8 +187,8 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   });
   app.patch('/admin/plans/:id', async (req) => {
     const u = admin(req);
-    const { id } = z.object({ id: z.string().max(64) }).parse(req.params);
-    const body = z.strictObject({ name: z.string().min(2).max(60).optional(), priceCents: z.number().int().min(0).max(1_000_000).optional(), active: z.boolean().optional() }).parse(req.body);
+    const { id } = idParam.parse(req.params);
+    const body = adminPlanInput.parse(req.body);
     db.run(
       'UPDATE plans SET name = COALESCE(?, name), price_cents = COALESCE(?, price_cents), active = COALESCE(?, active) WHERE id = ?',
       body.name ?? null, body.priceCents ?? null, body.active === undefined ? null : body.active ? 1 : 0, id,
@@ -202,8 +202,8 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   });
   app.patch('/admin/users/:id', async (req) => {
     const u = admin(req);
-    const { id } = z.object({ id: z.string().max(64) }).parse(req.params);
-    const body = z.strictObject({ role: z.enum(['reader', 'editor', 'admin']).optional(), status: z.enum(['active', 'disabled']).optional() }).parse(req.body);
+    const { id } = idParam.parse(req.params);
+    const body = adminUserInput.parse(req.body);
     if (id === u.id) throw new AppError(409, 'self_change', 'Você não pode alterar o próprio papel ou status.');
     // Checagem do alvo, papel, revogação e auditoria numa transação só: nada fica pela metade nem entre leitura e escrita.
     return db.tx(() => {

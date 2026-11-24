@@ -1,7 +1,7 @@
 // Rotas do leitor autenticado: perfil, preferências, acervo pessoal, eventos, privacidade.
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { errorReportInput, feedbackInput, followTopicInput, readEventInput, updateMeInput, updatePreferencesInput, type Me } from '@jm/contracts';
+import { topicSlugParam, errorReportInput, feedbackInput, followTopicInput, readEventInput, updateMeInput, updatePreferencesInput, type Me } from '@jm/contracts';
 import { AppError, id, localDate, nowIso } from '../lib/util.ts';
 import { audit } from '../modules/audit.ts';
 import { revokeAllSessions } from '../modules/auth.ts';
@@ -64,7 +64,7 @@ export async function userRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
 
   app.post('/topics/:slug/follow', async (req) => {
     const u = requireUser(req);
-    const { slug } = z.object({ slug: z.string().max(80) }).parse(req.params);
+    const { slug } = topicSlugParam.parse(req.params);
     const { follow } = followTopicInput.parse(req.body);
     const t = db.get<{ id: string }>('SELECT id FROM topics WHERE slug = ? AND enabled = 1', slug);
     if (!t) throw new AppError(404, 'topic_not_found', 'Tema indisponível.');

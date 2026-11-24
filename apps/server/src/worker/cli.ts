@@ -5,6 +5,7 @@ import { localDate } from '../lib/util.ts';
 import { PROMPT_VERSION, analyzeArticle, buildDocument } from '../ai/analysis.ts';
 import { validateAnalysis } from '../ai/validator.ts';
 import { resultRow } from '../modules/content.ts';
+import { claimsOf } from '../modules/analyses.ts';
 import { json } from '../db/index.ts';
 import type { AiAnalysis } from '@jm/contracts';
 import { composeEdition } from '../modules/editorial.ts';
@@ -84,7 +85,7 @@ switch (cmd) {
         ...p,
         reviewFlags: p.reviewFlags.filter((f) => f !== 'numeric_uncertainty' && f !== 'possible_prompt_injection'),
         results: db.all('SELECT * FROM evidence_results WHERE analysis_id = ? ORDER BY ord', r.id).map(resultRow),
-        claims: db.all('SELECT text, locator, quote, support, origin FROM claims WHERE analysis_id = ? ORDER BY ord', r.id) as unknown as AiAnalysis['claims'],
+        claims: claimsOf(db, r.id),
       };
       const rep = validateAnalysis(full, buildDocument(art, abs), p.inputScope);
       db.run('UPDATE analyses SET validation = ?, payload = ? WHERE id = ?', JSON.stringify([...rep.errors, ...rep.warnings]), JSON.stringify({ ...p, reviewFlags: rep.flags }), r.id);
