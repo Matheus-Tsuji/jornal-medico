@@ -1,33 +1,37 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { designLabels, type EditionDto, type Plan, type Source } from '@jm/contracts';
-import { api, fmtBRL, fmtLongDate, useConfig, useMe } from '../lib/api';
-import { ErrorState, KeyResultPanel, Loading, StatusChips } from '../components/ui';
-import { DISCLAIMER, IndiLogo, IndiMark } from '../components/Brand';
+import type { EditionDto, Source } from '@jm/contracts';
+import { api, useConfig, useMe } from '../lib/api';
+import { DISCLAIMER, IndiLogo } from '../components/Brand';
 import { useReadingPrefs } from '../lib/prefs';
 import { Monitor, Moon, Sun } from 'lucide-react';
+
+const PLANS = [
+  { name: 'Grátis', price: 'Grátis', cta: 'Criar conta', featured: false, items: ['Edição do dia com leitura rápida', 'Nota de evidência A1–C3 de cada estudo', 'Salvar estudos'] },
+  { name: 'Básico', price: 'R$ 29,90', cta: 'Assinar o Básico', featured: false, items: ['Tudo do Grátis', 'Análise completa: métodos, resultados e limitações', 'Todas as áreas e especialidades'] },
+  { name: 'Pro', price: 'R$ 49,90', cta: 'Assinar o Pro', featured: true, items: ['Tudo do Básico', 'Pergunta do estudo em PICO/PECO', 'Recursos de assinante que entrarem primeiro'] },
+];
 
 const faq: [string, string][] = [
   ['Isto substitui ler o artigo original?', 'Não. O jornal resume e organiza; cada estudo tem link para a fonte original, e a análise mostra de onde saiu cada número.'],
   ['Quem escreve os resumos?', 'Uma IA extrai os dados do material de origem e redige o resumo; um editor humano confere números e texto antes de publicar. Itens de demonstração são marcados como fictícios.'],
-  ['Preciso de senha?', 'Não. Você entra com o e-mail e recebe um código de 6 dígitos. Não pedimos CRM nem dados clínicos.'],
+  ['Como crio minha conta?', 'Com e-mail e senha, em menos de um minuto. Não pedimos CRM nem dados clínicos.'],
   ['Vou receber o jornal por e-mail?', 'Não. O jornal fica na plataforma; os e-mails são apenas de acesso, conta e pagamento.'],
   ['O periódico ser de prestígio garante a qualidade?', 'Não. Mostramos dados do veículo separadamente da avaliação do estudo, e nenhum dos dois decide sozinho a relevância.'],
-  ['Quais áreas estão disponíveis?', 'O beta começa por clínica médica (hipertensão, diabetes, insuficiência cardíaca). As outras grandes áreas entram quando houver fontes e revisão configuradas.'],
+  ['Quais áreas estão disponíveis?', 'Clínica médica, cirurgia geral, pediatria, ginecologia e obstetrícia, medicina preventiva e social, e odontologia com as especialidades reconhecidas pelo CFO.'],
 ];
 
 export default function Landing() {
   const cfg = useConfig();
   const me = useMe();
   const ed = useQuery({ queryKey: ['edition', 'latest', 'landing'], queryFn: () => api<{ edition: EditionDto | null }>('/editions/latest') });
-  const plans = useQuery({ queryKey: ['plans'], queryFn: () => api<{ items: Plan[] }>('/billing/plans') });
   const sources = useQuery({ queryKey: ['sources'], queryFn: () => api<Source[]>('/sources') });
   const brand = cfg.data?.brandName ?? 'Index Discovery';
   const prefs = useReadingPrefs();
   useEffect(() => { document.title = `${brand} — atualização científica diária`; }, [brand]);
   const e = ed.data?.edition;
-  const preview = e ? [e.headline, ...e.secondary].filter(Boolean).slice(0, 3) : [];
+  const today = e?.todayCount ?? null;
 
   return (
     <div className="min-h-screen">
@@ -46,10 +50,10 @@ export default function Landing() {
       </header>
 
       <main>
-        <section className="mx-auto grid max-w-6xl gap-10 px-4 py-12 lg:grid-cols-[1.1fr_1fr] lg:py-20">
+        <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 lg:grid-cols-[1.15fr_1fr] lg:py-20">
           <div className="grid content-start gap-5">
             
-            <p className="kicker m-0 text-primary">Jornal diário · baseado em evidências</p>
+            <p className="kicker m-0 text-primary">Index Discovery · ciência médica e odontológica</p>
             <h1 className="m-0 font-serif text-[2.6rem] leading-[1.05] font-extrabold tracking-tight text-balance sm:text-6xl">
               Os estudos que importam, lidos para você antes do plantão.
             </h1>
@@ -57,31 +61,43 @@ export default function Landing() {
               Toda manhã, uma edição curta com publicações selecionadas de fontes como o PubMed: resumo em português, números com intervalo de confiança, limitações e o link original.
             </p>
             <div className="flex flex-wrap gap-2">
-              <Link to={me.data ? '/jornal' : '/entrar'} className="btn btn-primary">{me.data ? 'Abrir a edição de hoje' : 'Começar com meu e-mail'}</Link>
+              <Link to={me.data ? '/jornal' : '/entrar'} className="btn btn-primary">{me.data ? 'Abrir a edição de hoje' : 'Criar conta grátis'}</Link>
               <Link to="/jornal" className="btn btn-ghost">Ler sem criar conta</Link>
             </div>
             <p className="m-0 text-sm text-muted">Para médicos, residentes e estudantes. Sem anúncios, sem feed infinito, sem rede social.</p>
             <p className="m-0 max-w-[60ch] border-l-2 border-line pl-3 text-xs leading-relaxed text-muted">{DISCLAIMER}</p>
           </div>
 
-          <aside aria-labelledby="previa" className="border border-line bg-surface p-5">
-            <div className="flex items-center justify-between border-b-2 border-primary pb-2">
-              <h2 id="previa" className="m-0 flex items-center gap-2 font-serif text-lg font-semibold text-primary"><IndiMark height={22} />{brand}</h2>
-              <span className="text-xs text-muted first-letter:uppercase">{e ? fmtLongDate(e.date) : ''}</span>
-            </div>
-            {e?.isDemo && <p className="chip chip-demo mt-3">Prévia com estudos fictícios de demonstração</p>}
-            {ed.isLoading && <Loading label="Carregando a prévia" />}
-            {ed.error && <ErrorState error={ed.error} retry={() => ed.refetch()} />}
-            {e?.isPreview && <p className="text-sm text-warning">Prévia automática · análises ainda não revisadas por editor.</p>}
-            {preview.map((a, i) => a && (
-              <div key={a.id} className={`grid gap-2 py-4 ${i ? 'border-t border-line' : ''}`}>
-                <p className="kicker m-0 text-muted">{a.topics[0]?.label} · {designLabels[a.studyDesign]}</p>
-                <p className={`m-0 font-serif leading-snug font-bold ${i ? 'text-lg' : 'text-2xl'}`}>{a.headline}</p>
-                <StatusChips a={a} />
-                {i === 0 && a.keyResult && <KeyResultPanel k={a.keyResult} evidence={a.evidence} design={a.studyDesign} compact />}
+          {/* Sem prévias: o lado direito explica o método com números reais do dia (pedido do Matheus, 2026-11-24). */}
+          <aside aria-labelledby="metodo-hero" className="hero-method">
+            <p id="metodo-hero" className="kicker m-0 text-primary">Do estudo à nota</p>
+            <ol className="hero-steps">
+              {[
+                ['Busca', '3 bases científicas lidas todo dia', 'PubMed, Europe PMC e SciELO, por área e especialidade.'],
+                ['Triagem', 'Regras fixas, sem palpite', 'Desenho do estudo, idioma, retratação e resumo disponível.'],
+                ['Análise', 'Números como foram publicados', 'Medida de efeito, intervalo de confiança e p-valor; o ausente aparece como ausente.'],
+                ['Nota', 'Força da evidência de A1 a C3', 'A letra vem do desenho; o número cai com incerteza.'],
+              ].map(([t, h, d], i) => (
+                <li key={t}>
+                  <span className="hero-step-n tnum" aria-hidden>{i + 1}</span>
+                  <div className="grid gap-0.5">
+                    <p className="m-0 text-xs font-bold tracking-wider text-muted uppercase">{t}</p>
+                    <p className="m-0 font-serif text-lg font-semibold leading-snug">{h}</p>
+                    <p className="m-0 text-sm text-muted">{d}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <div className="grid gap-2">
+              <p className="m-0 text-xs font-bold tracking-wider text-muted uppercase">Escala da nota</p>
+              <div className="grade-scale-bar" role="img" aria-label="Escala de A1, evidência mais forte, até C3, mais fraca">
+                {['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'].map((g) => <span key={g} data-tier={g[0]}>{g}</span>)}
               </div>
-            ))}
-            {!e && !ed.isLoading && !ed.error && <p className="py-6 text-muted">A prévia aparece quando houver uma edição publicada.</p>}
+              <p className="m-0 flex justify-between text-xs text-muted"><span>mais forte</span><span>mais fraca</span></p>
+            </div>
+            {today !== null && (
+              <p className="tnum m-0 border-t border-line pt-3 text-sm"><strong className="font-serif text-2xl font-bold text-primary">{today}</strong> estudos analisados hoje</p>
+            )}
           </aside>
         </section>
 
@@ -126,13 +142,16 @@ export default function Landing() {
 
         <section id="assinatura" className="border-t border-line bg-surface">
           <div className="mx-auto max-w-6xl px-4 py-12">
-            <h2 className="m-0 font-serif text-3xl font-bold">Assinatura</h2>
-            <p className="max-w-prose text-muted">Sem anúncios: o jornal é mantido por quem lê. Valores do beta em avaliação.</p>
-            <div className="mt-4 flex flex-wrap gap-8">
-              {plans.data?.items.map((p) => (
-                <div key={p.id}>
+            <h2 className="m-0 font-serif text-3xl font-bold">Planos</h2>
+            <p className="max-w-prose text-muted">Sem anúncios: o Index Discovery é mantido por quem lê. Cancele quando quiser.</p>
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              {PLANS.map((p) => (
+                <div key={p.name} className={`plan-card ${p.featured ? 'plan-card-featured' : ''}`}>
+                  {p.featured && <span className="chip chip-ok w-fit">Mais completo</span>}
                   <p className="kicker m-0 text-muted">{p.name}</p>
-                  <p className="tnum m-0 font-serif text-4xl font-bold">{fmtBRL(p.priceCents)}<span className="font-sans text-base font-normal text-muted">/mês</span></p>
+                  <p className="tnum m-0 font-serif text-4xl font-bold">{p.price}{p.price !== 'Grátis' && <span className="font-sans text-base font-normal text-muted">/mês</span>}</p>
+                  <ul className="m-0 grid gap-1.5 pl-5 text-sm">{p.items.map((i) => <li key={i}>{i}</li>)}</ul>
+                  <Link to={me.data ? '/assinatura' : '/entrar'} className={`btn mt-auto ${p.featured ? 'btn-primary' : 'btn-ghost'}`}>{p.cta}</Link>
                 </div>
               ))}
             </div>

@@ -271,3 +271,17 @@ section[id] { scroll-margin-top: 4.5rem; }
 .auth-tabs { display: grid; grid-template-columns: 1fr 1fr; padding: 0.25rem; border: 1px solid var(--color-line); border-radius: 0.625rem; background: var(--color-surface); }
 .auth-tabs button { min-height: 44px; border-radius: 0.4rem; font-weight: 600; color: var(--color-muted); transition: background-color .2s var(--ease-ios), color .2s var(--ease-ios); }
 .auth-tabs button[aria-selected="true"] { background: var(--color-primary); color: var(--color-on-primary); }
+
+/* Landing: hero sem prévias — passo a passo do método e escala da nota */
+.hero-method { display: grid; gap: 1.5rem; padding: 1.75rem; border: 1px solid var(--color-line); border-radius: 1rem; background: var(--color-surface); }
+.hero-steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 1.1rem; position: relative; }
+.hero-steps li { display: grid; grid-template-columns: 2.25rem 1fr; gap: 0.875rem; align-items: start; }
+.hero-step-n { width: 2.25rem; height: 2.25rem; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid var(--color-primary); color: var(--color-primary); font-weight: 700; font-size: 0.9rem; background: var(--color-paper); }
+.grade-scale-bar { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 3px; }
+.grade-scale-bar span { display: grid; place-items: center; height: 2.25rem; font-size: 0.75rem; font-weight: 700; border-radius: 0.3rem; }
+.grade-scale-bar span[data-tier="A"] { background: var(--color-primary); color: var(--color-on-primary); }
+.grade-scale-bar span[data-tier="B"] { background: var(--color-primary-soft); color: var(--color-primary); }
+.grade-scale-bar span[data-tier="C"] { background: var(--color-line); color: var(--color-muted); }
+/* Planos */
+.plan-card { display: flex; flex-direction: column; gap: 0.75rem; padding: 1.5rem; border: 1px solid var(--color-line); border-radius: 1rem; background: var(--color-paper); }
+.plan-card-featured { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary); }

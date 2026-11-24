@@ -56,7 +56,7 @@ describe('assinatura sandbox', () => {
     expect(locked.analysis).toBeNull();
     expect(locked.summary).toBeTruthy();
     const plan = (await app.inject({ url: '/api/v1/billing/plans' })).json().items[0];
-    expect(plan.priceCents).toBe(4990);
+    expect(plan.priceCents).toBe(2990);
     const co = (await app.inject({ method: 'POST', url: '/api/v1/billing/checkout', headers: H, cookies: ck, payload: { planId: plan.id } })).json();
     const sub = new URL(co.url, 'http://x').searchParams.get('sub')!;
     // retorno do checkout sozinho não ativa nada

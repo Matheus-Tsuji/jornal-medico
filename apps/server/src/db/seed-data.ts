@@ -135,7 +135,9 @@ export const sources = [
 ];
 
 export const plans = [
-  { slug: 'beta-mensal', name: 'Beta mensal', price: 4990, active: 1, description: 'Preço de lançamento em avaliação (hipótese comercial, não definitiva).' },
+  { slug: 'basico', name: 'Básico', price: 2990, active: 1, description: 'Análise completa de todos os estudos.' },
+  { slug: 'pro', name: 'Pro', price: 4990, active: 1, description: 'Tudo do Básico, mais a pergunta do estudo (PICO/PECO) e recursos de assinante.' },
+  { slug: 'beta-mensal', name: 'Beta mensal', price: 4990, active: 0, description: 'Plano do beta, substituído por Básico e Pro em 2026-11-24.' },
   { slug: 'referencia-mensal', name: 'Mensal', price: 9990, active: 0, description: 'Preço de referência futuro (hipótese comercial).' },
 ];
 

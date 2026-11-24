@@ -20,7 +20,7 @@ async function login(page: Page, email: string) {
 test('leitor: login, onboarding, edição, detalhe, salvar e persistência', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Os estudos que importam');
-  await expect(page.getByText('Prévia com estudos fictícios de demonstração')).toBeVisible();
+  await expect(page.getByText('Do estudo à nota')).toBeVisible(); // hero sem prévias (2026-11-24)
 
   await login(page, 'leitora-e2e@example.com');
   await expect(page).toHaveURL(/boas-vindas/);
