@@ -292,3 +292,12 @@ section[id] { scroll-margin-top: 4.5rem; }
 .plan-card-featured li::before { content: '✓'; margin-right: 0.5rem; color: var(--color-gold); font-weight: 700; }
 .plan-card-featured .btn-primary { background: var(--color-on-primary); color: var(--color-primary); }
 .plan-card-featured .btn-primary:hover { background: var(--color-gold); color: #1c1a17; }
+
+/* Landing: exemplo fictício anotado (seção "O que você encontra") */
+.anno-list { margin: 0.5rem 0; padding: 0; list-style: none; display: grid; gap: 0.9rem; }
+.anno-list li { display: grid; grid-template-columns: 1.75rem 1fr; gap: 0.75rem; align-items: start; }
+.anno-n, .anno-pin { width: 1.75rem; height: 1.75rem; border-radius: 50%; display: grid; place-items: center; background: var(--color-primary); color: var(--color-on-primary); font-size: 0.8rem; font-weight: 700; flex: none; }
+.anno-card { position: relative; display: grid; gap: 0.9rem; padding: 1.5rem; border: 1px solid var(--color-line); border-radius: 1rem; background: var(--color-paper); box-shadow: 0 20px 40px -28px color-mix(in srgb, var(--color-ink) 45%, transparent); }
+.anno-row { display: flex; align-items: center; gap: 0.6rem; }
+.anno-row > table { flex: 1; }
+.anno-tag { position: absolute; top: -0.7rem; right: 1rem; padding: 0.15rem 0.6rem; border-radius: 999px; background: var(--color-warning-soft); color: var(--color-warning); border: 1px solid var(--color-warning); font-size: 0.7rem; font-weight: 700; }

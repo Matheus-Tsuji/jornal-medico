@@ -13,6 +13,13 @@ const PLANS = [
   { name: 'Pro', price: 'R$ 49,90', cta: 'Assinar o Pro', featured: true, items: ['Tudo do Básico', 'Pergunta do estudo em PICO/PECO', 'Recursos de assinante que entrarem primeiro'] },
 ];
 
+const ANNOTATIONS: [string, string][] = [
+  ['Nota da evidência', 'A1 a C3, pelo desenho do estudo, com o Qualis da revista ao lado.'],
+  ['Resumo em português', 'O achado principal em uma frase, sem jargão desnecessário.'],
+  ['Números como publicados', 'Medida de efeito, intervalo de confiança e p-valor, como os autores reportaram.'],
+  ['Fonte original', 'Revista, base e DOI, para você ler o artigo completo.'],
+];
+
 const faq: [string, string][] = [
   ['Isto substitui ler o artigo original?', 'Não. O jornal resume e organiza; cada estudo tem link para a fonte original, e a análise mostra de onde saiu cada número.'],
   ['Quem escreve os resumos?', 'Uma IA extrai os dados do material de origem e redige o resumo; um editor humano confere números e texto antes de publicar. Itens de demonstração são marcados como fictícios.'],
@@ -101,18 +108,51 @@ export default function Landing() {
           </aside>
         </section>
 
+        {/* "Como funciona" focado no resultado: um card FICTÍCIO anotado mostra o que cada estudo traz (o método fica no hero). */}
         <section id="como" className="border-y border-line bg-surface">
-          <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 md:grid-cols-3">
-            {[
-              ['Organiza a sua leitura', 'Reunimos publicações recentes de bases científicas em uma edição por área, com começo e fim. A leitura da fonte original continua indispensável.'],
-              ['Números como publicados', 'Medida de efeito, intervalo de confiança e p-valor aparecem como os autores reportaram. O que não foi reportado fica indicado como ausente; não recalculamos resultados.'],
-              ['Informa, não orienta', 'Conteúdo científico e educacional. Não é orientação diagnóstica ou terapêutica e não substitui o julgamento clínico do profissional de saúde.'],
-            ].map(([t, d]) => (
-              <div key={t} className="border-t-2 border-ink pt-3">
-                <h2 className="m-0 font-serif text-2xl font-bold">{t}</h2>
-                <p className="mt-2 text-muted">{d}</p>
+          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 lg:grid-cols-[1fr_1fr]">
+            <div className="grid gap-3">
+              <p className="kicker m-0 text-primary">O que você encontra</p>
+              <h2 className="m-0 font-serif text-3xl leading-tight font-bold sm:text-4xl">Cada estudo, lido do mesmo jeito.</h2>
+              <ol className="anno-list">
+                {ANNOTATIONS.map(([t, d], i) => (
+                  <li key={t}>
+                    <span className="anno-n" aria-hidden>{i + 1}</span>
+                    <div><p className="m-0 font-semibold">{t}</p><p className="m-0 text-sm text-muted">{d}</p></div>
+                  </li>
+                ))}
+              </ol>
+              <p className="m-0 border-l-2 border-primary pl-3 text-sm"><strong>Informa, não orienta.</strong> Conteúdo científico e educacional; não substitui a fonte original nem o julgamento clínico.</p>
+              <Link to="/metodologia" className="link w-fit text-sm">Como avaliamos os estudos</Link>
+            </div>
+
+            <figure className="m-0" aria-label="Exemplo fictício de um estudo no Index Discovery">
+              <div className="anno-card">
+                <span className="anno-tag">Exemplo fictício</span>
+                <div className="anno-row">
+                  <span className="anno-pin" aria-hidden>1</span>
+                  <span className="grade-badge grade-badge-A"><strong className="grade-badge-grade">A1</strong> grupo A</span>
+                  <span className="chip">Qualis A1</span>
+                </div>
+                <p className="kicker m-0 text-muted">Cardiologia · Ensaio clínico randomizado</p>
+                <div className="anno-row items-start">
+                  <span className="anno-pin" aria-hidden>2</span>
+                  <p className="m-0 font-serif text-xl leading-snug font-bold">Fármaco X reduziu internações por insuficiência cardíaca em adultos com fração de ejeção reduzida</p>
+                </div>
+                <div className="anno-row items-start">
+                  <span className="anno-pin" aria-hidden>3</span>
+                  <table className="key-result-table">
+                    <thead><tr><th scope="col">Hazard ratio</th><th scope="col">IC 95%</th><th scope="col">p-valor</th></tr></thead>
+                    <tbody><tr><td>0,80</td><td>0,70 a 0,91</td><td>p &lt; 0,001</td></tr></tbody>
+                  </table>
+                </div>
+                <div className="anno-row">
+                  <span className="anno-pin" aria-hidden>4</span>
+                  <p className="m-0 text-xs text-muted">Revista fictícia · PubMed · DOI 10.99999/exemplo</p>
+                </div>
               </div>
-            ))}
+              <figcaption className="mt-2 text-xs text-muted">Estudo, números e DOI inventados só para mostrar o formato.</figcaption>
+            </figure>
           </div>
         </section>
 
