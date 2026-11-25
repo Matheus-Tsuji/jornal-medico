@@ -10,7 +10,7 @@ const db = openDb(cfg.dbPath, cfg.DATABASE_AUTH_TOKEN);
 if (cfg.NODE_ENV !== 'production' && !db.get('SELECT 1 FROM topics LIMIT 1')) seed(db, cfg);
 ensureSecrets(db, cfg);
 const app = await buildApp({ db, cfg });
-await app.listen({ port: cfg.PORT, host: cfg.HOST });
+await app.listen({ port: cfg.PORT, host: cfg.HOST, backlog: 2048 });
 
 const stop = async () => {
   await app.close();

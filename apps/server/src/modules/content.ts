@@ -33,9 +33,43 @@ const ph = (n: number) => Array(n).fill('?').join(',');
 /** "Novo" na capa: analisado pelo ciclo diário nas últimas 36 h (folga para um ciclo atrasado). */
 export const FRESH_HOURS = 36;
 
+function countWords(s: string | null | undefined): number {
+  if (!s) return 0;
+  let words = 0;
+  let inWord = false;
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    const space = code === 32 || code === 9 || code === 10 || code === 13;
+    if (space) inWord = false;
+    else if (!inWord) {
+      inWord = true;
+      words++;
+    }
+  }
+  return words;
+}
+
 function readingMinutes(p: Partial<AiAnalysis>): number {
-  const text = [p.summary, p.context, p.objective, p.methods, p.clinicalImplications, ...(p.limitations ?? [])].filter(Boolean).join(' ');
-  return Math.max(1, Math.round(text.split(/\s+/).length / 200 + 1));
+  let words = countWords(p.summary) + countWords(p.context) + countWords(p.objective) + countWords(p.methods) + countWords(p.clinicalImplications);
+  if (p.limitations) for (const lim of p.limitations) words += countWords(lim);
+  return Math.max(1, Math.round(words / 200 + 1));
+}
+
+// Cache puro de JSON.parse + tempo de leitura indexado pela string exata do payload (sem cache de linhas do banco).
+const parsedPayloads = new Map<string, { payload: Partial<AiAnalysis>; minutes: number }>();
+function parseAnalysisPayload(raw: unknown): { payload: Partial<AiAnalysis>; minutes: number } {
+  if (typeof raw !== 'string') return { payload: {}, minutes: 1 };
+  const cached = parsedPayloads.get(raw);
+  if (cached) {
+    parsedPayloads.delete(raw);
+    parsedPayloads.set(raw, cached);
+    return cached;
+  }
+  const payload = json<Partial<AiAnalysis>>(raw, {});
+  const entry = { payload, minutes: readingMinutes(payload) };
+  if (parsedPayloads.size >= 256) parsedPayloads.delete(parsedPayloads.keys().next().value!);
+  parsedPayloads.set(raw, entry);
+  return entry;
 }
 
 export function resultRow(r: Row): EvidenceResultDto {
@@ -72,8 +106,7 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null, c
   const current = currentRecommendations ? oneVisiblePerArticle(db) : null;
   const rows = db.all(
     `SELECT a.id AS aid, a.payload, a.status, a.is_demo, ar.id, ar.slug, ar.original_title, ar.publication_types, ar.pub_date,
-            ar.retraction_status, ar.access_status, ar.journal_id, j.title AS journal, s.name AS source_name,
-            (SELECT COUNT(*) FROM article_corrections c WHERE c.article_id = ar.id AND c.kind = 'correction') AS corrections
+            ar.retraction_status, ar.access_status, ar.journal_id, j.title AS journal, s.name AS source_name
        FROM analyses a JOIN articles ar ON ar.id = a.article_id
        LEFT JOIN journals j ON j.id = ar.journal_id JOIN sources s ON s.id = ar.source_id
       WHERE a.id IN (${ph(analysisIds.length)})
@@ -83,6 +116,12 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null, c
   if (!rows.length) return new Map();
   const articleIds = rows.map((r) => r.id as string);
   const foundAnalysisIds = rows.map((r) => r.aid as string);
+  const correctedArticles = new Set(
+    db.all<{ article_id: string }>(
+      `SELECT DISTINCT article_id FROM article_corrections WHERE kind = 'correction' AND article_id IN (${ph(articleIds.length)})`,
+      ...articleIds,
+    ).map((r) => r.article_id),
+  );
   const topics = db.all(
     `SELECT at.article_id, t.slug, t.label_pt, COALESCE(t.color, p.color, pp.color) AS color
        FROM article_topics at JOIN topics t ON t.id = at.topic_id
@@ -133,7 +172,7 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null, c
   const out = new Map<string, ArticleCard>();
   for (const r of rows) {
     const aid = r.aid as string;
-    const p = json<Partial<AiAnalysis>>(r.payload, {});
+    const { payload: p, minutes } = parseAnalysisPayload(r.payload);
     const kr = keyByAnalysis.get(aid);
     const retraction = r.retraction_status as ArticleCard['retractionStatus'];
     const evidence = gradeEvidence({
@@ -164,8 +203,8 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null, c
       keyResult: key,
       evidence,
       journalQualis: r.journal_id ? qualisByJournal.get(r.journal_id as string) ?? null : null,
-      readingMinutes: readingMinutes(p),
-      reviewStatus: retraction === 'retracted' ? 'retracted' : r.status === 'in_review' ? 'ai_unreviewed' : (r.corrections as number) > 0 ? 'corrected' : r.is_demo === 1 ? 'demo' : 'reviewed',
+      readingMinutes: minutes,
+      reviewStatus: retraction === 'retracted' ? 'retracted' : r.status === 'in_review' ? 'ai_unreviewed' : correctedArticles.has(r.id as string) ? 'corrected' : r.is_demo === 1 ? 'demo' : 'reviewed',
     };
     if (marks) {
       card.bookmarked = marks.saved.has(card.id);
@@ -261,8 +300,8 @@ export function articleDetail(db: Db, slug: string, opts: { userId?: string | nu
   const aid = visibleAnalysisIdsForArticles(db, [art.id as string]).get(art.id as string);
   if (!aid) throw new AppError(404, 'not_found', 'Artigo não encontrado.');
   const card = cards(db, [aid], opts.userId)[0]!;
-  const an = db.get('SELECT * FROM analyses WHERE id = ?', aid)!;
-  const payload = json<AiAnalysis>(an.payload, {} as AiAnalysis);
+  const an = db.get('SELECT payload, created_at, published_at, is_demo, version, prompt_version, model FROM analyses WHERE id = ?', aid)!;
+  const payload = parseAnalysisPayload(an.payload).payload as AiAnalysis;
   const review = db.get<{ created_at: string }>("SELECT created_at FROM editorial_reviews WHERE analysis_id = ? AND decision = 'approve' ORDER BY created_at DESC LIMIT 1", aid);
 
 

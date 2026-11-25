@@ -117,7 +117,7 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
 
     // Filtra pelo dado estruturado (matchedTopics), não pelo texto do motivo. Personalização desligada = seleção geral.
     const personal = profile.personalization && profile.topics.length > 0;
-    const picked = personal ? ranked.filter((r) => r.matchedTopics.length > 0) : ranked;
+    const picked = (personal ? ranked.filter((r) => r.matchedTopics.length > 0) : ranked).slice(0, 12);
     const m = cardMap(db, picked.map((r) => r.id), userId, true);
     const items = picked
       .flatMap((r): ArticleCard[] => { const c = m.get(r.id); return c ? [{ ...c, reasons: r.reasons }] : []; })
