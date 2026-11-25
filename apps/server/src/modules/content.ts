@@ -6,7 +6,7 @@ import { json } from '../db/index.ts';
 import { AppError, httpsUrl, localDate } from '../lib/util.ts';
 import { flag } from './audit.ts';
 import { claimsOf } from './analyses.ts';
-import { rankBest, scoreAnalyses } from './grade.ts';
+import { gradeEvidence, rankBest } from './grade.ts';
 
 /** Filtro SQL de visibilidade para a tabela `analyses` com alias `a`. */
 export function visibility(db: Db): { sql: string; params: Params } {
@@ -21,8 +21,7 @@ export function visibility(db: Db): { sql: string; params: Params } {
  * Uma análise por artigo, sempre a mesma: entre as visíveis, publicada vence rascunho e a maior versão desempata.
  * Use junto com `visibility` (alias `a`).
  */
-export function oneVisiblePerArticle(db: Db): { sql: string; params: Params } {
-  const v = visibility(db);
+export function oneVisiblePerArticle(db: Db, v = visibility(db)): { sql: string; params: Params } {
   return {
     sql: `a.id = (SELECT x.id FROM analyses x WHERE x.article_id = a.article_id AND ${v.sql.replace(/\ba\./g, 'x.')}
                   ORDER BY CASE x.status WHEN 'published' THEN 0 ELSE 1 END, x.version DESC LIMIT 1)`,
@@ -73,7 +72,7 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null, c
   const current = currentRecommendations ? oneVisiblePerArticle(db) : null;
   const rows = db.all(
     `SELECT a.id AS aid, a.payload, a.status, a.is_demo, ar.id, ar.slug, ar.original_title, ar.publication_types, ar.pub_date,
-            ar.retraction_status, ar.access_status, j.title AS journal, s.name AS source_name,
+            ar.retraction_status, ar.access_status, ar.journal_id, j.title AS journal, s.name AS source_name,
             (SELECT COUNT(*) FROM article_corrections c WHERE c.article_id = ar.id AND c.kind = 'correction') AS corrections
        FROM analyses a JOIN articles ar ON ar.id = a.article_id
        LEFT JOIN journals j ON j.id = ar.journal_id JOIN sources s ON s.id = ar.source_id
@@ -83,6 +82,7 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null, c
   );
   if (!rows.length) return new Map();
   const articleIds = rows.map((r) => r.id as string);
+  const foundAnalysisIds = rows.map((r) => r.aid as string);
   const topics = db.all(
     `SELECT at.article_id, t.slug, t.label_pt, COALESCE(t.color, p.color, pp.color) AS color
        FROM article_topics at JOIN topics t ON t.id = at.topic_id
@@ -90,28 +90,62 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null, c
       WHERE at.article_id IN (${ph(articleIds.length)}) ORDER BY t.sort`,
     ...articleIds,
   );
+  const topicsByArticle = new Map<string, { slug: string; label: string; color: string | null }[]>();
+  for (const t of topics) {
+    const aid = t.article_id as string;
+    const item = { slug: t.slug as string, label: t.label_pt as string, color: t.color as string | null };
+    const list = topicsByArticle.get(aid);
+    if (list) list.push(item);
+    else topicsByArticle.set(aid, [item]);
+  }
   const keyResults = db.all(
-    `SELECT * FROM evidence_results WHERE analysis_id IN (${ph(analysisIds.length)})
+    `SELECT * FROM evidence_results WHERE analysis_id IN (${ph(foundAnalysisIds.length)})
       ORDER BY analysis_id, (estimate IS NULL), CASE outcome_type WHEN 'primary' THEN 0 ELSE 1 END, ord`,
-    ...analysisIds,
+    ...foundAnalysisIds,
   );
+  const keyByAnalysis = new Map<string, Row>();
+  const maxSampleByAnalysis = new Map<string, number>();
+  for (const k of keyResults) {
+    const aid = k.analysis_id as string;
+    if (!keyByAnalysis.has(aid)) keyByAnalysis.set(aid, k);
+    if (typeof k.sample_size === 'number') {
+      const prev = maxSampleByAnalysis.get(aid);
+      if (prev === undefined || k.sample_size > prev) maxSampleByAnalysis.set(aid, k.sample_size);
+    }
+  }
+  const journalIds = [...new Set(rows.map((r) => r.journal_id as string | null).filter((x): x is string => !!x))];
+  const qualisByJournal = new Map<string, { stratum: string; cycle: string }>();
+  if (journalIds.length) {
+    const clsRows = db.all<{ journal_id: string; stratum: string; cycle: string | null }>(
+      `SELECT journal_id, stratum, cycle FROM journal_classifications WHERE journal_id IN (${ph(journalIds.length)}) ORDER BY imported_at DESC`,
+      ...journalIds,
+    );
+    for (const c of clsRows) {
+      if (!qualisByJournal.has(c.journal_id) && c.stratum) qualisByJournal.set(c.journal_id, { stratum: c.stratum, cycle: c.cycle ?? '' });
+    }
+  }
   const marks = userId
     ? {
         saved: new Set(db.all<{ article_id: string }>(`SELECT article_id FROM bookmarks WHERE user_id = ? AND article_id IN (${ph(articleIds.length)})`, userId, ...articleIds).map((r) => r.article_id)),
         read: new Set(db.all<{ article_id: string }>(`SELECT DISTINCT article_id FROM read_events WHERE user_id = ? AND article_id IN (${ph(articleIds.length)})`, userId, ...articleIds).map((r) => r.article_id)),
       }
     : null;
-  const scores = scoreAnalyses(db, analysisIds);
   const out = new Map<string, ArticleCard>();
   for (const r of rows) {
     const aid = r.aid as string;
     const p = json<Partial<AiAnalysis>>(r.payload, {});
-    const kr = keyResults.find((k) => k.analysis_id === aid);
-    const sc = scores.get(aid)!;
+    const kr = keyByAnalysis.get(aid);
+    const retraction = r.retraction_status as ArticleCard['retractionStatus'];
+    const evidence = gradeEvidence({
+      design: p.studyDesign ?? 'unknown',
+      sampleSize: p.population?.sampleSize ?? maxSampleByAnalysis.get(aid) ?? null,
+      hasPrecision: kr ? kr.ci_lower != null || kr.p_raw != null : false,
+      flags: p.reviewFlags ?? [],
+      retracted: retraction === 'retracted',
+    });
     const key: KeyResult | null = kr
       ? (() => { const x = resultRow(kr); return { plain: p.plainResult ?? null, outcome: x.outcome, measure: x.measure, estimate: x.estimate, estimateRaw: x.estimateRaw, unit: x.unit, ci: x.confidenceInterval, pRaw: x.pValue?.raw ?? null, p: x.pValue ? { operator: x.pValue.operator, value: x.pValue.value } : null, population: (kr.population as string | null) ?? p.population?.description ?? null, intervention: p.interventionOrExposure ?? null, comparator: (kr.comparator as string | null) ?? p.comparator ?? null }; })()
       : null;
-    const retraction = r.retraction_status as ArticleCard['retractionStatus'];
     const card: ArticleCard = {
       id: r.id as string,
       slug: r.slug as string,
@@ -123,13 +157,13 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null, c
       journal: (r.journal as string) ?? null,
       sourceName: r.source_name as string,
       pubDate: (r.pub_date as string) ?? null,
-      topics: topics.filter((t) => t.article_id === r.id).map((t) => ({ slug: t.slug as string, label: t.label_pt as string, color: t.color as string | null })),
+      topics: topicsByArticle.get(r.id as string) ?? [],
       isDemo: r.is_demo === 1,
       retractionStatus: retraction,
       accessStatus: r.access_status as string,
       keyResult: key,
-      evidence: { grade: sc.grade, reasons: sc.reasons },
-      journalQualis: sc.qualis,
+      evidence,
+      journalQualis: r.journal_id ? qualisByJournal.get(r.journal_id as string) ?? null : null,
       readingMinutes: readingMinutes(p),
       reviewStatus: retraction === 'retracted' ? 'retracted' : r.status === 'in_review' ? 'ai_unreviewed' : (r.corrections as number) > 0 ? 'corrected' : r.is_demo === 1 ? 'demo' : 'reviewed',
     };
@@ -146,7 +180,7 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null, c
 export function visibleAnalysisIdsForArticles(db: Db, articleIds: string[]): Map<string, string> {
   if (!articleIds.length) return new Map();
   const v = visibility(db);
-  const one = oneVisiblePerArticle(db);
+  const one = oneVisiblePerArticle(db, v);
   const rows = db.all<{ article_id: string; id: string }>(
     `SELECT a.article_id, a.id FROM analyses a WHERE ${v.sql} AND a.article_id IN (${ph(articleIds.length)}) AND ${one.sql}`,
     ...v.params, ...articleIds, ...one.params,
@@ -154,11 +188,17 @@ export function visibleAnalysisIdsForArticles(db: Db, articleIds: string[]): Map
   return new Map(rows.map((r) => [r.article_id, r.id]));
 }
 
-export function editionDto(db: Db, edition: Row, userId?: string | null): EditionDto {
+export function editionDto(db: Db, edition: Row, userId?: string | null, preloadedCards?: Map<string, ArticleCard>): EditionDto {
   const items = db.all<{ analysis_id: string; slot: string; section_topic_id: string | null; position: number }>(
     'SELECT analysis_id, slot, section_topic_id, position FROM edition_items WHERE edition_id = ? ORDER BY position', edition.id as string,
   );
-  const byAnalysis = cardMap(db, items.map((i) => i.analysis_id), userId);
+  const missingIds = preloadedCards ? items.map((i) => i.analysis_id).filter((id) => !preloadedCards.has(id)) : items.map((i) => i.analysis_id);
+  const fetched = missingIds.length ? cardMap(db, missingIds, userId) : new Map<string, ArticleCard>();
+  const byAnalysis = new Map<string, ArticleCard>();
+  for (const it of items) {
+    const c = preloadedCards?.get(it.analysis_id) ?? fetched.get(it.analysis_id);
+    if (c) byAnalysis.set(it.analysis_id, c);
+  }
   const all = [...byAnalysis.values()];
   const headlineItem = items.find((i) => i.slot === 'headline');
   const secondary = items.filter((i) => i.slot === 'secondary').map((i) => byAnalysis.get(i.analysis_id)).filter((c): c is ArticleCard => !!c);

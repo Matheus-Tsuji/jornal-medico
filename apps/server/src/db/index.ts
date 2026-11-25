@@ -32,8 +32,8 @@ export class Db {
     const file = path === ':memory:' || isAbsolute(path) ? path : resolve(REPO_ROOT, path);
     if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
     this.raw = new Database(file);
-    this.raw.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
-    if (file !== ':memory:') this.raw.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;');
+    this.raw.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA temp_store = MEMORY;');
+    if (file !== ':memory:') this.raw.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA cache_size = -16000;');
   }
   // Reutiliza apenas o SQL compilado. Cada execução consulta os dados atuais.
   private prepare(sql: string) {

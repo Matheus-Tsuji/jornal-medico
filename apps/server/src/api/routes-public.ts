@@ -119,13 +119,14 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     const personal = profile.personalization && profile.topics.length > 0;
     const picked = personal ? ranked.filter((r) => r.matchedTopics.length > 0) : ranked;
     const m = cardMap(db, picked.map((r) => r.id), userId, true);
-    return picked
+    const items = picked
       .flatMap((r): ArticleCard[] => { const c = m.get(r.id); return c ? [{ ...c, reasons: r.reasons }] : []; })
       .slice(0, 10);
+    return { items, cardsById: m };
   };
   app.get('/editions/latest', async (req) => {
     const userId = req.user?.id ?? null;
-    const recommendations = await forYou(userId);
+    const { items: recommendations, cardsById } = await forYou(userId);
     // A prévia pública é selecionada após a espera pelo recomendador.
     const e = publishedEdition(db);
     const today = localDate(cfg.APP_TIMEZONE);
@@ -135,7 +136,7 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
       if (p) return { edition: { ...p, forYou: recommendations } };
     }
     if (!e) return { edition: null };
-    return { edition: { ...editionDto(db, e, userId), forYou: recommendations } };
+    return { edition: { ...editionDto(db, e, userId, cardsById), forYou: recommendations } };
   });
   app.get('/editions', async () => ({ items: editionList(db) }));
   app.get('/editions/:date', async (req) => {
@@ -149,7 +150,7 @@ export async function publicRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   app.get('/articles', async (req) => {
     const q = articleListQuery.parse(req.query);
     const v = visibility(db);
-    const one = oneVisiblePerArticle(db);
+    const one = oneVisiblePerArticle(db, v);
     const where: string[] = [v.sql, one.sql];
     const params: Params = [...v.params, ...one.params];
     if (q.topic) {
