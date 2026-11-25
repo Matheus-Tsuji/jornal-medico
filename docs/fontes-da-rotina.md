@@ -33,16 +33,16 @@ fonte, acrescente uma linha na tabela (o prompt da rotina não muda).
 | NEJM, JAMA, The Lancet, The BMJ | api | https://api.crossref.org/ | Publicações científicas | `pipeline monitor nejm` (e jama, lancet, bmj) | ativa |
 
 ## Páginas oficiais (tipo `página`, já aceitas pelo `import-documents`)
-Estado `a testar` = ainda não conferida pela rotina; o teste marca `ativa` ou `bloqueada`.
+Estados conferidos em teste local em 25/11/2026 (leitura com `curl`, 1 requisição por página, sem contornar bloqueio).
 | Nome | Tipo | URL | Área | Como coletar | Estado |
 |---|---|---|---|---|---|
-| Ministério da Saúde / Saúde Legis (`ms`) | página | https://www.gov.br/saude/pt-br/acesso-a-informacao/institucional/legislacao/legislacao | Saúde pública e regulação | Atos normativos novos: título, identificação e ementa literais | a testar |
-| Ministério da Saúde — Saúde Digital (`digital`) | página | https://www.gov.br/saude/pt-br/composicao/seidigi/legislacao | Saúde pública e regulação | Atos novos de saúde digital | a testar |
-| Conitec (`conitec`) | página | https://www.gov.br/conitec/pt-br/assuntos/avaliacao-de-tecnologias-em-saude/recomendacoes-da-conitec | Saúde pública e regulação | Recomendações novas de incorporação | a testar |
-| Diário Oficial da União (`dou`) | página | https://www.in.gov.br/ | Saúde pública e regulação | Atos de saúde do dia | a testar |
-| Planalto — legislação federal (`planalto`) | página | https://www.planalto.gov.br/ | Saúde pública e regulação | Leis e decretos de saúde novos | a testar |
-| Senado Federal (`senado`) | página | https://www25.senado.leg.br/web/atividade/materias | Saúde pública e regulação | Proposições de saúde novas | a testar |
-| Anvisa (`anvisa`) | página | https://www.gov.br/anvisa/pt-br/assuntos/regulamentacao/legislacao | Saúde pública e regulação | Normas sanitárias novas | a testar |
+| Ministério da Saúde / Saúde Legis (`ms`) | página | https://www.gov.br/saude/pt-br/acesso-a-informacao/institucional/legislacao/legislacao | Saúde pública e regulação | Atos normativos novos: título, identificação e ementa literais | parcial (página abre, mas a lista de atos não vem no HTML; só 1 ato estático) |
+| Ministério da Saúde — Saúde Digital (`digital`) | página | https://www.gov.br/saude/pt-br/composicao/seidigi/legislacao | Saúde pública e regulação | Atos novos de saúde digital (`article.tileItem`: título + link, `.description` = ementa) | ativa (testada em 25/11: 15 atos lidos, 6 importados) |
+| Conitec (`conitec`) | página | https://www.gov.br/conitec/pt-br/assuntos/avaliacao-de-tecnologias-em-saude/recomendacoes-da-conitec | Saúde pública e regulação | Recomendações novas de incorporação | exige navegador (JavaScript): `curl` traz página vazia; testar crawl4ai |
+| Diário Oficial da União (`dou`) | página | https://www.in.gov.br/ | Saúde pública e regulação | Atos de saúde do dia | bloqueada (servidor derruba a conexão de robô em 25/11) |
+| Planalto — legislação federal (`planalto`) | página | https://www.planalto.gov.br/ | Saúde pública e regulação | Leis e decretos de saúde novos | bloqueada (servidor derruba a conexão de robô em 25/11) |
+| Senado Federal (`senado`) | página | https://www25.senado.leg.br/web/atividade/materias | Saúde pública e regulação | Proposições de saúde novas | página é só formulário de busca; usar a API de dados abertos do Senado |
+| Anvisa (`anvisa`) | página | https://www.gov.br/anvisa/pt-br/assuntos/regulamentacao/legislacao | Saúde pública e regulação | Normas sanitárias novas | página é índice de categorias, sem lista de atos; precisa das páginas internas |
 
 ## Fontes novas (a preencher pelo Matheus)
 | Nome | Tipo | URL | Área | Como coletar | Estado |

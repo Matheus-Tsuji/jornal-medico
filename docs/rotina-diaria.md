@@ -1,4 +1,4 @@
-> **RASCUNHO, aguardando aprovação do Matheus (2026-11-25).** A rotina agendada real ainda roda o prompt antigo
+> **RASCUNHO testado em 25/11/2026 (ver resultados abaixo), aguardando aprovação do Matheus.** A rotina agendada real ainda roda o prompt antigo
 > (Turso + OpenAI). Este documento descreve o desenho novo; só vale depois de o Matheus aprovar o prompt e mandar trocar.
 > Substitui `docs/arquivo/rotina-diaria.DESATIVADA.md`.
 
@@ -34,6 +34,7 @@ Você é o operador diário do site Index Discovery (repositório Matheus-Tsuji/
 REGRAS DE OURO
 - Você NÃO usa, procura nem confere chave, token ou credencial de nada (OpenAI, Anthropic, Turso, Vercel, Firecrawl ou qualquer outro). Se existir alguma no ambiente, ignore: nunca imprima, grave ou use.
 - Você escreve as análises (sem API), seguindo docs/rotina-diaria.md.
+- Para texto LITERAL de página, leia o HTML com `curl` e extraia com script; não use WebFetch (ele resume o conteúdo). Decodifique sempre como UTF-8: o cabeçalho HTTP do gov.br diz ISO-8859-1, mas o HTML é UTF-8, e confiar no cabeçalho estraga os acentos.
 - Só coleta páginas públicas. Respeite robots.txt, no máximo 1 requisição por segundo por domínio. Nunca burle CAPTCHA, login, paywall ou bloqueio de robô: se uma fonte bloquear, registre "bloqueada" no relatório e siga.
 - Nunca invente ciência (DOI, PMID, autores, números, IC, p-valor). Ausente = null + motivo.
 - Tudo entra como rascunho (in_review/blocked). Nunca aprove nem publique análise: isso é do editor humano.
@@ -45,9 +46,9 @@ FONTES
 PASSOS (pare e relate se algo falhar)
 1. `git pull origin main`; `npm ci`; `pip install -r services/recommender/requirements.txt`.
 2. `export DATABASE_URL=file:./apps/server/data/vitrine.db` (a vitrine é o banco de trabalho).
-3. Fontes tipo api: `npm run pipeline -s -- cycle 1500` (os jobs de análise adiam por falta de chave: esperado).
+3. Fontes tipo api: `npm run pipeline -s -- cycle 1500`, UM ciclo só e em primeiro plano (os jobs de análise adiam por falta de chave: esperado; Europe PMC dá timeout às vezes e o job tenta de novo).
 4. Fontes tipo página: leia com WebFetch ou crawl4ai (`pip install crawl4ai`), copie título, identificação e ementa LITERAIS e registre com `npm run pipeline -s -- import-documents $TMP/docs.json` (itens: source, title, identifier, description, date, url, confirmedVerbatim=true só se copiou literalmente). Item rejeitado: relate o motivo.
-5. Análise por você: `npm run pipeline -s -- claude-export $TMP/pending.json 10`; para cada item escreva extraction + editorial copiando articleId, inputHash e promptVersion; depois `claude-import $TMP/import.json`. Regras: todo número e toda quote literais do abstract; ausente = null + missingFields; pt-BR; sem "comprova/cura/revoluciona"; números da redação só os da extração. Itens blocked/rejected: corrija e reimporte uma vez; se persistir, relate.
+5. Análise por você: `npm run pipeline -s -- claude-export $TMP/pending.json 10`; para cada item escreva extraction + editorial copiando articleId, inputHash e promptVersion; depois `claude-import $TMP/import.json`. Regras: todo número e toda quote literais do abstract (se o abstract escreve o número por extenso, como "Fourteen", escreva por extenso também na redação: o validador só aceita dígitos que estejam na fonte); ausente = null + missingFields; pt-BR; sem "comprova/cura/revoluciona"; números da redação só os da extração. Itens blocked/rejected: corrija e reimporte uma vez; se persistir, relate.
 6. Vitrine sem dados pessoais: copie a vitrine para $TMP/work.db e rode `DATABASE_URL=file:$TMP/work.db npm run db:export -w @jm/server -- --vitrine` (a origem NÃO pode ser o destino). Confirme 0 linhas em users, sessions, auth_challenges, user_preferences, bookmarks, read_events, feedback, subscriptions, editorial_reviews, audit_events, jobs.
 7. `npm run check`. Se falhar, NÃO publique.
 8. Commit só de apps/server/data/vitrine.db (e docs/fontes-da-rotina.md se você marcou fonte como bloqueada): "Vitrine do dia AAAA-MM-DD: N análises novas" + linha "Co-Authored-By: Claude <noreply@anthropic.com>"; `git push origin HEAD:main` (sem --force; se rejeitar, `git pull --rebase origin main` e tente uma vez).
@@ -63,3 +64,11 @@ RELATÓRIO FINAL CURTO: tabela de fontes (ok / fora do ar / bloqueada), itens no
 3. Decisão pendente (auditoria): a prévia pública mostra análise de IA **sem revisão humana** (`ai_preview`).
 4. Uma vez: a vitrine do Git é mais antiga que o Turso. Isso não quebra nada (a fusão casa por DOI/PMID e não duplica
    trabalho com o mesmo insumo), mas a primeira execução pode reanalisar artigos que o Turso já tem.
+
+## Teste do prompt em 25/11/2026 (execução local, sem push)
+Executado numa cópia isolada do projeto, com os passos 1 a 8 (sem o `git push` e sem o `curl` de saúde, que dependem do deploy).
+- Coleta (5 min em vez de 25): +104 artigos, +26 documentos de regulação, +46 de publicações. 371 análises adiaram por falta de chave (esperado).
+- Páginas oficiais: só Saúde Digital rendeu atos legíveis (15 lidos, 6 importados). DOU e Planalto derrubam robô; Conitec precisa de navegador; Senado e Anvisa são formulário/índice.
+- Análise: 3 artigos reais escritos por Claude; 2 entraram em revisão de primeira e 1 foi bloqueado pelo validador (número "14" em vez de "Fourteen").
+- Defeitos achados e corrigidos: reimportar item bloqueado era ignorado (`skipped_existing`); e o validador da decisão editorial deixava passar número inventado igual a dígitos de um `id` (UUID).
+- Vitrine sem dados pessoais (tabelas de usuário com 0 linhas), integridade `ok`, `npm run check` verde.

@@ -71,7 +71,8 @@ export function decide(
           'SELECT ar.original_title, j.title AS journal, ar.publication_types, ar.pub_date FROM articles ar LEFT JOIN journals j ON j.id = ar.journal_id WHERE ar.id = ?', a.article_id as string)!;
         const abs = db.get<{ abstract_text: string | null }>('SELECT abstract_text FROM article_sources WHERE article_id = ? ORDER BY retrieved_at DESC LIMIT 1', a.article_id as string)?.abstract_text ?? '';
         const results = db.all('SELECT * FROM evidence_results WHERE analysis_id = ? ORDER BY ord', analysisId).map(resultRow);
-        const extractionJson = JSON.stringify({ ...payload, editorialHeadline: null, summary: null, inShort: null, plainResult: null, results });
+        // Sem o `id` (UUID aleatório) dos resultados: os dígitos dele não são dado do estudo e não podem "autorizar" um número inventado.
+        const extractionJson = JSON.stringify({ ...payload, editorialHeadline: null, summary: null, inShort: null, plainResult: null, results: results.map(({ id: _id, ...r }) => r) });
         const ed = validateEditorial(payload, extractionJson, buildDocument(art, abs));
         if (ed.errors.length) throw new AppError(409, 'editorial_invalid', `Redação reprovada pelo validador: ${ed.errors.join('; ').slice(0, 400)}`);
       }

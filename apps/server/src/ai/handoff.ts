@@ -103,7 +103,9 @@ export function importAnalyses(db: Db, raw: unknown): ImportResult[] {
     if (parsed.data.promptVersion !== PROMPT_VERSION || parsed.data.inputHash !== l.inputHash) {
       return { articleId: id, status: 'rejected', detail: ['Resposta obsoleta: o documento ou o prompt mudou desde o claude-export. Exporte de novo.'] };
     }
-    if (alreadyAnalyzed(db, id, l.inputHash)) return { articleId: id, status: 'skipped_existing', detail: [] };
+    // Importar de novo é uma nova tentativa explícita: análise bloqueada/rejeitada do mesmo insumo não impede a versão corrigida
+    // (o histórico fica; o rascunho novo aposenta o anterior). Só análise viva (em revisão/publicada) conta como "já existe".
+    if (alreadyAnalyzed(db, id, l.inputHash, true)) return { articleId: id, status: 'skipped_existing', detail: [] };
     const r = finalizeAnalysis(db, id, extraction, editorial, l.document, { model: HANDOFF_MODEL, promptVersion: PROMPT_VERSION, inputHash: l.inputHash });
     return { articleId: id, status: r.status, detail: r.detail };
   });

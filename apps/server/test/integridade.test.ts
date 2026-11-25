@@ -101,6 +101,16 @@ describe('GER-08: decisão editorial', () => {
   });
 });
 
+describe('GER-08: dígitos de ids não autorizam números inventados', () => {
+  it('edição com número igual a dígitos de um id de resultado continua recusada', async () => {
+    const c = await ctx();
+    const ed = await adminId(c);
+    const r = await analyzeArticle(c.db, c.cfg, fakeProvider([validExtraction(), validEditorial]), c.articleId);
+    c.db.run("UPDATE evidence_results SET id = 'aaaa73bb-7373-4373-8373-737373737373' WHERE analysis_id = ?", r.analysisId!);
+    expect(() => decide(c.db, ed, r.analysisId!, { decision: 'approve', justification: 'conferido', edits: { summary: 'O risco caiu 73% com o fármaco Z em todos os pacientes.' } })).toThrow(/validador/);
+  });
+});
+
 describe('GER-09: imutabilidade no banco', () => {
   it('UPDATE do payload de publicada falha; correção por nova versão continua funcionando', async () => {
     const c = await ctx();

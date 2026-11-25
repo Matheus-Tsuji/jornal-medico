@@ -59,4 +59,18 @@ describe('análise por entrega de arquivo (sem chave de API)', () => {
     expect(r[0]!.status).toBe('blocked');
     expect(importAnalyses(db2, [{ articleId: 'x', extraction: { foo: 1 }, editorial: {} }])[0]!.status).toBe('rejected');
   });
+
+  it('reimportar um item bloqueado e corrigido cria nova versão (não é ignorado) e aposenta o bloqueado', async () => {
+    const db = await setupDb();
+    const item = exportPending(db, 50).items.find((i) => i.document.includes('hazard ratio, 0.80'))!;
+    const ref = { articleId: item.articleId, inputHash: item.inputHash, promptVersion: item.promptVersion };
+    const bad = { ...validEditorial, summary: 'Reduziu 42% o risco.' };
+    expect(importAnalyses(db, [{ ...ref, extraction: validExtraction(), editorial: bad }])[0]!.status).toBe('blocked');
+    const again = importAnalyses(db, [{ ...ref, extraction: validExtraction(), editorial: validEditorial }]);
+    expect(again[0]!.status).toBe('in_review');
+    const rows = db.all<{ status: string; version: number }>('SELECT status, version FROM analyses WHERE article_id = ? AND is_demo = 0 ORDER BY version', item.articleId);
+    expect(rows.map((r) => r.status)).toEqual(['superseded', 'in_review']);
+    // e uma terceira importação do mesmo insumo, agora com análise viva, é ignorada
+    expect(importAnalyses(db, [{ ...ref, extraction: validExtraction(), editorial: validEditorial }])[0]!.status).toBe('skipped_existing');
+  });
 });
