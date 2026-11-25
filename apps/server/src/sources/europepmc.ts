@@ -2,7 +2,7 @@
 // Os registros do PubMed (SRC:MED) e preprints (SRC:PPR) ficam de fora: os primeiros já vêm pelo adaptador PubMed e os
 // preprints não passam na triagem. Docs: https://europepmc.org/RestfulWebService
 import { z } from 'zod';
-import { safeFetch, throttle, type FetchLike } from '../lib/net.ts';
+import { safeFetch, type FetchLike } from '../lib/net.ts';
 import { normalizeDoi } from '../lib/util.ts';
 import type { NormalizedRecord, ScientificSourceAdapter } from './pubmed.ts';
 
@@ -54,12 +54,10 @@ const hitSchema = z.object({
 });
 const searchSchema = z.object({ hitCount: z.number(), nextCursorMark: z.string().optional(), resultList: z.object({ result: z.array(hitSchema) }) });
 type Hit = z.infer<typeof hitSchema>;
-const wait = throttle(200);
 
 export function europePmcAdapter(f: FetchLike = fetch): ScientificSourceAdapter {
   const found = new Map<string, Hit>();
   const get = async (url: string) => {
-    await wait();
     const res = await safeFetch(url, {}, f);
     if (!res.ok) throw new Error(`Europe PMC HTTP ${res.status}`);
     return res;

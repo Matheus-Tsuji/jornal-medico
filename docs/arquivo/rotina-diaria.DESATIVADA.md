@@ -1,3 +1,9 @@
+> **DESATIVADA em 2026-11-25 (decisão do Matheus).** Este documento guarda a essência da rotina diária na nuvem para
+> quando ela voltar. Hoje nada no projeto agenda coleta nem análise: não há cron na Vercel
+> (`scripts/vercel-config.mjs`), o endpoint `/api/v1/cron/tick` responde 410 e o ciclo comentado está em
+> `apps/server/src/api/vercel.ts`. `claude-export`/`claude-import` continuam existindo como ferramenta **manual**.
+> A rotina agendada externa (Claude Code na nuvem) é independente do repositório e precisa ser pausada à parte.
+
 # Rotina diária na nuvem (sem chave de API da OpenAI)
 
 A rotina agendada do Claude Code faz a coleta e **o próprio Claude escreve as análises** — sem `OPENAI_API_KEY`.

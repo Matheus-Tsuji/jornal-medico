@@ -1,5 +1,5 @@
-/* global process, console */
-// Monta .vercel/output (Build Output API v3): site estático + uma função Node com a API + o cron.
+/* global console */
+// Monta .vercel/output (Build Output API v3): site estático + uma função Node com a API (o cron do ciclo diário está desativado).
 // Rodar depois do build da web: `npm run build:vercel`.
 import { build } from 'esbuild';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -10,8 +10,6 @@ import { vercelConfig } from './vercel-config.mjs';
 
 const OUT = '.vercel/output';
 const FUNC = join(OUT, 'functions/api.func');
-// Hobby: no máximo 1 execução por dia. No Pro, troque por "0 * * * *" (de hora em hora) ou via VERCEL_CRON_SCHEDULE.
-const CRON_SCHEDULE = process.env.VERCEL_CRON_SCHEDULE || '0 9 * * *'; // 09:00 UTC = 06:00 em Brasília
 
 if (!existsSync('apps/web/dist/index.html')) throw new Error('Rode antes o build da web (npm run build).');
 rmSync(OUT, { recursive: true, force: true });
@@ -79,6 +77,6 @@ writeFileSync(join(FUNC, '.vc-config.json'), JSON.stringify({
 
 // 3) Rotas e cron
 mkdirSync(OUT, { recursive: true });
-writeFileSync(join(OUT, 'config.json'), JSON.stringify(vercelConfig(CRON_SCHEDULE), null, 2));
+writeFileSync(join(OUT, 'config.json'), JSON.stringify(vercelConfig(), null, 2));
 
-console.log(`Vercel: ${OUT} pronto (função api + estático; pacotes nativos: ${[...copied].join(', ')}; cron "${CRON_SCHEDULE}").`);
+console.log(`Vercel: ${OUT} pronto (função api + estático; pacotes nativos: ${[...copied].join(', ')}).`);

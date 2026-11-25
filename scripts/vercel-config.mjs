@@ -20,7 +20,10 @@ export const SECURITY_HEADERS = {
   'strict-transport-security': 'max-age=31536000; includeSubDomains',
 };
 
-export function vercelConfig(cronSchedule) {
+// Cron desativado (2026-11-25): para reativar o ciclo diário na Vercel, devolva
+//   crons: [{ path: '/api/v1/cron/tick', schedule: '0 9 * * *' }]   // 09:00 UTC = 06:00 em Brasília
+// e reative o handler em apps/server/src/api/vercel.ts.
+export function vercelConfig() {
   return {
     version: 3,
     routes: [
@@ -30,6 +33,6 @@ export function vercelConfig(cronSchedule) {
       { handle: 'filesystem' },
       { src: '^/(.*)$', dest: '/index.html', headers: SECURITY_HEADERS },
     ],
-    crons: [{ path: '/api/v1/cron/tick', schedule: cronSchedule }],
+    crons: [],
   };
 }

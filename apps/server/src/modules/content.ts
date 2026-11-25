@@ -6,7 +6,7 @@ import { json } from '../db/index.ts';
 import { AppError, httpsUrl, localDate } from '../lib/util.ts';
 import { flag } from './audit.ts';
 import { claimsOf } from './analyses.ts';
-import { gradeEvidence, rankBest } from './grade.ts';
+import { gradeEvidence, gradeInputFor, rankBest } from './grade.ts';
 
 /** Filtro SQL de visibilidade para a tabela `analyses` com alias `a`. */
 export function visibility(db: Db): { sql: string; params: Params } {
@@ -55,6 +55,14 @@ function readingMinutes(p: Partial<AiAnalysis>): number {
   return Math.max(1, Math.round(words / 200 + 1));
 }
 
+function deepFreeze<T>(o: T): T {
+  if (o && typeof o === 'object' && !Object.isFrozen(o)) {
+    Object.freeze(o);
+    for (const v of Object.values(o)) deepFreeze(v);
+  }
+  return o;
+}
+
 // Cache puro de JSON.parse + tempo de leitura indexado pela string exata do payload (sem cache de linhas do banco).
 const parsedPayloads = new Map<string, { payload: Partial<AiAnalysis>; minutes: number }>();
 function parseAnalysisPayload(raw: unknown): { payload: Partial<AiAnalysis>; minutes: number } {
@@ -65,7 +73,7 @@ function parseAnalysisPayload(raw: unknown): { payload: Partial<AiAnalysis>; min
     parsedPayloads.set(raw, cached);
     return cached;
   }
-  const payload = json<Partial<AiAnalysis>>(raw, {});
+  const payload = deepFreeze(json<Partial<AiAnalysis>>(raw, {}));
   const entry = { payload, minutes: readingMinutes(payload) };
   if (parsedPayloads.size >= 256) parsedPayloads.delete(parsedPayloads.keys().next().value!);
   parsedPayloads.set(raw, entry);
@@ -175,13 +183,7 @@ export function cardMap(db: Db, analysisIds: string[], userId?: string | null, c
     const { payload: p, minutes } = parseAnalysisPayload(r.payload);
     const kr = keyByAnalysis.get(aid);
     const retraction = r.retraction_status as ArticleCard['retractionStatus'];
-    const evidence = gradeEvidence({
-      design: p.studyDesign ?? 'unknown',
-      sampleSize: p.population?.sampleSize ?? maxSampleByAnalysis.get(aid) ?? null,
-      hasPrecision: kr ? kr.ci_lower != null || kr.p_raw != null : false,
-      flags: p.reviewFlags ?? [],
-      retracted: retraction === 'retracted',
-    });
+    const evidence = gradeEvidence(gradeInputFor(p, retraction === 'retracted', kr, maxSampleByAnalysis.get(aid) ?? null));
     const key: KeyResult | null = kr
       ? (() => { const x = resultRow(kr); return { plain: p.plainResult ?? null, outcome: x.outcome, measure: x.measure, estimate: x.estimate, estimateRaw: x.estimateRaw, unit: x.unit, ci: x.confidenceInterval, pRaw: x.pValue?.raw ?? null, p: x.pValue ? { operator: x.pValue.operator, value: x.pValue.value } : null, population: (kr.population as string | null) ?? p.population?.description ?? null, intervention: p.interventionOrExposure ?? null, comparator: (kr.comparator as string | null) ?? p.comparator ?? null }; })()
       : null;

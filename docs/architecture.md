@@ -25,7 +25,7 @@ flowchart TD
 |---|---|
 | `config.ts` | Validação do ambiente com zod; produção com Turso exige segredos no ambiente; login por código exige e-mail real |
 | `db/` | `libsql` (API síncrona; arquivo local ou Turso remoto), migrações SQL versionadas, seed (taxonomia, fontes, planos, flags, demo) |
-| `api/vercel.ts` | Entrada da Vercel: a API como função + `/api/v1/cron/tick` (cron com `CRON_SECRET`) no lugar do worker |
+| `api/vercel.ts` | Entrada da Vercel: a API como função; o cron do ciclo diário está desativado (endpoint responde 410) |
 | `modules/auth.ts` | OTP de 6 dígitos (HMAC com segredo do servidor), sessões com token aleatório (só hash no banco) |
 | `modules/content.ts` | DTOs de leitura; regra de visibilidade (demo × real por flag) |
 | `modules/editorial.ts` | Fila, decisão auditada, versões imutáveis, composição e publicação |

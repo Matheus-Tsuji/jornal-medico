@@ -4,7 +4,6 @@ import { seed } from '../db/seed.ts';
 import { buildApp } from './app.ts';
 
 const cfg = loadConfig();
-for (const w of cfg.warnings) console.warn(w);
 const db = openDb(cfg.dbPath, cfg.DATABASE_AUTH_TOKEN);
 // Conveniência local: popula taxonomia/demonstração num banco vazio (nunca em produção).
 if (cfg.NODE_ENV !== 'production' && !db.get('SELECT 1 FROM topics LIMIT 1')) seed(db, cfg);

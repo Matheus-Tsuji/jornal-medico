@@ -3,7 +3,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { Config } from '../config.ts';
 import { z } from 'zod';
-import { safeFetch, throttle, type FetchLike } from '../lib/net.ts';
+import { safeFetch, type FetchLike } from '../lib/net.ts';
 import { normalizeDoi } from '../lib/util.ts';
 
 const BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
@@ -134,14 +134,10 @@ const pubmedSearch = z.object({
     ERROR: z.string().optional(),
   }),
 });
-// NCBI: até 3 req/s sem chave e 10 com chave. A folga sem chave reduz HTTP 429.
-const publicPubmed = throttle(500);
-const keyedPubmed = throttle(120);
-
+// O espaçamento entre chamadas (NCBI: 3 req/s sem chave, 10 com chave; Europe PMC; Crossref 1 req/s) fica em
+// lib/rate-limits.ts (sourceFetch), compartilhado entre processos pelo banco.
 export function pubmedAdapter(cfg: Config, f: FetchLike = fetch): ScientificSourceAdapter {
-  const wait = cfg.NCBI_API_KEY ? keyedPubmed : publicPubmed;
   const call = async (path: string, params: Record<string, string>) => {
-    await wait();
     const qs = new URLSearchParams({ ...params, tool: cfg.NCBI_TOOL });
     if (cfg.NCBI_CONTACT_EMAIL) qs.set('email', cfg.NCBI_CONTACT_EMAIL);
     if (cfg.NCBI_API_KEY) qs.set('api_key', cfg.NCBI_API_KEY);

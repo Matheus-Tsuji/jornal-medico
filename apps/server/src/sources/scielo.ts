@@ -2,7 +2,7 @@
 // bloqueia acesso automatizado, então não é usado. Data de referência: criação do DOI (from-created-date), para não
 // trazer artigos antigos reindexados. Docs: https://api.crossref.org/swagger-ui/index.html
 import { z } from 'zod';
-import { safeFetch, throttle, type FetchLike } from '../lib/net.ts';
+import { safeFetch, type FetchLike } from '../lib/net.ts';
 import { httpsUrl, normalizeDoi } from '../lib/util.ts';
 import { topicTerms, typesFromTitle } from './europepmc.ts';
 import type { NormalizedRecord, ScientificSourceAdapter } from './pubmed.ts';
@@ -19,8 +19,6 @@ const itemSchema = z.object({
 });
 const searchSchema = z.object({ message: z.object({ 'total-results': z.number(), items: z.array(itemSchema), 'next-cursor': z.string().optional() }) });
 type Item = z.infer<typeof itemSchema>;
-// Crossref: 1 req/s no pool público.
-const wait = throttle(1_000);
 
 const stripTags = (s: string) => s.replace(/<jats:title>[^<]*<\/jats:title>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 const decode = (s: string) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
@@ -46,7 +44,6 @@ function scieloUrl(raw: string | undefined, doi: string): string {
 export function scieloAdapter(f: FetchLike = fetch): ScientificSourceAdapter {
   const found = new Map<string, Item>();
   const get = async (url: string) => {
-    await wait();
     const res = await safeFetch(url, { timeoutMs: 30_000 }, f);
     if (!res.ok) throw new Error(`Crossref HTTP ${res.status}`);
     const parsed = searchSchema.safeParse(await res.json().catch(() => undefined));

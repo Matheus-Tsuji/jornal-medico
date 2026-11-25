@@ -24,7 +24,7 @@ Este cadastro publica metadados da fonte, não uma análise jurídica. Análises
 - Worker e cron agendam as cinco fontes em quatro janelas diárias; execução efetiva depende do agendamento e fila.
 - Equipe pode enfileirar pelo botão Agendar coleta em Fontes e cobertura e acompanhar em /admin/jobs.
 - Falha de coleta mantém registros anteriores e avisa na interface.
-- Vercel: requer Turso persistente e CRON_SECRET; a vitrine efêmera já existente não executa cron.
+- Vercel: o ciclo diário está desativado (sem cron); a coleta roda manualmente ou pelo worker local.
 
 ## Fontes verificadas
 - https://dadosabertos.camara.leg.br/swagger/api.html

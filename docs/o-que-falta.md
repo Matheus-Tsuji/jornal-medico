@@ -13,7 +13,7 @@ Lista criada em 2026-11-14, com o trabalho **pausado** a pedido do Matheus.
 - [x] Busca lê a janela inteira por tema (antes cortava em 20 e perdia o resto: 31 de 33 buscas cortadas).
 - [x] Capa abre com os novos das últimas 36 h ("N novos").
 - [x] Teste de vários dias seguidos (`test/daily-cycle.test.ts`).
-- [ ] **Na Vercel o ciclo só roda com Turso + `CRON_SECRET` + OpenAI configurados** (na vitrine ele se recusa de propósito). **[PENDENTE: Matheus]**
+- [ ] **Ciclo diário desativado** (2026-11-25): sem cron na Vercel e rotina na nuvem arquivada em `docs/arquivo/`. Reativar é decisão do Matheus. **[PENDENTE: Matheus]**
 - [ ] No plano Hobby, 1 ciclo por dia, com corte de 115 s para iniciar novos jobs. Se o volume diário de elegíveis passar disso, a fila cresce: plano Pro com cron por hora resolve.
 
 ## 2. Interface

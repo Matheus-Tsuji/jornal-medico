@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { emailSchema } from '@jm/contracts';
-import { loadConfig } from '../src/config.ts';
+import { ensureSecrets, loadConfig } from '../src/config.ts';
+import { openDb } from '../src/db/index.ts';
 import type { Db } from '../src/db/index.ts';
 import { httpsUrl, id, nowIso } from '../src/lib/util.ts';
 import { STAFF_IDLE_DAYS, purgeAuthData } from '../src/modules/auth.ts';
@@ -49,15 +50,14 @@ describe('SEG-04/GIT-03/SEG-06: configuração de ambiente', () => {
     expect(() => loadConfig(env({ NODE_ENV: 'development', HOST: '0.0.0.0' }))).toThrow(/loopback/);
     expect(() => loadConfig(env({ NODE_ENV: 'development', HOST: '127.0.0.1' }))).not.toThrow();
   });
-  it('produção com banco remoto exige segredos no ambiente', () => {
+  it('produção com banco remoto exige só SESSION_SECRET; o segredo do webhook nunca vai para o banco', async () => {
     const base = { NODE_ENV: 'production', DATABASE_URL: 'libsql://exemplo.turso.io' };
     expect(() => loadConfig(env(base))).toThrow(/SESSION_SECRET/);
-    expect(() => loadConfig(env({ ...base, SESSION_SECRET: 's'.repeat(40) }))).toThrow(/PAYMENT_WEBHOOK_SECRET/);
-    expect(() => loadConfig(env({ ...base, SESSION_SECRET: 's'.repeat(40), PAYMENT_WEBHOOK_SECRET: 'w'.repeat(32), CRON_SECRET: 'c'.repeat(20) }))).not.toThrow();
-  });
-  it('CRON_SECRET curto falha e ausente em produção gera aviso', () => {
-    expect(() => loadConfig(env({ NODE_ENV: 'test', CRON_SECRET: 'curto' }))).toThrow(/CRON_SECRET/);
-    expect(loadConfig(env({ NODE_ENV: 'production' })).warnings.join(' ')).toMatch(/CRON_SECRET/);
+    const cfg = loadConfig(env({ ...base, SESSION_SECRET: 's'.repeat(40) }));
+    const db = openDb(':memory:');
+    ensureSecrets(db, cfg);
+    expect(cfg.PAYMENT_WEBHOOK_SECRET).toBeUndefined();
+    expect(db.get('SELECT 1 FROM app_secrets WHERE name = ?', 'payment_webhook_secret')).toBeUndefined();
   });
   it('paywall com provedor sandbox é recusado em produção', () => {
     expect(() => loadConfig(env({ NODE_ENV: 'production', PAYWALL_ENABLED: 'true' }))).toThrow(/sandbox/);
@@ -146,7 +146,7 @@ describe('SEG-06/COD-01: assinatura', () => {
 
 describe('SEG-05/GER-15: cabeçalhos do site estático e /ready na função', () => {
   it('rotas estáticas e fallback levam os cabeçalhos; /ready vai para a API', () => {
-    const cfg = vercelConfig('0 9 * * *');
+    const cfg = vercelConfig();
     const fallback = cfg.routes.at(-1)!;
     expect(fallback.dest).toBe('/index.html');
     for (const h of ['content-security-policy', 'x-frame-options', 'x-content-type-options', 'referrer-policy', 'strict-transport-security']) {
@@ -155,6 +155,7 @@ describe('SEG-05/GER-15: cabeçalhos do site estático e /ready na função', ()
     expect(SECURITY_HEADERS['content-security-policy']).toContain("frame-ancestors 'none'");
     expect(cfg.routes.some((r) => r.headers === SECURITY_HEADERS && r.continue)).toBe(true);
     expect(new RegExp(cfg.routes.find((r) => r.dest === '/api')!.src!).test('/ready')).toBe(true);
+    expect(cfg.crons).toEqual([]); // ciclo diário na Vercel desativado
   });
 });
 

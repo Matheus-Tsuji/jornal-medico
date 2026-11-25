@@ -2,10 +2,9 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, it, vi } from 'vitest';
+import { expect, it } from 'vitest';
 import { articleListResponse } from '@jm/contracts';
 import { buildApp } from '../src/api/app.ts';
-import { throttle } from '../src/lib/net.ts';
 import { claim, defer, enqueue } from '../src/modules/jobs.ts';
 import { europePmcAdapter } from '../src/sources/europepmc.ts';
 import { pubmedAdapter } from '../src/sources/pubmed.ts';
@@ -57,26 +56,6 @@ it('rejeita respostas malformadas com contexto da fonte', async () => {
     expect(source.search('tema', '2026-11-23', '2026-11-24', 10)).rejects.toThrow(/contrato de resposta inválido/)));
 });
 
-it('espaça inícios mesmo quando uma chamada falha', async () => {
-  vi.useFakeTimers();
-  try {
-    vi.setSystemTime(0);
-    const wait = throttle(100);
-    const starts: number[] = [];
-    const call = async (fail: boolean) => {
-      await wait();
-      starts.push(Date.now());
-      if (fail) throw new Error('fonte indisponível');
-    };
-    const calls = Promise.allSettled([call(true), call(false), call(false)]);
-    await vi.advanceTimersByTimeAsync(200);
-    expect(await calls).toMatchObject([{ status: 'rejected' }, { status: 'fulfilled' }, { status: 'fulfilled' }]);
-    expect(starts).toEqual([0, 100, 200]);
-  } finally {
-    vi.useRealTimers();
-  }
-});
-
 it('adiar um job devolve a tentativa e libera a posse até o próximo horário', async () => {
   const { db } = await setup();
   const { id } = enqueue(db, 'compose', 'defer-contract', { date: '2026-11-24' });
@@ -92,7 +71,7 @@ it('adiar um job devolve a tentativa e libera a posse até o próximo horário',
   expect(claim(db, 'second')).toBeNull();
 });
 
-it('na Vercel avisa sobre a vitrine e protege o cron antes de recusá-lo sem Turso', () => {
+it('na Vercel avisa sobre a vitrine e responde 410 ao endpoint do cron desativado', () => {
   const directory = mkdtempSync(join(tmpdir(), 'indi-vercel-'));
   try {
     const result = execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', `
@@ -101,21 +80,18 @@ it('na Vercel avisa sobre a vitrine e protege o cron antes de recusá-lo sem Tur
       process.env.NODE_ENV = 'production';
       process.env.VERCEL = '1';
       process.env.DATABASE_URL = 'file:./data/unused-test.db';
-      process.env.CRON_SECRET = 'cron-de-teste-apenas';
       const warnings = [];
       console.warn = (line) => warnings.push(line);
       const { default: handler } = await import('./src/api/vercel.ts');
-      async function tick(authorization) {
+      async function tick() {
         const response = { statusCode: 200, setHeader() {}, end(body) { this.body = JSON.parse(body); } };
-        await handler({ url: '/api/v1/cron/tick', headers: { authorization } }, response);
+        await handler({ url: '/api/v1/cron/tick', headers: {} }, response);
         return response;
       }
       assert.ok(warnings.some((line) => line.includes('Modo vitrine efêmera')));
-      const denied = await tick('Bearer incorreto');
-      assert.equal(denied.statusCode, 401);
-      const authorized = await tick('Bearer cron-de-teste-apenas');
-      assert.equal(authorized.statusCode, 409);
-      assert.equal(authorized.body.code, 'needs_database');
+      const gone = await tick();
+      assert.equal(gone.statusCode, 410);
+      assert.equal(gone.body.code, 'cron_disabled');
     `], {
       cwd: join(import.meta.dirname, '..'),
       env: { ...process.env, TEMP: directory, TMP: directory, TMPDIR: directory },

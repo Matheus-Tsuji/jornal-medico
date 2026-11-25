@@ -17,8 +17,6 @@ const schema = z.object({
   DATABASE_URL: z.string().default('file:./data/journal.db'),
   /** Token do Turso quando DATABASE_URL é remoto (libsql://…). */
   DATABASE_AUTH_TOKEN: optStr,
-  /** Vercel Cron envia "Authorization: Bearer <CRON_SECRET>". */
-  CRON_SECRET: optStr,
   APP_TIMEZONE: z.string().default('America/Sao_Paulo'),
   EDITION_HOUR: z.string().regex(/^\d{2}:\d{2}$/).default('06:00'),
   BRAND_NAME: z.string().default('Index Discovery'),
@@ -65,8 +63,6 @@ export type Config = z.infer<typeof schema> & {
   sessionSecret: string; adminEmails: Set<string>; dbPath: string; emailLogin: boolean;
   /** Banco de vitrine em /tmp (sem Turso): o que os leitores salvam pode se perder. */
   ephemeral?: boolean;
-  /** Avisos de configuração para o log de boot (nunca contêm valores de segredo). */
-  warnings: string[];
 };
 
 /** Completa segredos ausentes com valores gerados uma vez e guardados no banco (tabela app_secrets). */
@@ -76,7 +72,9 @@ export function ensureSecrets(db: Db, cfg: Config): void {
     return db.get<{ value: string }>('SELECT value FROM app_secrets WHERE name = ?', name)!.value;
   };
   if (!cfg.sessionSecret) cfg.sessionSecret = get('session_secret');
-  if (!cfg.PAYMENT_WEBHOOK_SECRET) cfg.PAYMENT_WEBHOOK_SECRET = get('payment_webhook_secret');
+  // Em banco remoto o segredo nunca vai para o banco: sem a variável, o webhook simplesmente não existe (404).
+  const remote = /^(libsql|https?|wss?):\/\//.test(cfg.dbPath);
+  if (!cfg.PAYMENT_WEBHOOK_SECRET && !remote) cfg.PAYMENT_WEBHOOK_SECRET = get('payment_webhook_secret');
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -97,16 +95,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // Banco remoto (Turso): segredo guardado no próprio banco seria exposto junto com qualquer vazamento dele.
     if (/^(libsql|https?|wss?):\/\//.test(c.DATABASE_URL)) {
       if (!c.SESSION_SECRET) throw new Error('Produção com banco remoto exige SESSION_SECRET (32+ caracteres) no ambiente.');
-      if (!c.PAYMENT_WEBHOOK_SECRET) throw new Error('Produção com banco remoto exige PAYMENT_WEBHOOK_SECRET no ambiente.');
+      // O segredo do webhook só é necessário quando há cobrança real (o paywall exige gateway, nunca o sandbox).
+      if (c.PAYWALL_ENABLED && !c.PAYMENT_WEBHOOK_SECRET) throw new Error('PAYWALL_ENABLED exige PAYMENT_WEBHOOK_SECRET no ambiente.');
     }
     if (c.PAYWALL_ENABLED && c.PAYMENT_PROVIDER === 'sandbox') throw new Error('PAYWALL_ENABLED=true com PAYMENT_PROVIDER=sandbox não é permitido em produção (assinatura sem pagamento).');
   } else if (!['127.0.0.1', '::1', 'localhost'].includes(c.HOST)) {
     // Fora de produção há segredos fixos e caixa postal de desenvolvimento: nunca expor na rede.
     throw new Error(`NODE_ENV=${c.NODE_ENV} só pode escutar em loopback (HOST=127.0.0.1). Use NODE_ENV=production para expor.`);
   }
-  if (c.CRON_SECRET && c.CRON_SECRET.length < 16) throw new Error('CRON_SECRET precisa ter 16 caracteres ou mais.');
-  const warnings: string[] = [];
-  if (prod && !c.CRON_SECRET) warnings.push('CRON_SECRET ausente: o ciclo diário via /api/v1/cron/tick fica desligado (responde 401).');
   if (c.AUTH_EMAIL_PROVIDER === 'resend' && (!c.AUTH_EMAIL_API_KEY || !c.AUTH_EMAIL_FROM)) {
     throw new Error('AUTH_EMAIL_PROVIDER=resend exige AUTH_EMAIL_API_KEY e AUTH_EMAIL_FROM');
   }
@@ -127,6 +123,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     emailLogin: !(prod && c.AUTH_EMAIL_PROVIDER === 'console'),
     adminEmails: new Set(c.ADMIN_EMAILS.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)),
     dbPath,
-    warnings,
   };
 }

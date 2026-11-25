@@ -1,4 +1,4 @@
-// Entrada da Vercel: a mesma API Fastify como função Node, mais o cron que substitui o processo worker.
+// Entrada da Vercel: a mesma API Fastify como função Node (o cron do ciclo diário está desativado, ver abaixo).
 // O empacotamento (scripts/build-vercel.mjs) transforma este arquivo em .vercel/output/functions/api.func/index.mjs.
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { FastifyInstance } from 'fastify';
@@ -7,60 +7,69 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureSecrets, loadConfig } from '../config.ts';
 import { REPO_ROOT, isRemote, openDb } from '../db/index.ts';
-import { defaultDeps, runCycle } from '../worker/runner.ts';
 import { buildApp } from './app.ts';
-import { safeEqual } from '../lib/util.ts';
 
 // Na Vercel, fora de produção haveria segredos fixos de desenvolvimento e caixa postal com códigos: recusa subir.
 if (process.env.VERCEL && process.env.NODE_ENV !== 'production') throw new Error('Na Vercel, NODE_ENV precisa ser "production".');
 const cfg = loadConfig();
-for (const w of cfg.warnings) console.warn(JSON.stringify({ level: 'warn', msg: w }));
 // Sem Turso configurado, roda numa "vitrine": cópia do banco embutida no deploy (sem dados pessoais), copiada
 // para /tmp, o único lugar gravável. Funciona, mas o que os leitores salvam se perde quando a instância recicla.
 function vitrine(): string {
   const tmp = join(tmpdir(), 'jornal-vitrine.db');
   if (!existsSync(tmp)) copyFileSync(join(REPO_ROOT, 'apps/server/data/vitrine.db'), tmp);
   cfg.ephemeral = true;
-  console.warn(JSON.stringify({ level: 'warn', msg: 'Modo vitrine efêmera (/tmp): sem Turso, dados de leitores se perdem e o ciclo diário fica desligado.' }));
+  console.warn(JSON.stringify({ level: 'warn', msg: 'Modo vitrine efêmera (/tmp): sem Turso, dados de leitores se perdem.' }));
   return tmp;
 }
 const db = isRemote(cfg.dbPath) ? openDb(cfg.dbPath, cfg.DATABASE_AUTH_TOKEN) : openDb(vitrine());
 ensureSecrets(db, cfg);
 let app: Promise<FastifyInstance> | null = null;
 
-// Para de pegar jobs novos no corte abaixo: no ciclo real de 2026-11-16 as análises em curso terminaram até 74 s depois
-// do corte, e a função morre aos 300 s (maxDuration em build-vercel.mjs). Se morrer mesmo assim, o lease expira
-// e o próximo ciclo retoma o job.
-// 115 s + no máximo 4 chamadas de IA de 45 s (AI_CALL_TIMEOUT_MS) cabem nos 300 s da função.
-const CRON_BUDGET_MS = 115_000;
-
-const cronAuthorized = (header: string | undefined) => !!cfg.CRON_SECRET && !!header && safeEqual(header, `Bearer ${cfg.CRON_SECRET}`);
-
-async function cron(req: IncomingMessage, res: ServerResponse) {
-  res.setHeader('content-type', 'application/json');
-  if (!cronAuthorized(req.headers.authorization)) {
-    res.statusCode = 401;
-    res.end(JSON.stringify({ code: 'unauthorized' }));
-    return;
-  }
-  if (cfg.ephemeral) {
-    // Na vitrine o banco some quando a instância recicla: buscar e analisar aqui seria trabalho (e custo) perdido.
-    res.statusCode = 409;
-    res.end(JSON.stringify({ code: 'needs_database', message: 'Ciclo diário desligado na vitrine: conecte o Turso (docs/deploy-vercel.md).' }));
-    return;
-  }
-  try {
-    const result = await runCycle(db, cfg, defaultDeps(db, cfg), { workerId: `vercel:${process.pid}`, budgetMs: CRON_BUDGET_MS, concurrency: cfg.CYCLE_CONCURRENCY });
-    res.end(JSON.stringify({ ok: true, ...result }));
-  } catch (e) {
-    console.error(JSON.stringify({ level: 'error', msg: 'cron_failed', error: (e instanceof Error ? e.message : String(e)).slice(0, 300) }));
-    res.statusCode = 500;
-    res.end(JSON.stringify({ ok: false, code: 'cycle_failed' }));
-  }
-}
+// ---------------------------------------------------------------------------------------------------------------
+// CICLO DIÁRIO NA VERCEL — DESATIVADO (decisão do Matheus, 2026-11-25).
+// Não há cron na Vercel (scripts/vercel-config.mjs) e nenhuma rotina agendada roda o ciclo por aqui. O código abaixo
+// fica comentado só para a essência não se perder; para reativar: descomente, importe runCycle/defaultDeps/safeEqual,
+// devolva `crons` em scripts/vercel-config.mjs e restaure CRON_SECRET em config.ts. Ver docs/arquivo/.
+// ---------------------------------------------------------------------------------------------------------------
+// // Para de pegar jobs novos no corte abaixo: no ciclo real de 2026-11-16 as análises em curso terminaram até 74 s depois
+// // do corte, e a função morre aos 300 s (maxDuration em build-vercel.mjs). Se morrer mesmo assim, o lease expira
+// // e o próximo ciclo retoma o job.
+// // 115 s + no máximo 4 chamadas de IA de 45 s (AI_CALL_TIMEOUT_MS) cabem nos 300 s da função.
+// const CRON_BUDGET_MS = 115_000;
+//
+// const cronAuthorized = (header: string | undefined) => !!cfg.CRON_SECRET && !!header && safeEqual(header, `Bearer ${cfg.CRON_SECRET}`);
+//
+// async function cron(req: IncomingMessage, res: ServerResponse) {
+//   res.setHeader('content-type', 'application/json');
+//   if (!cronAuthorized(req.headers.authorization)) {
+//     res.statusCode = 401;
+//     res.end(JSON.stringify({ code: 'unauthorized' }));
+//     return;
+//   }
+//   if (cfg.ephemeral) {
+//     // Na vitrine o banco some quando a instância recicla: buscar e analisar aqui seria trabalho (e custo) perdido.
+//     res.statusCode = 409;
+//     res.end(JSON.stringify({ code: 'needs_database', message: 'Ciclo diário desligado na vitrine: conecte o Turso (docs/deploy-vercel.md).' }));
+//     return;
+//   }
+//   try {
+//     const result = await runCycle(db, cfg, defaultDeps(db, cfg), { workerId: `vercel:${process.pid}`, budgetMs: CRON_BUDGET_MS, concurrency: cfg.CYCLE_CONCURRENCY });
+//     res.end(JSON.stringify({ ok: true, ...result }));
+//   } catch (e) {
+//     console.error(JSON.stringify({ level: 'error', msg: 'cron_failed', error: (e instanceof Error ? e.message : String(e)).slice(0, 300) }));
+//     res.statusCode = 500;
+//     res.end(JSON.stringify({ ok: false, code: 'cycle_failed' }));
+//   }
+// }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  if (req.url?.startsWith('/api/v1/cron/tick')) return cron(req, res);
+  if (req.url?.startsWith('/api/v1/cron/tick')) {
+    // Quem ainda chamar o endpoint antigo recebe uma resposta clara em vez de um 404 confuso.
+    res.setHeader('content-type', 'application/json');
+    res.statusCode = 410;
+    res.end(JSON.stringify({ code: 'cron_disabled', message: 'O ciclo diário na Vercel está desativado.' }));
+    return;
+  }
   const a = await (app ??= buildApp({ db, cfg }).then(async (x) => (await x.ready(), x)));
   a.server.emit('request', req, res);
 }

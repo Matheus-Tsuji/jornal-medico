@@ -50,6 +50,17 @@ export interface GradeInput {
   retracted: boolean;
 }
 
+/** Entrada da nota a partir da análise e do resultado principal. Única montagem, usada por cards e pela ordenação. */
+export function gradeInputFor(p: Partial<AiAnalysis>, retracted: boolean, key: Record<string, unknown> | undefined, maxSample: number | null): GradeInput {
+  return {
+    design: p.studyDesign ?? 'unknown',
+    sampleSize: p.population?.sampleSize ?? maxSample ?? null,
+    hasPrecision: key ? key.ci_lower != null || key.p_raw != null : false,
+    flags: p.reviewFlags ?? [],
+    retracted,
+  };
+}
+
 export function gradeEvidence(i: GradeInput): { grade: EvidenceGrade; reasons: string[] } {
   if (i.retracted) return { grade: 'C3', reasons: ['Publicação retratada'] };
   const tier = TIER[i.design] ?? 'C';
@@ -69,8 +80,8 @@ export function scoreAnalyses(db: Db, analysisIds: string[]): Map<string, Scored
   const ph = analysisIds.map(() => '?').join(',');
   const rows = db.all<{ aid: string; payload: string; priority: number; retraction_status: string; stratum: string | null; cycle: string | null; precise: number; n_max: number | null }>(
     `SELECT a.id AS aid, a.payload, a.editorial_priority AS priority, ar.retraction_status,
-            (SELECT c.stratum FROM journal_classifications c WHERE c.journal_id = ar.journal_id ORDER BY c.imported_at DESC LIMIT 1) AS stratum,
-            (SELECT c.cycle FROM journal_classifications c WHERE c.journal_id = ar.journal_id ORDER BY c.imported_at DESC LIMIT 1) AS cycle,
+            (SELECT c.stratum FROM journal_classifications c WHERE c.journal_id = ar.journal_id AND c.stratum <> '' ORDER BY c.imported_at DESC LIMIT 1) AS stratum,
+            (SELECT c.cycle FROM journal_classifications c WHERE c.journal_id = ar.journal_id AND c.stratum <> '' ORDER BY c.imported_at DESC LIMIT 1) AS cycle,
             (SELECT (r.ci_lower IS NOT NULL OR r.p_raw IS NOT NULL) FROM evidence_results r WHERE r.analysis_id = a.id
               ORDER BY (r.estimate IS NULL), CASE r.outcome_type WHEN 'primary' THEN 0 ELSE 1 END, r.ord LIMIT 1) AS precise,
             (SELECT MAX(r.sample_size) FROM evidence_results r WHERE r.analysis_id = a.id) AS n_max
@@ -79,13 +90,7 @@ export function scoreAnalyses(db: Db, analysisIds: string[]): Map<string, Scored
   );
   return new Map(rows.map((r) => {
     const p = json<Partial<AiAnalysis>>(r.payload, {});
-    const g = gradeEvidence({
-      design: p.studyDesign ?? 'unknown',
-      sampleSize: p.population?.sampleSize ?? r.n_max ?? null,
-      hasPrecision: r.precise === 1,
-      flags: p.reviewFlags ?? [],
-      retracted: r.retraction_status === 'retracted',
-    });
+    const g = gradeEvidence(gradeInputFor(p, r.retraction_status === 'retracted', r.precise === 1 ? { ci_lower: 0, p_raw: null } : undefined, r.n_max));
     return [r.aid, { ...g, qualis: r.stratum ? { stratum: r.stratum, cycle: r.cycle ?? '' } : null, priority: r.priority }];
   }));
 }

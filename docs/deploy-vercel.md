@@ -17,7 +17,7 @@ Para o que os leitores salvam não se perder, ligue o Turso:
    npm run db:push
    ```
    Isso sobe a cópia limpa do banco local (análises, temas, Qualis, flags), sem sessões nem códigos de login.
-3. **Segredos (recomendado):** sem eles a API gera e guarda os segredos no próprio banco, mas aí um vazamento do banco expõe também o segredo. Gere três valores aleatórios (rode o comando três vezes) e cadastre em Settings → Environment Variables como `SESSION_SECRET`, `PAYMENT_WEBHOOK_SECRET` e `CRON_SECRET` (este último é obrigatório para o cron rodar):
+3. **Segredos (recomendado):** sem eles a API gera e guarda os segredos no próprio banco, mas aí um vazamento do banco expõe também o segredo. Com Turso, **`SESSION_SECRET` é obrigatório** (sem ele o servidor se recusa a subir). Gere um valor aleatório e cadastre em Settings → Environment Variables. `PAYMENT_WEBHOOK_SECRET` só é necessário quando houver cobrança real:
    ```bash
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```
@@ -32,7 +32,7 @@ Como fica em produção:
 | Site (React) | Vite em 5173 | Arquivos estáticos da Vercel (CDN) |
 | API (Fastify) | `npm run dev` em 8787 | Uma função Node (`/api/*` e `/health`), até 300 s |
 | Banco | Arquivo SQLite `data/journal.db` | **Turso** (SQLite na nuvem), via `libsql` |
-| Worker (fila) | `npm run worker` contínuo | **Vercel Cron** chamando `/api/v1/cron/tick` |
+| Worker (fila) | `npm run worker` contínuo | **Desativado na Vercel** (sem cron; ver docs/arquivo/rotina-diaria.DESATIVADA.md) |
 | Recomendador Python | Opcional | Não sobe; a API usa o recomendador em TypeScript |
 
 O empacotamento é feito por `npm run build:vercel` (`scripts/build-vercel.mjs`), que gera `.vercel/output` no formato Build Output API v3. O `vercel.json` já manda a Vercel rodar esse comando.
@@ -73,8 +73,7 @@ Para começar com o banco vazio, pule o passo 2 e crie o banco sem `--from-file`
 | DATABASE_URL | URL `libsql://…` do Turso |
 | `DATABASE_AUTH_TOKEN` | Token do Turso |
 | `SESSION_SECRET` | 32+ caracteres aleatórios |
-| `CRON_SECRET` | 16+ caracteres aleatórios (a Vercel envia no cron) |
-| `PAYMENT_WEBHOOK_SECRET` | Aleatório (obrigatório em produção com Turso; na vitrine pode ser gerado localmente) |
+| `PAYMENT_WEBHOOK_SECRET` | Aleatório; só com cobrança real (nunca é gravado no banco remoto) |
 | `AUTH_EMAIL_PROVIDER` | `resend` |
 | `AUTH_EMAIL_API_KEY` | Chave do Resend |
 | `AUTH_EMAIL_FROM` | Remetente de um domínio verificado no Resend |
@@ -91,7 +90,7 @@ Sem e-mail real, a API sobe só com acesso de visitante: o pedido de código res
    - `https://<seu-projeto>.vercel.app/health` deve responder `{"status":"ok"}`.
    - /ready deve responder pela API e confirmar a consulta ao banco.
    - Entre com um e-mail de `ADMIN_EMAILS` e confira as flags em `/admin/flags`.
-   - Em **Settings → Cron Jobs**, o job `/api/v1/cron/tick` deve aparecer. Dá para rodar manualmente por lá.
+   - Não há cron configurado: o ciclo diário está desativado (`/api/v1/cron/tick` responde 410).
 
 ## 3. Ciclo diário (retroalimentação automática)
 
@@ -104,7 +103,7 @@ Cada execução do cron chama `runCycle` (`apps/server/src/worker/runner.ts`), o
 
 Na Vercel, o ciclo para de pegar trabalho novo aos 115 s (a função vai até 300 s). O que sobra continua na próxima execução, com lease e idempotência: nada é perdido nem duplicado. No plano Hobby o cron roda 1 vez por dia; no Pro, `VERCEL_CRON_SCHEDULE="0 * * * *"` faz de hora em hora.
 
-**Requisitos para o ciclo rodar na Vercel:** banco permanente (Turso), `CRON_SECRET` e as variáveis da OpenAI. Na vitrine o cron responde `409 needs_database`, porque o que ele buscasse se perderia.
+**Desativado (2026-11-25):** nenhum cron roda o ciclo na Vercel. O código está comentado em `apps/server/src/api/vercel.ts` e as instruções para reativar estão em `scripts/vercel-config.mjs`. Rodar o ciclo hoje é manual (`npm run pipeline -- cycle`) ou pelo worker local.
 
 ## Limitações conhecidas
 

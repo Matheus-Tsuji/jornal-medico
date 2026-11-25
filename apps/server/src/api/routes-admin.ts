@@ -15,6 +15,8 @@ import { requireRole, type Ctx } from './app.ts';
 
 const dateParam = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) });
 
+const MAX_JOBS_PER_REQUEST = 3;
+
 export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   const editor = (req: Parameters<typeof requireRole>[0]) => requireRole(req, 'editor', 'admin');
   const admin = (req: Parameters<typeof requireRole>[0]) => requireRole(req, 'admin');
@@ -81,9 +83,11 @@ export async function adminRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     const { max } = adminProcessJobsInput.parse(req.body ?? {});
     const deps = defaultDeps(db, cfg);
     let n = 0;
-    // Evita iniciar mais trabalho quando a resposta já consumiu seu orçamento.
+    // Vai até MAX_JOBS_PER_REQUEST jobs por chamada, mesmo que `max` peça mais (o painel pede 5): cada análise de IA
+    // pode levar minutos e a função tem 300 s. O prazo só é conferido ANTES de iniciar cada job; um job em andamento
+    // termina (ou perde a posse e é retomado pelo próximo ciclo). `processed` diz quantos rodaram de fato.
     const deadline = Date.now() + 25_000;
-    while (n < Math.min(max, 3) && Date.now() < deadline && (await workOnce(db, cfg, deps, `api:${u.id}`))) n++;
+    while (n < Math.min(max, MAX_JOBS_PER_REQUEST) && Date.now() < deadline && (await workOnce(db, cfg, deps, `api:${u.id}`))) n++;
     return { processed: n };
   });
   app.get('/admin/jobs', async (req) => {
