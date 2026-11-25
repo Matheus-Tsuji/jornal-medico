@@ -117,3 +117,13 @@ export function importOfficial(db: Db, input: z.infer<typeof officialInput>) {
   storeDocuments(db, [item]);
   return item;
 }
+
+/** Lote de documentos oficiais lidos de páginas públicas (rotina diária). Mesma validação do cadastro do painel: um item ruim não derruba os outros. */
+export function importOfficialBatch(db: Db, raw: unknown): { id: string | null; status: 'imported' | 'rejected'; detail: string[] }[] {
+  const list = z.array(z.unknown()).parse(raw);
+  return list.map((entry) => {
+    const p = officialInput.safeParse(entry);
+    if (!p.success) return { id: null, status: 'rejected' as const, detail: p.error.issues.slice(0, 4).map((i) => `${i.path.join('.')}: ${i.message}`) };
+    return { id: importOfficial(db, p.data).id, status: 'imported' as const, detail: [] };
+  });
+}

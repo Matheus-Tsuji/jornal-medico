@@ -113,3 +113,10 @@ Na Vercel, o ciclo para de pegar trabalho novo aos 115 s (a função vai até 30
 - Sessões de visitante da vitrine têm expiração assinada. A revogação é local à cópia efêmera; outra instância pode recriar a sessão até esse horário.
 - Migrações revalidam a versão sob transação imediata e podem ser executadas separadamente com `npm run db:migrate`. A API síncrona de transação do libSQL usa o mesmo `BEGIN IMMEDIATE`; contenção, latência e semântica com múltiplas instâncias precisam ser confirmadas em um Turso de teste.
 - Os testes de Python e o recomendador continuam só no ambiente local e no CI.
+
+## Conteúdo novo vindo do Git (fusão da vitrine)
+O `npm run build:vercel` roda `npm run db:merge-vitrine` antes de montar o pacote. Em **produção** da Vercel, com o Turso
+configurado, ele funde `apps/server/data/vitrine.db` (o banco de trabalho da rotina diária, versionado no Git) no banco
+remoto, **só acrescentando** artigos e análises em rascunho. Usuários, assinaturas, edições e análises publicadas nunca
+são tocados. Em preview ou sem banco remoto o passo apenas avisa e sai; se falhar, o deploy segue e o log mostra
+`merge-vitrine FALHOU` (use `MERGE_STRICT=1` para o build falhar junto). Detalhes em `docs/rotina-diaria.md`.

@@ -11,7 +11,7 @@ import type { AiAnalysis } from '@jm/contracts';
 import { composeEdition } from '../modules/editorial.ts';
 import { defaultDeps, runCycle, schedule, workOnce } from './runner.ts';
 import { enqueue, requeue } from '../modules/jobs.ts';
-import { automaticSources, syncMonitor } from '../modules/monitor.ts';
+import { automaticSources, importOfficialBatch, syncMonitor } from '../modules/monitor.ts';
 import { discover } from './ingestion.ts';
 import { exportPending, importAnalyses } from '../ai/handoff.ts';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -50,6 +50,13 @@ switch (cmd) {
     // claude-import ARQUIVO: revalida e grava como rascunho (in_review/blocked); nunca publica.
     if (!arg) throw new Error('Uso: claude-import ARQUIVO.json');
     out(importAnalyses(db, JSON.parse(readFileSync(arg, 'utf8'))));
+    break;
+  }
+  case 'import-documents': {
+    // import-documents ARQUIVO.json: documentos oficiais lidos de páginas públicas (título, identificação e ementa LITERAIS,
+    // link https do órgão). Mesma validação do cadastro do painel; nada é buscado a partir dos links.
+    if (!arg) throw new Error('Uso: import-documents ARQUIVO.json');
+    out(importOfficialBatch(db, JSON.parse(readFileSync(arg, 'utf8'))));
     break;
   }
   case 'compose':
@@ -109,7 +116,7 @@ switch (cmd) {
     break;
   }
   default:
-    console.log('Uso: pipeline <monitor [FONTE] | discover TEMA | analyze ARTICLE_ID | compose [YYYY-MM-DD] | schedule | cycle [SEGUNDOS] | retry-blocked | claude-export ARQ [N] | claude-import ARQ | reanalyze | revalidate | run>');
+    console.log('Uso: pipeline <monitor [FONTE] | import-documents ARQ | discover TEMA | analyze ARTICLE_ID | compose [YYYY-MM-DD] | schedule | cycle [SEGUNDOS] | retry-blocked | claude-export ARQ [N] | claude-import ARQ | reanalyze | revalidate | run>');
     process.exitCode = 1;
 }
 db.close();
