@@ -338,3 +338,27 @@ section[id] { scroll-margin-top: 4.5rem; }
 .mobile-menu-link svg { color: var(--color-muted); }
 .mobile-menu-link.is-active { color: var(--color-primary); font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .mobile-menu[open] { animation: none; } }
+
+/* Perfil (tela 17 do Figma) e perfil público */
+.pf-card { display: grid; gap: 0.25rem; padding: 1.5rem; border-radius: 0.875rem; background: var(--color-surface); box-shadow: 0 1px 2px color-mix(in srgb, #000 6%, transparent); }
+.pf-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 1rem 1.25rem; padding-bottom: 0.75rem; }
+.pf-avatar { display: grid; place-items: center; width: 4rem; height: 4rem; flex: none; border-radius: 999px; background: var(--color-primary); color: var(--color-on-primary); font-family: var(--font-serif, serif); font-size: 1.75rem; font-weight: 700; }
+.pf-stats { display: flex; gap: 1.5rem; margin: 0; }
+.pf-stats dt { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); }
+.pf-stats dd { margin: 0; font-size: 1.5rem; font-weight: 700; }
+.pf-block { display: grid; gap: 0.35rem; padding: 0.85rem 0.75rem; border-radius: 0.625rem; }
+.pf-block-soft { background: var(--color-paper); border: 1px solid var(--color-line); }
+.pf-block-title { margin: 0; font-size: 0.9rem; font-weight: 700; }
+.pf-block-hint { margin: 0; font-size: 0.8rem; color: var(--color-muted); }
+.pf-add { justify-self: start; padding: 0; border: 0; background: none; color: var(--color-primary); font-size: 0.75rem; font-weight: 600; text-decoration: none; cursor: pointer; }
+.pf-add:hover { text-decoration: underline; }
+.pf-editor { display: grid; gap: 0.6rem; padding: 0.25rem 0.75rem 0.75rem; }
+.pf-callout { margin: 0 0 0.5rem; padding: 0.75rem; border-radius: 0.625rem; background: var(--color-primary-soft); font-size: 0.85rem; }
+.pf-public { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 1rem 1.25rem; border: 1px dashed var(--color-line); border-radius: 0.875rem; }
+.pf-tile { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 0.9rem; border: 1px solid var(--color-line); border-radius: 0.75rem; background: var(--color-surface); color: var(--color-ink); text-decoration: none; }
+.pf-tile:hover { border-color: var(--color-primary); }
+.pf-tile-letter { display: grid; place-items: center; width: 2rem; height: 2rem; flex: none; border-radius: 0.5rem; background: var(--color-primary-soft); color: var(--color-primary); font-weight: 700; font-size: 0.85rem; }
+.pf-link-btn { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.pf-link-btn:hover { text-decoration: underline; }
+.pf-pill { padding: 0.3rem 0.8rem; border: 1px solid var(--color-primary); border-radius: 999px; color: var(--color-primary); font-size: 0.8rem; font-weight: 600; text-decoration: none; }
+.pf-pill-solid { background: var(--color-primary); color: var(--color-on-primary); }

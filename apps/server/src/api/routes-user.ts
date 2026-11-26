@@ -1,7 +1,7 @@
 // Rotas do leitor autenticado: perfil, preferências, acervo pessoal, eventos, privacidade.
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { topicSlugParam, errorReportInput, feedbackInput, followTopicInput, readEventInput, updateMeInput, updatePreferencesInput, type Me } from '@jm/contracts';
+import { emptyProfileDetails, profileDetailsSchema, topicSlugParam, errorReportInput, feedbackInput, followTopicInput, readEventInput, updateMeInput, updatePreferencesInput, type Me, type PublicProfile } from '@jm/contracts';
 import { AppError, id, localDate, nowIso } from '../lib/util.ts';
 import { audit } from '../modules/audit.ts';
 import { revokeAllSessions } from '../modules/auth.ts';
@@ -10,6 +10,17 @@ import { cardMap, visibleAnalysisIdsForArticles } from '../modules/content.ts';
 import { requireUser, setSessionCookie, type Ctx } from './app.ts';
 
 const MAX_REPORTS_PER_DAY = 10;
+
+/** JSON gravado → perfil válido; qualquer coisa fora do contrato volta vazia em vez de quebrar a página. */
+function detailsOf(raw: string | null) {
+  if (!raw) return emptyProfileDetails;
+  try {
+    const p = profileDetailsSchema.safeParse(JSON.parse(raw));
+    return p.success ? p.data : emptyProfileDetails;
+  } catch {
+    return emptyProfileDetails;
+  }
+}
 
 export async function userRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   const me = (userId: string): Me => {
@@ -21,6 +32,7 @@ export async function userRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
       role: u.role as Me['role'],
       profile: (u.profile as string) ?? null,
       displayName: (u.display_name as string) ?? null,
+      details: detailsOf(u.profile_details as string | null),
       personalizationEnabled: u.personalization_enabled === 1,
       onboarded: !!u.onboarded_at,
       entitled: entitled(db, cfg, { id: userId, role: u.role as string }),
@@ -32,6 +44,32 @@ export async function userRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
   };
 
   app.get('/me', async (req) => me(requireUser(req).id));
+
+  // Perfil profissional: o usuário edita o próprio; visitante não tem perfil.
+  app.put('/me/details', async (req) => {
+    const u = requireUser(req);
+    if (u.isGuest) throw new AppError(403, 'guest_needs_email', 'Crie sua conta para montar seu perfil.');
+    const body = profileDetailsSchema.parse(req.body);
+    db.run('UPDATE users SET profile_details = ?, profile_public = ? WHERE id = ?', JSON.stringify(body), body.isPublic ? 1 : 0, u.id);
+    audit(db, u.id, 'profile.updated', 'user', u.id, { public: body.isPublic });
+    return me(u.id);
+  });
+
+  // Perfil de outro usuário: só existe para quem o tornou público. Nunca expõe e-mail nem atividade de leitura.
+  app.get('/profiles/:id', async (req): Promise<PublicProfile> => {
+    const { id: pid } = z.object({ id: z.string().max(64) }).parse(req.params);
+    const u = db.get<{ id: string; display_name: string | null; profile_details: string | null }>(
+      "SELECT id, display_name, profile_details FROM users WHERE id = ? AND is_guest = 0 AND status = 'active' AND profile_public = 1", pid,
+    );
+    if (!u) throw new AppError(404, 'not_found', 'Perfil não encontrado ou não é público.');
+    const d = detailsOf(u.profile_details);
+    return {
+      id: u.id, displayName: u.display_name ?? 'Leitor do Indi', headline: d.headline, about: d.about, education: d.education,
+      certificates: d.certificates, publications: d.publications, socials: d.socials,
+      interests: db.all<{ slug: string; label_pt: string }>('SELECT t.slug, t.label_pt FROM user_preferences p JOIN topics t ON t.id = p.topic_id WHERE p.user_id = ? AND p.follow = 1 ORDER BY t.sort', u.id)
+        .map((t) => ({ slug: t.slug, label: t.label_pt })),
+    };
+  });
 
   // Consulta opcional de sessão para páginas públicas: evita 401 esperado no console mantendo /me restrito.
   app.get('/session', async (req, reply) => {
@@ -159,7 +197,7 @@ export async function userRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     reply.header('content-disposition', 'attachment; filename="meus-dados-jornal-medico.json"');
     return {
       exportedAt: nowIso(),
-      user: db.get('SELECT CASE WHEN is_guest = 1 THEN NULL ELSE email END AS email, display_name, verified_at, is_guest, role, profile, personalization_enabled, onboarded_at, created_at FROM users WHERE id = ?', u.id),
+      user: db.get('SELECT CASE WHEN is_guest = 1 THEN NULL ELSE email END AS email, display_name, profile_details, profile_public, verified_at, is_guest, role, profile, personalization_enabled, onboarded_at, created_at FROM users WHERE id = ?', u.id),
       preferences: me(u.id).preferences,
       bookmarks: db.all('SELECT article_id, created_at FROM bookmarks WHERE user_id = ?', u.id),
       readEvents: db.all('SELECT article_id, kind, day FROM read_events WHERE user_id = ?', u.id),

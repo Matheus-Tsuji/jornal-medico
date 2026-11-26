@@ -31,6 +31,44 @@ export const verifyCodeInput = z.strictObject({
 
 export const professionalProfiles = ['medico', 'residente', 'estudante', 'outro'] as const;
 
+// ---------- Perfil profissional (opcional; público só se o próprio usuário ligar) ----------
+const httpsLink = z.string().trim().max(300).pipe(z.url()).refine((u) => u.startsWith('https://'), 'Use um link https://.');
+const line = (max: number) => z.string().trim().min(1).max(max);
+export const profileDetailsSchema = z.strictObject({
+  /** Especialidade e foco, ex.: "Cardiologia · Prevenção cardiovascular". */
+  headline: z.string().trim().max(120).nullable(),
+  about: z.string().trim().max(1500).nullable(),
+  education: z.array(line(160)).max(20),
+  certificates: z.array(line(160)).max(30),
+  /** Publicações informadas pelo próprio usuário (o Indi não confere). */
+  publications: z.array(z.strictObject({
+    title: line(250),
+    venue: z.string().trim().max(160).nullable(),
+    year: z.number().int().min(1900).max(2100).nullable(),
+    url: httpsLink.nullable(),
+  })).max(30),
+  socials: z.strictObject({ linkedin: httpsLink.nullable(), instagram: httpsLink.nullable(), orcid: httpsLink.nullable(), lattes: httpsLink.nullable() }),
+  isPublic: z.boolean(),
+});
+export type ProfileDetails = z.infer<typeof profileDetailsSchema>;
+export const emptyProfileDetails: ProfileDetails = {
+  headline: null, about: null, education: [], certificates: [], publications: [],
+  socials: { linkedin: null, instagram: null, orcid: null, lattes: null }, isPublic: false,
+};
+
+/** O que outro usuário vê de um perfil público (sem e-mail, sem atividade de leitura). */
+export interface PublicProfile {
+  id: string;
+  displayName: string;
+  headline: string | null;
+  about: string | null;
+  education: string[];
+  certificates: string[];
+  publications: ProfileDetails['publications'];
+  socials: ProfileDetails['socials'];
+  interests: { slug: string; label: string }[];
+}
+
 export const updateMeInput = z.strictObject({
   profile: z.enum(professionalProfiles).nullable().optional(),
   personalizationEnabled: z.boolean().optional(),
@@ -200,6 +238,8 @@ export interface Me {
   profile: string | null;
   /** Nome de exibição escolhido no cadastro; null para contas antigas e visitantes. */
   displayName: string | null;
+  /** Perfil profissional; vazio para visitante. */
+  details: ProfileDetails;
   personalizationEnabled: boolean;
   onboarded: boolean;
   entitled: boolean;
