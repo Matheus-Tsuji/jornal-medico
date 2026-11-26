@@ -55,6 +55,13 @@ export async function userRoutes(app: FastifyInstance, { db, cfg }: Ctx) {
     return me(u.id);
   });
 
+  // TEMPORÁRIO (2026-11-26): lista de perfis públicos para testar as telas. Só quem ligou "Perfil público"; sem e-mail.
+  app.get('/profiles', async () => ({
+    items: db.all<{ id: string; display_name: string | null; profile_details: string | null }>(
+      "SELECT id, display_name, profile_details FROM users WHERE profile_public = 1 AND is_guest = 0 AND status = 'active' ORDER BY display_name LIMIT 100",
+    ).map((u) => ({ id: u.id, displayName: u.display_name ?? 'Leitor do Indi', headline: detailsOf(u.profile_details).headline })),
+  }));
+
   // Perfil de outro usuário: só existe para quem o tornou público. Nunca expõe e-mail nem atividade de leitura.
   app.get('/profiles/:id', async (req): Promise<PublicProfile> => {
     const { id: pid } = z.object({ id: z.string().max(64) }).parse(req.params);

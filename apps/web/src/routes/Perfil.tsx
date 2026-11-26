@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, Link2, LogOut } from 'lucide-react';
+import { Eye, Link2, LogOut, Monitor, Moon, Sun, Type } from 'lucide-react';
 import { emptyProfileDetails, type ArticleCard, type Me, type ProfileDetails, type Source } from '@jm/contracts';
 import { api } from '../lib/api';
 import { useMe, useTopics } from '../lib/api';
@@ -183,18 +183,20 @@ export default function Perfil() {
         <Tile to="/assinatura" letter="A" title="Assinatura" hint={u.entitled ? 'Plano ativo' : 'Conheça os planos'} />
       </section>
 
-      <section aria-labelledby="aparencia" className="grid gap-1">
+      <section aria-labelledby="aparencia" className="grid gap-2">
         <h2 id="aparencia" className="pf-section-title">Aparência</h2>
-        <p className="m-0 flex flex-wrap items-center gap-2 text-sm">
-          <button type="button" onClick={prefs.cycleTheme} className="pf-link-btn">Tema: {themeLabel[prefs.theme]}</button>
-          <span aria-hidden>·</span>
-          <button type="button" onClick={prefs.cycleScale} className="pf-link-btn">Texto: {Math.round(Number(prefs.scale) * 100)}%</button>
-        </p>
+        {/* Botões (pedido do Matheus, 2026-11-26), como na versão anterior do perfil. */}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={prefs.cycleTheme} className="btn btn-ghost">
+            {prefs.theme === 'light' ? <Sun size={16} aria-hidden /> : prefs.theme === 'dark' ? <Moon size={16} aria-hidden /> : <Monitor size={16} aria-hidden />} Tema: {themeLabel[prefs.theme]}
+          </button>
+          <button type="button" onClick={prefs.cycleScale} className="btn btn-ghost"><Type size={16} aria-hidden /> Texto: {Math.round(Number(prefs.scale) * 100)}%</button>
+        </div>
       </section>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
         {u.role !== 'reader' ? <Link to="/admin" className="link">Painel editorial</Link> : <span />}
-        {hasSession && <button type="button" onClick={logout} className="pf-link-btn inline-flex items-center gap-1 text-primary"><LogOut size={14} aria-hidden /> Sair</button>}
+        {hasSession && <button type="button" onClick={logout} className="btn btn-danger"><LogOut size={16} aria-hidden /> Sair</button>}
       </div>
     </div>
   );

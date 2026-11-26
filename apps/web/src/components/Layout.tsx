@@ -52,7 +52,7 @@ function MobileMenu({ prefs }: { prefs: LayoutCtx }) {
     if (open && !d.open) d.showModal();
     if (!open && d.open) d.close();
   }, [open]);
-  const sections: [string, string][] = [['/jornal', 'Hoje'], ['/congressos', 'Congressos'], ...areas.map((a) => [`/areas/${a.slug}`, a.label] as [string, string]), ['/regulacao', 'Saúde pública e regulação'], ['/publicacoes', 'Publicações científicas']];
+  const sections: [string, string][] = [['/jornal', 'Hoje'], ['/congressos', 'Congressos'], ['/perfis', 'Perfis (teste)'], ...areas.map((a) => [`/areas/${a.slug}`, a.label] as [string, string]), ['/regulacao', 'Saúde pública e regulação'], ['/publicacoes', 'Publicações científicas']];
   return (
     <>
       {/* O .btn define display; o wrapper é que some no computador (md:hidden no próprio botão perdia para o .btn). */}
@@ -108,6 +108,14 @@ function MobileMenu({ prefs }: { prefs: LayoutCtx }) {
 // O cabeçalho NÃO muda de altura com a rolagem: no Safari (iOS e macOS), encolher o header pela posição do scroll
 // mudava a altura da página, que mudava o scroll, que desfazia o encolhimento (flicker). Agora o logo grande rola
 // normalmente e só a barra de seções fica presa no topo.
+/** "Fazer upgrade" (Figma 17): leva aos planos. Some só para quem já tem assinatura paga ativa. */
+function UpgradeButton() {
+  const me = useMe();
+  const cfg = useConfig();
+  if (cfg.data?.paywall && me.data?.entitled) return null;
+  return <Link to="/assinatura" className="btn btn-primary !min-h-10 !px-3.5 text-sm no-underline">Fazer upgrade</Link>;
+}
+
 function Masthead({ prefs }: { prefs: LayoutCtx }) {
   return (
     <>
@@ -115,7 +123,7 @@ function Masthead({ prefs }: { prefs: LayoutCtx }) {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 pt-4 pb-4 md:flex-wrap md:items-end md:pt-7 md:pb-6">
         {/* Encolhe com a rolagem só por transform (CSS, sem JS): a altura não muda, então o Safari não pisca. */}
         <Link to="/jornal" className="masthead-logo no-underline" aria-label="Indi — Index Discovery, edição de hoje"><span className="md:hidden"><IndiLogo height={48} /></span><span className="hidden md:block"><IndiLogo /></span></Link>
-        <MobileMenu prefs={prefs} />
+        <div className="flex items-center gap-2 md:hidden"><UpgradeButton /><MobileMenu prefs={prefs} /></div>
         <div className="hidden flex-wrap items-center gap-4 md:flex">
           <div className="flex gap-1.5">
             {/* Busca: só o lugar no layout por enquanto (pedido do Matheus, 2026-11-16). */}
@@ -125,6 +133,7 @@ function Masthead({ prefs }: { prefs: LayoutCtx }) {
               {prefs.theme === 'light' ? <Sun size={16} aria-hidden /> : prefs.theme === 'dark' ? <Moon size={16} aria-hidden /> : <Monitor size={16} aria-hidden />}
               {themeLabel[prefs.theme]}
             </button>
+            <UpgradeButton />
           </div>
           <ReaderCard />
         </div>
@@ -151,6 +160,8 @@ function AreaNav() {
       <div className="mx-auto max-w-6xl"><ScrollRow className="flex justify-center-safe px-2" label="seções">
         <NavLink to="/jornal" className={cls} end>Hoje</NavLink>
         <NavLink to="/congressos" className={cls}>Congressos</NavLink>
+        {/* TEMPORÁRIO (pedido do Matheus, 2026-11-26): lista de perfis públicos para testar as telas. Remover depois. */}
+        <NavLink to="/perfis" className={cls}>Perfis (teste)</NavLink>
         {areas.map((a) => (
           <NavLink key={a.slug} to={`/areas/${a.slug}`} className={cls}>
             {a.label}

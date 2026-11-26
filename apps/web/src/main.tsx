@@ -13,7 +13,7 @@ import Explorar from './routes/Explorar';
 import { Edicoes, Historico, Salvos } from './routes/Acervo';
 import Congressos from './routes/Congressos';
 import Perfil from './routes/Perfil';
-import PerfilPublico from './routes/PerfilPublico';
+import PerfilPublico, { ListaPerfis } from './routes/PerfilPublico';
 import Configuracoes from './routes/Configuracoes';
 import { Assinatura, SandboxCheckout } from './routes/Assinatura';
 import { CaixaDev, Metodologia, NaoEncontrado, Privacidade } from './routes/Paginas';
@@ -51,6 +51,7 @@ const router = createBrowserRouter([
       { path: '/temas/:slug', element: <Explorar /> },
       { path: '/perfil', element: <Perfil /> },
       { path: '/perfil/:id', element: <PerfilPublico /> },
+      { path: '/perfis', element: <ListaPerfis /> },
       { path: '/salvos', element: <Salvos /> },
       { path: '/historico', element: <Historico /> },
       { path: '/mais-lidos', element: <Navigate to="/jornal#em-alta" replace /> },

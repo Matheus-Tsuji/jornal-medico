@@ -150,7 +150,9 @@ test('visitante: entra sem e-mail e a barra de seções indica que há mais iten
   const sections = page.getByRole('navigation', { name: 'Seções' }).getByRole('link');
   await expect(sections.nth(0)).toHaveText('Hoje');
   await expect(sections.nth(1)).toHaveText('Congressos');
-  await expect(sections.nth(2)).toHaveText('Clínica médica');
+  // TEMPORÁRIO (2026-11-26): aba "Perfis (teste)"; ao removê-la, volte Clínica médica para nth(2).
+  await expect(sections.nth(2)).toHaveText('Perfis (teste)');
+  await expect(sections.nth(3)).toHaveText('Clínica médica');
   const more = page.getByRole('button', { name: 'Ver mais seções' });
   await expect(more).toBeVisible();
   await more.click();

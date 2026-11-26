@@ -71,3 +71,30 @@ export default function PerfilPublico() {
     </div>
   );
 }
+
+/** TEMPORÁRIO (2026-11-26): aba "Perfis (teste)" para abrir os perfis públicos e testar as telas. Remover depois. */
+export function ListaPerfis() {
+  const q = useQuery({ queryKey: ['/profiles'], queryFn: () => api<{ items: { id: string; displayName: string; headline: string | null }[] }>('/profiles') });
+  return (
+    <div className="mx-auto grid max-w-6xl gap-4 px-4 py-8">
+      <header className="grid gap-1">
+        <h1 className="m-0 font-serif text-3xl font-bold">Perfis (teste)</h1>
+        <p className="m-0 text-sm text-muted">Aba temporária para testar as telas. Aparecem só os perfis marcados como públicos. <Link to="/perfil" className="link">Abrir o meu perfil</Link></p>
+      </header>
+      {q.isLoading ? <Loading /> : (q.data?.items.length ?? 0) === 0
+        ? <p className="pf-card m-0 text-sm text-muted">Nenhum perfil público ainda. Em <Link to="/perfil" className="link">Meu perfil</Link>, marque "Perfil público" para o seu aparecer aqui.</p>
+        : (
+          <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
+            {q.data!.items.map((p) => (
+              <li key={p.id}>
+                <Link to={`/perfil/${p.id}`} className="pf-tile">
+                  <span className="pf-tile-letter" aria-hidden>{p.displayName[0]!.toUpperCase()}</span>
+                  <span className="grid"><span className="font-semibold">{p.displayName}</span><span className="text-xs text-muted">{p.headline ?? 'Sem especialidade informada'}</span></span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+    </div>
+  );
+}
