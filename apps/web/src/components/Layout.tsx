@@ -114,10 +114,21 @@ function UpgradeButton() {
   const me = useMe();
   const cfg = useConfig();
   if (me.isLoading) return null;
-  // Visitante: botão "Entrar" do Figma ("Cabeçalho · botão de login").
-  if (!me.data || me.data.isGuest) return <span className="login-card"><Link to="/entrar" className="btn btn-primary !min-h-10 !px-4 md:!min-h-11 md:!px-8 text-sm no-underline">Entrar</Link></span>;
   if (cfg.data?.paywall && me.data?.entitled) return null;
   return <Link to="/assinatura" className="btn btn-primary !min-h-10 !px-3.5 text-sm no-underline">Fazer upgrade</Link>;
+}
+
+/** Visitante: botão "Entrar" do Figma ("Cabeçalho · botão de login"). */
+function LoginButton() {
+  const me = useMe();
+  if (me.isLoading || (me.data && !me.data.isGuest)) return null;
+  return <span className="login-card"><Link to="/entrar" className="btn btn-primary !min-h-10 !px-4 md:!min-h-11 md:!px-8 text-sm no-underline">Entrar</Link></span>;
+}
+
+/** Celular: visitante vê Entrar; logado vê Fazer upgrade (os dois não cabem em 320px). */
+function MobileAction() {
+  const me = useMe();
+  return !me.data || me.data.isGuest ? <LoginButton /> : <UpgradeButton />;
 }
 
 function Masthead({ prefs }: { prefs: LayoutCtx }) {
@@ -127,9 +138,9 @@ function Masthead({ prefs }: { prefs: LayoutCtx }) {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 pt-4 pb-4 md:flex-wrap md:items-end md:pt-7 md:pb-6">
         {/* Encolhe com a rolagem só por transform (CSS, sem JS): a altura não muda, então o Safari não pisca. */}
         <Link to="/jornal" className="masthead-logo no-underline" aria-label="Indi — Index Discovery, edição de hoje"><span className="md:hidden"><IndiLogo height={48} /></span><span className="hidden md:block"><IndiLogo /></span></Link>
-        <div className="flex items-center gap-2 md:hidden"><UpgradeButton /><MobileMenu prefs={prefs} /></div>
+        <div className="flex items-center gap-2 md:hidden"><MobileAction /><MobileMenu prefs={prefs} /></div>
         <div className="hidden flex-wrap items-center gap-4 md:flex">
-          <div className="flex gap-1.5">
+          <div className="flex items-center gap-1.5">
             {/* Busca: só o lugar no layout por enquanto (pedido do Matheus, 2026-11-16). */}
             <button type="button" className="btn btn-ghost !min-h-11 !px-3" aria-label="Pesquisar (em breve)" title="Pesquisa em breve" aria-disabled="true"><Search size={18} aria-hidden /></button>
             <button type="button" onClick={prefs.cycleScale} className="btn btn-ghost !min-h-11 !px-3.5" aria-label={`Tamanho do texto: ${Math.round(Number(prefs.scale) * 100)}%`}>Aa</button>
@@ -138,6 +149,7 @@ function Masthead({ prefs }: { prefs: LayoutCtx }) {
               {themeLabel[prefs.theme]}
             </button>
             <UpgradeButton />
+            <LoginButton />
           </div>
           <ReaderCard />
         </div>
