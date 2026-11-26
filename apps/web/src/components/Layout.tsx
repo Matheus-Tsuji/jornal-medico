@@ -15,6 +15,7 @@ function ReaderCard() {
   if (me.isLoading) return <span className="h-14 w-72" aria-hidden />;
   const u = me.data;
   const guest = !u || u.isGuest;
+  if (guest) return null; // visitante vê só o botão Entrar
   const name = !u || u.isGuest ? 'Visitante' : u.displayName ?? u.email.split('@')[0]!;
   return (
     <div className="reader-card">
@@ -112,6 +113,9 @@ function MobileMenu({ prefs }: { prefs: LayoutCtx }) {
 function UpgradeButton() {
   const me = useMe();
   const cfg = useConfig();
+  if (me.isLoading) return null;
+  // Visitante: botão "Entrar" do Figma ("Cabeçalho · botão de login").
+  if (!me.data || me.data.isGuest) return <span className="login-card"><Link to="/entrar" className="btn btn-primary !min-h-10 !px-4 md:!min-h-11 md:!px-8 text-sm no-underline">Entrar</Link></span>;
   if (cfg.data?.paywall && me.data?.entitled) return null;
   return <Link to="/assinatura" className="btn btn-primary !min-h-10 !px-3.5 text-sm no-underline">Fazer upgrade</Link>;
 }

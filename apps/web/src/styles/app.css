@@ -390,3 +390,6 @@ section[id] { scroll-margin-top: 4.5rem; }
   .pf-inline-list { display: grid; }
   .pf-inline-list li + li::before { content: none; }
 }
+
+.login-card { display: inline-flex; }
+@media (min-width: 768px) { .login-card { padding: 0.5rem 0.75rem; border: 1px solid #e2d9c6; border-radius: 0.75rem; background: var(--color-surface, #fbf8f1); } }

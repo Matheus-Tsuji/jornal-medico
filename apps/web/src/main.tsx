@@ -4,7 +4,6 @@ import { createBrowserRouter, Navigate, RouterProvider } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './styles/app.css';
 import Layout from './components/Layout';
-import Landing from './routes/Landing';
 import Entrar from './routes/Entrar';
 import BoasVindas from './routes/BoasVindas';
 import Jornal from './routes/Jornal';
@@ -33,7 +32,7 @@ const qc = new QueryClient({
 });
 
 const router = createBrowserRouter([
-  { path: '/', element: <Landing /> },
+  { path: '/', element: <Navigate to="/jornal" replace /> },
   {
     element: <Layout />,
     children: [
