@@ -362,3 +362,31 @@ section[id] { scroll-margin-top: 4.5rem; }
 .pf-link-btn:hover { text-decoration: underline; }
 .pf-pill { padding: 0.3rem 0.8rem; border: 1px solid var(--color-primary); border-radius: 999px; color: var(--color-primary); font-size: 0.8rem; font-weight: 600; text-decoration: none; }
 .pf-pill-solid { background: var(--color-primary); color: var(--color-on-primary); }
+
+.pf-inline-list { display: flex; flex-wrap: wrap; gap: 0.15rem 0; margin: 0; padding: 0; list-style: none; font-size: 0.875rem; }
+.pf-inline-list li + li::before { content: '|'; margin: 0 0.6rem; color: var(--color-muted); }
+.pf-section-title { margin: 0; font-size: 0.95rem; font-weight: 700; }
+.pf-socials { display: flex; flex-wrap: wrap; margin: 0; font-size: 0.8rem; }
+.pf-socials a { color: var(--color-primary); text-decoration: none; }
+.pf-socials a + a::before { content: '·'; margin: 0 0.35rem; color: var(--color-primary); }
+.pf-shortcuts { gap: 0.6rem; }
+.pf-shortcuts > a { display: grid; gap: 0.1rem; color: var(--color-ink); text-decoration: none; }
+
+/* Celular (Figma "17 · Perfil … · celular"): números em linha sob o nome, títulos maiores, cartões cheios. */
+@media (max-width: 639px) {
+  .pf-card { padding: 1.1rem 1.1rem 1.25rem; border-radius: 0.75rem; }
+  .pf-head { gap: 0.9rem 1rem; }
+  .pf-avatar { width: 4.5rem; height: 4.5rem; }
+  .pf-stats { order: 3; width: 100%; justify-content: space-between; gap: 0.5rem; }
+  .pf-stats > div { display: flex; flex-direction: row-reverse; align-items: baseline; gap: 0.35rem; }
+  .pf-stats dt { font-size: 0.85rem; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--color-ink); }
+  .pf-stats dd { font-size: 0.85rem; }
+  .pf-block { padding: 0.9rem 0; gap: 0.4rem; }
+  .pf-block-soft { background: none; border: 0; }
+  .pf-block-title, .pf-section-title { font-size: 1.05rem; font-weight: 600; }
+  .pf-block-hint, .pf-block p { font-size: 0.9rem; }
+  .pf-add { font-size: 0.9rem; font-weight: 500; }
+  .pf-editor { padding: 0 0 0.75rem; }
+  .pf-inline-list { display: grid; }
+  .pf-inline-list li + li::before { content: none; }
+}

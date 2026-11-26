@@ -10,7 +10,7 @@ const socialLabel: Record<string, string> = { linkedin: 'LinkedIn', instagram: '
 export default function PerfilPublico() {
   const { id = '' } = useParams();
   const q = useQuery({ queryKey: ['/profiles', id], queryFn: () => api<PublicProfile>(`/profiles/${encodeURIComponent(id)}`), retry: false });
-  if (q.isLoading) return <div className="mx-auto max-w-3xl px-4"><Loading /></div>;
+  if (q.isLoading) return <div className="mx-auto max-w-6xl px-4"><Loading /></div>;
   if (!q.data) {
     return (
       <div className="mx-auto grid max-w-3xl gap-3 px-4 py-16 text-center">
@@ -24,21 +24,22 @@ export default function PerfilPublico() {
   const first = p.displayName.replace(/^(dr|dra)\.?\s+/i, '').split(' ')[0];
   const socials = Object.entries(p.socials).filter(([, v]) => v) as [string, string][];
   return (
-    <div className="mx-auto grid max-w-3xl gap-5 px-4 py-8">
+    <div className="mx-auto grid max-w-6xl gap-5 px-4 py-8">
       <div className="pf-card">
         <header className="pf-head">
           <span className="pf-avatar" aria-hidden>{p.displayName[0]!.toUpperCase()}</span>
           <div className="grid min-w-0 flex-1 gap-1">
             <h1 className="m-0 font-serif text-3xl font-bold">{p.displayName}</h1>
-            {p.headline && <p className="m-0 text-sm text-primary">{p.headline}</p>}
+            {p.headline && <p className="m-0 text-sm text-muted">{p.headline}</p>}
+            <p className="m-0 text-xs font-semibold text-primary">Perfil público</p>
             {socials.length > 0 && (
-              <p className="m-0 flex flex-wrap gap-3 text-xs">{socials.map(([k, v]) => <a key={k} href={v} target="_blank" rel="noopener noreferrer nofollow" className="link">{socialLabel[k] ?? k}</a>)}</p>
+              <p className="pf-socials">{socials.map(([k, v]) => <a key={k} href={v} target="_blank" rel="noopener noreferrer nofollow">{socialLabel[k] ?? k}</a>)}</p>
             )}
           </div>
         </header>
         {p.about && <section className="pf-block pf-block-soft"><h2 className="pf-block-title">Sobre {first}</h2><p className="m-0 whitespace-pre-line text-sm">{p.about}</p></section>}
         {p.education.length > 0 && <section className="pf-block"><h2 className="pf-block-title">Formação e especializações</h2><p className="m-0 text-sm">{p.education.join(' · ')}</p></section>}
-        {p.certificates.length > 0 && <section className="pf-block"><h2 className="pf-block-title">Certificados</h2><ul className="m-0 grid list-none gap-0.5 p-0 text-sm">{p.certificates.map((c) => <li key={c}>{c}</li>)}</ul></section>}
+        {p.certificates.length > 0 && <section className="pf-block"><h2 className="pf-block-title">Certificados</h2><ul className="pf-inline-list">{p.certificates.map((c) => <li key={c}>{c}</li>)}</ul></section>}
         {!p.about && !p.education.length && !p.certificates.length && <p className="pf-block-hint px-1">Este leitor ainda não preencheu o perfil profissional.</p>}
       </div>
 

@@ -24,14 +24,14 @@ function Tile({ to, letter, title, hint }: { to: string; letter: string; title: 
 }
 
 /** Bloco de seção: título, dica, conteúdo e o "+ Adicionar"/"Editar" que abre o editor no lugar. */
-function Block({ title, hint, filled, onEdit, canEdit, highlight, children }: {
-  title: string; hint: string; filled: boolean; onEdit: () => void; canEdit: boolean; highlight?: boolean; children?: React.ReactNode;
+function Block({ title, hint, filled, onEdit, canEdit, highlight, editLabel = 'Editar', children }: {
+  title: string; hint: string; filled: boolean; onEdit: () => void; canEdit: boolean; highlight?: boolean; editLabel?: string; children?: React.ReactNode;
 }) {
   return (
     <section className={`pf-block ${highlight ? 'pf-block-soft' : ''}`}>
       <h2 className="pf-block-title">{title}</h2>
       {filled ? children : <p className="pf-block-hint">{hint}</p>}
-      {canEdit && <button type="button" className="pf-add" onClick={onEdit}>{filled ? 'Editar' : '+ Adicionar'}</button>}
+      {canEdit && <button type="button" className="pf-add" onClick={onEdit}>{filled ? editLabel : '+ Adicionar'}</button>}
     </section>
   );
 }
@@ -60,10 +60,10 @@ export default function Perfil() {
   const sources = useQuery({ queryKey: ['/sources'], queryFn: () => api<Source[]>('/sources') });
   const save = useMutation({
     mutationFn: (d: ProfileDetails) => api<Me>('/me/details', { method: 'PUT', body: d }),
-    onSuccess: (m) => { qc.setQueryData(['/me'], m); qc.invalidateQueries({ queryKey: ['/me'] }); setEditing(null); },
+    onSuccess: (m) => { qc.setQueryData(['me'], m); setEditing(null); },
   });
 
-  if (me.isLoading) return <div className="mx-auto max-w-3xl px-4"><Loading /></div>;
+  if (me.isLoading) return <div className="mx-auto max-w-6xl px-4"><Loading /></div>;
   // Sem sessão: perfil de visitante (tudo vazio), em vez de mandar para o login.
   const u: Me = me.data ?? { id: 'visitante', email: '', isGuest: true, role: 'reader', profile: null, displayName: null, details: emptyProfileDetails, personalizationEnabled: false, onboarded: false, entitled: false, preferences: { topics: [], sources: [] } };
   const hasSession = !!me.data;
@@ -79,7 +79,7 @@ export default function Perfil() {
   const err = save.error instanceof Error ? save.error.message : null;
 
   return (
-    <div className="mx-auto grid max-w-3xl gap-5 px-4 py-8">
+    <div className="mx-auto grid max-w-6xl gap-5 px-4 py-8">
       {/* Identidade + perfil profissional */}
       <div className="pf-card">
         <header className="pf-head">
@@ -90,7 +90,7 @@ export default function Perfil() {
             <p className="m-0 text-sm text-muted">{u.isGuest ? 'Sessão de visitante, sem e-mail' : u.email}</p>
             <p className="m-0 text-xs text-primary">{role} · {u.entitled ? 'Assinante' : 'Plano gratuito'}</p>
             {socials.length > 0 && (
-              <p className="m-0 flex flex-wrap gap-3 text-xs">{socials.map(([k, v]) => <a key={k} href={v} target="_blank" rel="noopener noreferrer" className="link">{k === 'orcid' ? 'ORCID' : k[0]!.toUpperCase() + k.slice(1)}</a>)}</p>
+              <p className="pf-socials">{socials.map(([k, v]) => <a key={k} href={v} target="_blank" rel="noopener noreferrer">{k === 'orcid' ? 'ORCID' : k === 'linkedin' ? 'LinkedIn' : k[0]!.toUpperCase() + k.slice(1)}</a>)}</p>
             )}
             {canEdit && editing !== 'socials' && (
               <button type="button" className="pf-add inline-flex items-center gap-1" onClick={() => setEditing('socials')}><Link2 size={13} aria-hidden /> {socials.length ? 'Editar redes e especialidade' : 'Adicionar redes sociais'}</button>
@@ -109,18 +109,18 @@ export default function Perfil() {
           <p className="pf-callout">Você está como visitante. <Link to="/entrar" className="link font-semibold">Crie sua conta</Link> para montar seu perfil e guardar salvos e interesses em qualquer aparelho.</p>
         )}
 
-        <Block title="Sobre mim" hint="Descrição profissional e áreas de interesse." filled={!!d.about} canEdit={canEdit && editing !== 'about'} onEdit={() => setEditing('about')} highlight>
+        <Block title="Sobre mim" editLabel="Editar descrição" hint="Descrição profissional e áreas de interesse." filled={!!d.about} canEdit={canEdit && editing !== 'about'} onEdit={() => setEditing('about')} highlight>
           <p className="m-0 whitespace-pre-line text-sm">{d.about}</p>
         </Block>
         {editing === 'about' && <AboutEditor value={d.about ?? ''} saving={save.isPending} onCancel={() => setEditing(null)} onSave={(about) => put({ about: about || null })} />}
 
-        <Block title="Formação e especializações" hint="Formação, especialidades e áreas de atuação." filled={d.education.length > 0} canEdit={canEdit && editing !== 'education'} onEdit={() => setEditing('education')}>
+        <Block title="Formação e especializações" editLabel="Editar formação" hint="Formação, especialidades e áreas de atuação." filled={d.education.length > 0} canEdit={canEdit && editing !== 'education'} onEdit={() => setEditing('education')}>
           <p className="m-0 text-sm">{d.education.join(' · ')}</p>
         </Block>
         {editing === 'education' && <ListEditor value={d.education} placeholder={'Graduação em Medicina\nResidência em Clínica Médica'} saving={save.isPending} onCancel={() => setEditing(null)} onSave={(education) => put({ education })} />}
 
-        <Block title="Certificados" hint="Cursos e certificados profissionais." filled={d.certificates.length > 0} canEdit={canEdit && editing !== 'certificates'} onEdit={() => setEditing('certificates')}>
-          <ul className="m-0 grid list-none gap-0.5 p-0 text-sm">{d.certificates.map((c) => <li key={c}>{c}</li>)}</ul>
+        <Block title="Certificados" editLabel="Editar certificados" hint="Cursos e certificados profissionais." filled={d.certificates.length > 0} canEdit={canEdit && editing !== 'certificates'} onEdit={() => setEditing('certificates')}>
+          <ul className="pf-inline-list">{d.certificates.map((c) => <li key={c}>{c}</li>)}</ul>
         </Block>
         {editing === 'certificates' && <ListEditor value={d.certificates} placeholder="ACLS — 2025" saving={save.isPending} onCancel={() => setEditing(null)} onSave={(certificates) => put({ certificates })} />}
         {err && <p className="m-0 px-1 text-sm text-danger" role="alert">{err}</p>}
@@ -128,7 +128,7 @@ export default function Perfil() {
 
       {/* Publicações externas */}
       <div className="pf-card">
-        <Block title="Publicações externas" hint="Artigos em outras fontes, como ORCID e PubMed." filled={d.publications.length > 0} canEdit={canEdit && editing !== 'publications'} onEdit={() => setEditing('publications')}>
+        <Block title="Publicações externas" editLabel="Editar publicações" hint="Artigos em outras fontes, como ORCID e PubMed." filled={d.publications.length > 0} canEdit={canEdit && editing !== 'publications'} onEdit={() => setEditing('publications')}>
           <ul className="m-0 grid list-none gap-3 p-0">
             {d.publications.map((p, i) => (
               <li key={i} className="text-sm">
@@ -143,8 +143,8 @@ export default function Perfil() {
 
       {/* Fontes preferidas */}
       <div className="pf-card">
-        <Block title="Fontes preferidas" hint="Escolha periódicos e fontes para acompanhar." filled={mySources.length > 0} canEdit={canEdit} onEdit={() => nav('/configuracoes')}>
-          <p className="m-0 flex flex-wrap gap-2">{mySources.map((s) => <span key={s.slug} className="chip">{s.name}</span>)}</p>
+        <Block title="Fontes preferidas" editLabel="Editar fontes" hint="Escolha periódicos e fontes para acompanhar." filled={mySources.length > 0} canEdit={canEdit} onEdit={() => nav('/configuracoes')}>
+          <p className="m-0 text-sm">{mySources.map((s) => s.name).join(' · ')}</p>
         </Block>
       </div>
 
@@ -161,14 +161,22 @@ export default function Perfil() {
 
       {/* Interesses */}
       <section aria-labelledby="interesses" className="grid gap-1">
-        <h2 id="interesses" className="m-0 text-sm font-semibold">Seus interesses</h2>
+        <h2 id="interesses" className="pf-section-title">Seus interesses</h2>
         {interests.length
-          ? <p className="m-0 flex flex-wrap gap-2 pt-1">{interests.map((t) => <Link key={t.slug} to={`/temas/${t.slug}`} className="chip no-underline">{t.label}</Link>)}</p>
+          ? <p className="m-0 flex flex-wrap gap-2 pt-1">{interests.map((t, i) => <Link key={t.slug} to={`/temas/${t.slug}`} className={`pf-pill ${i === 0 ? 'pf-pill-solid' : ''}`}>{t.label}</Link>)}</p>
           : <p className="m-0 text-xs text-muted">Nenhum tema escolhido. Escolha temas para personalizar sua capa.</p>}
         <Link to="/configuracoes" className="pf-add">Editar interesses</Link>
       </section>
 
-      <section aria-label="Atalhos" className="grid gap-2 sm:grid-cols-2">
+      {/* Celular (Figma 17 · celular): um cartão só com Salvos, Histórico e os links. */}
+      <div className="sm:hidden">
+        <section aria-label="Atalhos" className="pf-card pf-shortcuts">
+          <Link to="/salvos"><span className="font-semibold">Salvos</span><span className="text-sm text-muted">{saved.data?.items.length ?? 0} estudos guardados</span></Link>
+          <Link to="/historico"><span className="font-semibold">Histórico</span><span className="text-sm text-muted">{history.data?.items.length ?? 0} {(history.data?.items.length ?? 0) === 1 ? 'leitura' : 'leituras'}</span></Link>
+          <p className="m-0 text-primary"><Link to="/configuracoes" className="text-primary">Preferências</Link> · <Link to="/assinatura" className="text-primary">Assinatura</Link></p>
+        </section>
+      </div>
+      <section aria-label="Atalhos" className="hidden gap-2 sm:grid sm:grid-cols-2">
         <Tile to="/salvos" letter="S" title="Salvos" hint={`${saved.data?.items.length ?? 0} estudos guardados`} />
         <Tile to="/historico" letter="H" title="Histórico" hint={`${history.data?.items.length ?? 0} leituras`} />
         <Tile to="/configuracoes" letter="P" title="Preferências" hint="Temas, fontes e personalização" />
@@ -176,7 +184,7 @@ export default function Perfil() {
       </section>
 
       <section aria-labelledby="aparencia" className="grid gap-1">
-        <h2 id="aparencia" className="kicker m-0 text-ink">Aparência</h2>
+        <h2 id="aparencia" className="pf-section-title">Aparência</h2>
         <p className="m-0 flex flex-wrap items-center gap-2 text-sm">
           <button type="button" onClick={prefs.cycleTheme} className="pf-link-btn">Tema: {themeLabel[prefs.theme]}</button>
           <span aria-hidden>·</span>
